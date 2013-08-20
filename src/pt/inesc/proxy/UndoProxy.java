@@ -44,8 +44,6 @@ public class UndoProxy {
     }
 
     public static void main(String[] args) throws Exception {
-
-
         // Parse command line options.
         int localPort = 9000;
         String remoteHost = "localhost";
