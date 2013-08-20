@@ -59,7 +59,6 @@ public class ClientHandler extends
      */
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("Client handler");
         if (outboundChannel.isActive()) {
             outboundChannel.writeAndFlush(msg).addListener(new ChannelFutureListener() {
                 @Override
