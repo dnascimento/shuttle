@@ -1,8 +1,12 @@
 package pt.inesc;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.UnknownHostException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,6 +21,15 @@ public class UndoServer
     private ServerSocket serverSocket = null;
 
     private static Logger log = LogManager.getLogger("UndoServer");
+
+
+
+
+
+
+
+
+
 
     public static void main(String[] args) {
         log = LogManager.getLogger("UndoServer");
@@ -34,20 +47,33 @@ public class UndoServer
 
     @Override
     public void run() {
-        openServerSocket();
-        while (!isStopped()) {
-            Socket clientSocket = null;
-            try {
-                clientSocket = serverSocket.accept();
-            } catch (IOException e) {
-                if (isStopped()) {
-                    System.out.println("Server Stopped.");
-                    return;
+        // Create socket to real server
+        InetAddress inteAddress;
+        try {
+            inteAddress = InetAddress.getByName(destinationHost);
+            SocketAddress destinationAddress = new InetSocketAddress(inteAddress,
+                    destinationPort);
+
+
+            openServerSocket();
+            while (!isStopped()) {
+                Socket clientSocket = null;
+                try {
+                    clientSocket = serverSocket.accept();
+                } catch (IOException e) {
+                    if (isStopped()) {
+                        System.out.println("Server Stopped.");
+                        return;
+                    }
+                    throw new RuntimeException("Error accepting client connection", e);
                 }
-                throw new RuntimeException("Error accepting client connection", e);
+                new Thread(new WorkerRunnable(clientSocket, destinationAddress)).start();
             }
-            new Thread(new WorkerRunnable(clientSocket, destinationHost, destinationPort)).start();
+
+        } catch (UnknownHostException e1) {
+            log.error("Destination host does not exisit: " + destinationHost);
         }
+
     }
 
     private synchronized boolean isStopped() {
