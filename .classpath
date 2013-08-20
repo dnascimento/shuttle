@@ -4,7 +4,7 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="lib/log4j-core-2.0-beta8.jar"/>
 	<classpathentry kind="lib" path="lib/log4j-api-2.0-beta8.jar"/>
-	<classpathentry kind="lib" path="lib/httpcore-nio-4.3.jar"/>
-	<classpathentry kind="lib" path="lib/httpcore-4.3.jar"/>
+	<classpathentry kind="lib" path="lib/netty-3.6.6.Final-sources.jar"/>
+	<classpathentry kind="lib" path="lib/netty-3.6.6.Final.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
