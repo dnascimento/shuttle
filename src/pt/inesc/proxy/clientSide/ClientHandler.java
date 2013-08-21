@@ -8,6 +8,9 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOption;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
 import pt.inesc.proxy.realSide.RealInit;
 
 /**
@@ -20,6 +23,7 @@ public class ClientHandler extends
     private final int remotePort;
 
     private volatile Channel outboundChannel;
+    public static AtomicInteger id = new AtomicInteger(0);
 
     public ClientHandler(String remoteHost, int remotePort) {
         this.remoteHost = remoteHost;
@@ -30,12 +34,11 @@ public class ClientHandler extends
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         final Channel inboundChannel = ctx.channel();
-
         // Start the connection attempt to real Server
         Bootstrap b = new Bootstrap();
         b.group(inboundChannel.eventLoop())
          .channel(ctx.channel().getClass())
-         .handler(new RealInit(inboundChannel))
+         .handler(new RealInit(inboundChannel, id.incrementAndGet()))
          .option(ChannelOption.AUTO_READ, false);
         ChannelFuture f = b.connect(remoteHost, remotePort);
         // channel to real server
@@ -60,6 +63,7 @@ public class ClientHandler extends
      */
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("req:" + id.get());
         if (outboundChannel.isActive()) {
             outboundChannel.writeAndFlush(msg).addListener(new ChannelFutureListener() {
                 @Override

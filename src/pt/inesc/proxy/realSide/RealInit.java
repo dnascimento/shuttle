@@ -12,9 +12,10 @@ public class RealInit extends
         ChannelInitializer<SocketChannel> {
 
     private Channel inboundChannel;
+    private int id;
 
 
-    public RealInit(Channel inboundChannel) {
+    public RealInit(Channel inboundChannel, int id) {
         this.inboundChannel = inboundChannel;
     }
 
@@ -23,6 +24,6 @@ public class RealInit extends
         // ch.pipeline().addLast(new LoggingHandler(LogLevel.INFO),
         // new HexDumpProxyFrontendHandler(remoteHost, remotePort));
         ch.pipeline().addLast(new LogRealHandler());
-        ch.pipeline().addLast(new RealHandler(inboundChannel));
+        ch.pipeline().addLast(new RealHandler(inboundChannel, id));
     }
 }

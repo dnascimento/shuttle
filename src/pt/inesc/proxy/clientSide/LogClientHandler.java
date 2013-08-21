@@ -20,12 +20,11 @@ public class LogClientHandler extends
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
-
         ByteBuf buf = (ByteBuf) msg;
 
         log.add(buf.toString(io.netty.util.CharsetUtil.US_ASCII));
 
-        if (log.size() == 100) {
+        if (log.size() == 1) {
             List<String> logToSave = log;
             log = Collections.synchronizedList(new ArrayList<String>());
             DataSaver saver = new DataSaver("req", logToSave, id.incrementAndGet());
