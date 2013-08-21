@@ -106,7 +106,6 @@ public class RedoWorker
 
                     responseReceived = false;
                     int contentLenght = 0;
-
                     // Get response
                     try {
                         while (!responseReceived && ((line = in.readLine()) != null)) {
