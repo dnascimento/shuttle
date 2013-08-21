@@ -3,7 +3,6 @@ package pt.inesc.proxy.clientSide;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.http.HttpServerCodec;
 
 
 
@@ -24,8 +23,8 @@ public class ClientInit extends
     @Override
     public void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline p = ch.pipeline();
-        p.addLast("codec", new HttpServerCodec());
-        // p.addLast("proxy", new ProxyHandler(remoteHost, remotePort));
-        p.addLast(new HTTPHandler(remoteHost, remotePort));
+        // p.addLast("codec", new HttpServerCodec());
+        p.addLast("proxy", new ProxyHandler(remoteHost, remotePort));
+        // p.addLast(new HTTPHandler(remoteHost, remotePort));
     }
 }
