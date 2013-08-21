@@ -35,8 +35,8 @@ import pt.inesc.proxy.clientSide.save.DataSaver;
 public class ProxyHandler extends
         ChannelInboundHandlerAdapter {
 
-    private static final int MAX_REQUEST_PER_FILE = 100;
-    private static final int MAX_RESPONSES_PER_FILE = 100;
+    private static final int MAX_REQUEST_PER_FILE = 10;
+    private static final int MAX_RESPONSES_PER_FILE = 10;
     private InetSocketAddress remoteHost = null;
     private Socket clientSocket = null;
     private BufferedWriter out;
@@ -94,7 +94,7 @@ public class ProxyHandler extends
         ByteBuf reqBuf = (ByteBuf) msg;
 
         String req = reqBuf.toString(io.netty.util.CharsetUtil.US_ASCII);
-
+        System.out.println("new request");
         int id = addRequest(req);
         // TODO Optimizar tornando o envio assincrono
         try {
@@ -202,7 +202,7 @@ public class ProxyHandler extends
         int id = ProxyHandler.id++;
         requests.add(request);
 
-        if (responses.size() > MAX_REQUEST_PER_FILE) {
+        if (requests.size() > MAX_REQUEST_PER_FILE) {
             LinkedList<String> requestsToSave = requests;
             requests = new LinkedList<String>();
             requestsMutex.unlock();
