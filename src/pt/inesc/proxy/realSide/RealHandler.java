@@ -15,9 +15,11 @@ public class RealHandler extends
         ChannelInboundHandlerAdapter {
 
     private final Channel inboundChannel;
+    private int id;
 
-    public RealHandler(Channel inboundChannel) {
+    public RealHandler(Channel inboundChannel, int id) {
         this.inboundChannel = inboundChannel;
+        this.id = id;
     }
 
     @Override
@@ -32,6 +34,7 @@ public class RealHandler extends
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
         // msg commes from ctx (Real server) and is written to inboundChannel
+        System.out.println("res:" + id);
         inboundChannel.writeAndFlush(msg).addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {

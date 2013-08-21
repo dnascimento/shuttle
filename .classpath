@@ -6,5 +6,6 @@
 	<classpathentry kind="lib" path="lib/log4j-api-2.0-beta8.jar"/>
 	<classpathentry kind="lib" path="lib/netty-all-4.0.7.Final-sources.jar"/>
 	<classpathentry kind="lib" path="lib/netty-all-4.0.7.Final.jar" sourcepath="/Users/darionascimento/.m2/repository/io/netty/netty-all/4.0.7.Final/netty-all-4.0.7.Final-sources.jar"/>
+	<classpathentry kind="lib" path="lib/httpclient-4.2.5.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -1,11 +1,9 @@
 package pt.inesc.proxy;
 
 import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,19 +33,20 @@ public class DataSaver extends
         } catch (InterruptedException e1) {
             e1.printStackTrace();
         }
-        StringBuilder builder = new StringBuilder();
-        for (String string : log) {
-            builder.append(string);
-            builder.append("================================\n");
+        File file = new File("requests/" + type + id + ".txt");
+        if (file.exists()) {
+            logger.error("ERRO!!!! File already exists");
+            return;
         }
-        Charset charset = Charset.forName("US-ASCII");
-        Path path = Paths.get("requests/" + type + id + ".txt");
-        BufferedWriter writer;
         try {
-            writer = Files.newBufferedWriter(path, charset);
-            writer.write(builder.toString());
-            writer.flush();
-            writer.close();
+            BufferedWriter out = new BufferedWriter(new FileWriter(file));
+            for (String string : log) {
+                string = string.replace("Connection: close", "");
+                out.write(string);
+                out.write("================================\n");
+            }
+            out.flush();
+            out.close();
         } catch (IOException e) {
             logger.error(e.getStackTrace());
         }

@@ -24,7 +24,7 @@ public class LogRealHandler extends
 
         log.add(buf.toString(io.netty.util.CharsetUtil.US_ASCII));
 
-        if (log.size() == 100) {
+        if (log.size() == 1) {
             List<String> logToSave = log;
             log = Collections.synchronizedList(new ArrayList<String>());
             DataSaver saver = new DataSaver("res", logToSave, id.incrementAndGet());
