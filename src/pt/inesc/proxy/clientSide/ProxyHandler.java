@@ -6,7 +6,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.HttpObjectDecoder;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -16,7 +15,6 @@ import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
@@ -38,15 +36,16 @@ public class ProxyHandler extends
     private static Logger logger = LogManager.getLogger("ProxyHandler");
 
 
-    public ProxyHandler(String remoteHostname, int remotePort) throws UnknownHostException {
+    public ProxyHandler(String remoteHostname, int remotePort) throws IOException {
         remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
                 remotePort);
         this.remotePort = remotePort;
+        connect();
+
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        connect();
     }
 
     private void connect() throws IOException {
@@ -70,7 +69,6 @@ public class ProxyHandler extends
      */
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("new request");
         String req = ((ByteBuf) msg).toString(io.netty.util.CharsetUtil.US_ASCII);
         out.write(req);
         out.flush();
@@ -116,14 +114,14 @@ public class ProxyHandler extends
             }
             sb.append(content);
         }
-        HttpObjectDecoder dec = new HttpObjectDecoder();
-        dec.System.out.println(sb.toString());
         if (msg.toString().contains("Connection: close")) {
             // Open the connection again
             connect();
-            ctx.close();
         }
 
+        ByteBuf data = Unpooled.copiedBuffer(sb.toString().getBytes());
+        ctx.channel().write(data);
+        ctx.channel().flush();
 
     }
 
