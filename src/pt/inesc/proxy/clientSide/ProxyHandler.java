@@ -41,7 +41,7 @@ public class ProxyHandler extends
             remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
                     remotePort);
             connect();
-            logger.info("New Handler");
+            // logger.info("New Handler");
         } catch (UnknownHostException e) {
             logger.error("handler: " + e.getStackTrace());
         }
@@ -53,7 +53,6 @@ public class ProxyHandler extends
 
     private void connect() {
         // Open socket to server and hold it
-        logger.info("New connection");
         try {
             clientSocket = new Socket(remoteHost.getAddress(), remoteHost.getPort());
             clientSocket.setKeepAlive(true);
@@ -144,7 +143,7 @@ public class ProxyHandler extends
         }
 
         ByteBuf data = Unpooled.copiedBuffer(sb.toString().getBytes());
-        ctx.channel().write(data);
+        ctx.channel().write(data).addListener(listener)
         ctx.channel().flush();
 
     }
