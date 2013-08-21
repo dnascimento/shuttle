@@ -3,6 +3,7 @@ package pt.inesc.proxy.clientSide;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -54,6 +55,7 @@ public class ProxyHandler extends
     private void connect() {
         // Open socket to server and hold it
         try {
+            // logger.info("new connection");
             clientSocket = new Socket(remoteHost.getAddress(), remoteHost.getPort());
             clientSocket.setKeepAlive(true);
             clientSocket.setSoTimeout(0);
@@ -77,7 +79,9 @@ public class ProxyHandler extends
      */
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) {
-        String req = ((ByteBuf) msg).toString(io.netty.util.CharsetUtil.US_ASCII);
+        ByteBuf reqBuf = (ByteBuf) msg;
+
+        String req = reqBuf.toString(io.netty.util.CharsetUtil.US_ASCII);
         try {
             out.write(req);
             out.flush();
@@ -143,9 +147,17 @@ public class ProxyHandler extends
         }
 
         ByteBuf data = Unpooled.copiedBuffer(sb.toString().getBytes());
-        ctx.channel().write(data).addListener(listener)
-        ctx.channel().flush();
-
+        ctx.channel().writeAndFlush(data).addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (future.isSuccess()) {
+                    ctx.channel().read();
+                } else {
+                    future.channel().close();
+                }
+            }
+        });
+        reqBuf.release();
     }
 
     @Override
