@@ -1,18 +1,4 @@
-/*
- * Copyright 2013 The Netty Project
- * 
- * The Netty Project licenses this file to you under the Apache License, version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may
- * obtain a copy of the License at:
- * 
- * http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software distributed under
- * the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-package pt.inesc.helloworld;
+package pt.inesc.proxy.clientSide;
 
 import static io.netty.handler.codec.http.HttpHeaders.is100ContinueExpected;
 import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
@@ -33,18 +19,32 @@ import io.netty.handler.codec.http.HttpHeaders.Values;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.util.CharsetUtil;
 
-public class HttpHelloWorldServerHandler extends
+import java.net.UnknownHostException;
+
+/**
+ * Handler for client requests (client side)
+ */
+public class HTTPHandler extends
         ChannelInboundHandlerAdapter {
+
     private static final ByteBuf CONTENT = Unpooled.unreleasableBuffer(Unpooled.copiedBuffer("Hello World",
                                                                                              CharsetUtil.US_ASCII));
+
+    public HTTPHandler(String remoteHostname, int remotePort) throws UnknownHostException {
+    }
+
 
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) {
         ctx.flush();
     }
 
+
+    /**
+     * Read request from Client and write to real
+     */
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof HttpRequest) {
             HttpRequest req = (HttpRequest) msg;
 
@@ -66,9 +66,12 @@ public class HttpHelloWorldServerHandler extends
         }
     }
 
+
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         cause.printStackTrace();
         ctx.close();
     }
+
+
 }
