@@ -20,6 +20,7 @@ public class ClientInit extends
         this.remotePort = remotePort;
     }
 
+    // Creates a new instance of handler per-channel
     @Override
     public void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline p = ch.pipeline();

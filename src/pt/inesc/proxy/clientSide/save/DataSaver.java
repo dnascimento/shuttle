@@ -1,10 +1,12 @@
-package pt.inesc.proxy;
+package pt.inesc.proxy.clientSide.save;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,27 +14,28 @@ import org.apache.logging.log4j.Logger;
 public class DataSaver extends
         Thread {
 
-    public List<String> log;
+    public Collection<String> log;
     public int id;
     private static Logger logger = LogManager.getLogger("DataSaver");
     private String type;
 
 
-    public DataSaver(String type, List<String> log, int id) {
-        super();
-        this.log = log;
+    public DataSaver(LinkedList<String> requests, int id) {
+        log = requests;
         this.id = id;
-        this.type = type;
+        type = "req";
+    }
+
+
+    public DataSaver(Map<Integer, String> responsesToSave, int id) {
+        log = responsesToSave.values();
+        this.id = id;
+        type = "res";
     }
 
 
     @Override
     public void run() {
-        try {
-            sleep(5000);
-        } catch (InterruptedException e1) {
-            e1.printStackTrace();
-        }
         File file = new File("requests/" + type + id + ".txt");
         if (file.exists()) {
             logger.error("ERRO!!!! File already exists");
@@ -48,7 +51,7 @@ public class DataSaver extends
             out.flush();
             out.close();
         } catch (IOException e) {
-            logger.error(e.getStackTrace());
+            logger.error(e.getMessage());
         }
     }
 }
