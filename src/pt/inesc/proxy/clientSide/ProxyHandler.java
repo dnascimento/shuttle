@@ -15,6 +15,7 @@ import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
@@ -26,8 +27,7 @@ import org.apache.logging.log4j.Logger;
 public class ProxyHandler extends
         ChannelInboundHandlerAdapter {
 
-    private final InetSocketAddress remoteHost;
-    private final int remotePort;
+    private InetSocketAddress remoteHost = null;
     private Socket clientSocket = null;
     private BufferedWriter out;
     private BufferedReader in;
@@ -36,25 +36,34 @@ public class ProxyHandler extends
     private static Logger logger = LogManager.getLogger("ProxyHandler");
 
 
-    public ProxyHandler(String remoteHostname, int remotePort) throws IOException {
-        remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
-                remotePort);
-        this.remotePort = remotePort;
-        connect();
-
+    public ProxyHandler(String remoteHostname, int remotePort) {
+        try {
+            remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
+                    remotePort);
+            connect();
+            logger.info("New Handler");
+        } catch (UnknownHostException e) {
+            logger.error("handler: " + e.getStackTrace());
+        }
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
     }
 
-    private void connect() throws IOException {
+    private void connect() {
         // Open socket to server and hold it
-        clientSocket = new Socket(remoteHost.getAddress(), remoteHost.getPort());
-        clientSocket.setKeepAlive(true);
-        clientSocket.setSoTimeout(0);
-        out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        logger.info("New connection");
+        try {
+            clientSocket = new Socket(remoteHost.getAddress(), remoteHost.getPort());
+            clientSocket.setKeepAlive(true);
+            clientSocket.setSoTimeout(0);
+            out = new BufferedWriter(new OutputStreamWriter(
+                    clientSocket.getOutputStream()));
+            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        } catch (IOException e) {
+            logger.error("connect: " + e.getStackTrace());
+        }
     }
 
 
@@ -68,10 +77,25 @@ public class ProxyHandler extends
      * Read request from Client and write to real
      */
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(final ChannelHandlerContext ctx, Object msg) {
         String req = ((ByteBuf) msg).toString(io.netty.util.CharsetUtil.US_ASCII);
-        out.write(req);
-        out.flush();
+        try {
+            out.write(req);
+            out.flush();
+        } catch (IOException e) {
+            logger.warn("ChannelReader: send to real fail. Reconnect");
+            connect();
+            try {
+                out.write(req);
+                out.flush();
+            } catch (IOException e1) {
+                logger.error("Giveup");
+                return;
+            }
+        }
+
+
+
         Boolean responseReceived = false;
         String line;
         int contentLenght = 0;
