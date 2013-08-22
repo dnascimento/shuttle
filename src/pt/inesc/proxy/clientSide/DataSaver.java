@@ -46,7 +46,7 @@ public class DataSaver extends
             for (String string : log) {
                 string = string.replace("Connection: close", "");
                 out.write(string);
-                out.write("================================\n");
+                out.write("\n================================\n");
             }
             out.flush();
             out.close();
