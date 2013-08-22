@@ -59,6 +59,8 @@ public class ProxyHandler extends
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        ctx.read();
+        ctx.write(Unpooled.EMPTY_BUFFER);
     }
 
     private void connect() {
@@ -91,7 +93,6 @@ public class ProxyHandler extends
         ByteBuf reqBuf = (ByteBuf) msg;
 
         String req = reqBuf.toString(io.netty.util.CharsetUtil.UTF_8);
-        System.out.println("new request");
         System.out.println(req);
         int id = addRequest(req);
         // TODO Optimizar tornando o envio assincrono
@@ -167,6 +168,7 @@ public class ProxyHandler extends
             }
         });
         reqBuf.release();
+        ctx.read();
     }
 
     @Override

@@ -4,6 +4,8 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
 
 
 
@@ -25,7 +27,9 @@ public class ClientInit extends
     @Override
     public void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline p = ch.pipeline();
-        p.addLast(new HttpObjectAggregator(1048576), new ProxyHandler(remoteHost,
-                remotePort));
+        p.addLast(new HttpRequestDecoder(),
+                  new HttpObjectAggregator(1048576),
+                  new HttpResponseEncoder(),
+                  new ProxyHandler(remoteHost, remotePort));
     }
 }
