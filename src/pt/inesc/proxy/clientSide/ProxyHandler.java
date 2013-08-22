@@ -33,8 +33,7 @@ import org.apache.logging.log4j.Logger;
 public class ProxyHandler extends
         ChannelInboundHandlerAdapter {
 
-    private static final int MAX_REQUEST_PER_FILE = 10;
-    private static final int MAX_RESPONSES_PER_FILE = 10;
+    private static final int MAX_MESSAGES_PER_FILE = 10;
     private InetSocketAddress remoteHost = null;
     private Socket clientSocket = null;
     private BufferedWriter out;
@@ -206,7 +205,7 @@ public class ProxyHandler extends
 
     public synchronized static void addResponse(String response, int id) {
         responses.put(id, response);
-        if (responses.size() > MAX_RESPONSES_PER_FILE) {
+        if (responses.size() > MAX_MESSAGES_PER_FILE) {
             Map<Integer, String> responsesToSave = responses;
             responses = new HashMap<Integer, String>();
 
