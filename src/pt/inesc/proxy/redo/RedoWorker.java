@@ -11,11 +11,9 @@ import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.LinkedList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,13 +28,16 @@ public class RedoWorker
     private BufferedReader in;
 
     private BufferedReader requestFile;
-    BufferedReader responseFile;
+    private BufferedReader responseFile;
+    private LinkedList<File> requestList;
+    private LinkedList<File> responseList;
+    private String originalCookie;
 
     private static final String DIRECTOY = "./requests/";
 
     private static Logger logger = LogManager.getLogger("RedoWorker");
 
-    public static Map<String, String> cookiesMap = new HashMap<String, String>();
+    public static CookieMan cookieManager = new CookieMan();
 
     public RedoWorker(int start, int end, String remoteHostname, int remotePort) throws IOException {
         super();
@@ -60,71 +61,73 @@ public class RedoWorker
     @Override
     public void run() {
         System.out.println("time:" + new Date().getTime());
-        // Read requests from directory
-        File folder = new File(DIRECTOY);
-        File[] listOfFiles = folder.listFiles();
-        // TODO Ordenar os ficheiros por ID
 
-        String filename;
-        int id;
-        for (File file : listOfFiles) {
-            filename = file.getName();
-            if (filename.startsWith("req")) {
-                id = Integer.parseInt(filename.replaceAll("\\D+", ""));
-                if (id >= start && id < end) {
-                    try {
-                        processFile(file, id);
-                    } catch (IOException e) {
-                        logger.error("Run: " + e.getMessage());
-                    }
-                }
+        // List and sort all request files
+        requestList = getFileList("req");
+        // List and sort all response files
+        responseList = getFileList("res");
+
+
+        // start
+        for (File file : requestList) {
+            try {
+                processFile(file);
+            } catch (FileNotFoundException e) {
+                logger.error("RedoWorkeer:79:" + e.getMessage());
+                e.printStackTrace();
             }
         }
         System.out.println("time:" + new Date().getTime());
-
     }
 
-    private void processFile(File file, int id) throws FileNotFoundException {
-        requestFile = new BufferedReader(new FileReader(file));
-        File response = new File(DIRECTOY + "res" + id + ".txt");
-        responseFile = new BufferedReader(new FileReader(response));
-        dataProcessing();
-    }
+
+
+
 
 
     private String getNextResponse() throws IOException {
+        if (responseFile == null) {
+            File resFile = responseList.pollFirst();
+            responseFile = new BufferedReader(new FileReader(resFile));
+        }
+        originalCookie = "";
         String line = null;
         StringBuilder sb = new StringBuilder();
         while ((line = responseFile.readLine()) != null) {
+            sb.append(line);
             if (line.equals("================================")) {
                 return sb.toString();
+            } else if (line.startsWith("Set-Cookie:")) {
+                // Got a Cookie
+                originalCookie = line.replace("Set-Cookie:", "");
             }
         }
+        // Last request, file is done
+        responseFile.close();
+        responseFile = null;
         return sb.toString();
-
-
-        // TODO Suportar o fim do ficheiro quer de requests quer de responses
-
     }
 
-    private void dataProcessing() {
+    private void processFile(File file) throws FileNotFoundException {
+        requestFile = new BufferedReader(new FileReader(file));
         String line = null;
         StringBuilder sb = new StringBuilder();
         Boolean responseReceived = false;
         try {
             while ((line = requestFile.readLine()) != null) {
                 // Cookies converter
-                if (line.startsWith("Set-Cookie:")) {
+                if (line.startsWith("Cookie:")) {
                     System.out.println(line);
-                    line = line.replace("Set-Cookie:", "");
-                    line = "Set-Cookie:" + getCookie(line);
+                    line = line.replace("Cookie:", "");
+                    line = "Cookie:" + cookieManager.toNewRequest(line);
                 }
                 if (line.equals("================================")) {
                     String request = sb.toString();
                     // Full Request done
 
                     // Send to server
-                    // System.out.println(request);
+                    request = request.substring(0, request.length() - 1);
+                    System.out.println(request);
                     try {
                         out.write(request);
                         out.flush();
@@ -136,47 +139,41 @@ public class RedoWorker
                         out.flush();
                     }
 
-
-                    String originalResponse = getNextResponse();
+                    getNextResponse();
 
                     responseReceived = false;
                     int contentLenght = 0;
+
+
+
+
+
+                    StringBuilder responseB = new StringBuilder();
                     // Get response
                     try {
                         while (!responseReceived && ((line = in.readLine()) != null)) {
-                            // System.out.println(line);
-                            // TODO Response Filters
-                            // Translate response
                             if (line.startsWith("Content-Length:")) {
                                 contentLenght = Integer.parseInt(line.replaceAll("\\D+",
                                                                                  ""));
+                            } else if (line.startsWith("Set-Cookie:")) {
+                                String cookie = line.replace("Set-Cookie:", "");
+                                // header is done
+                                cookieManager.fromNewResponse(cookie, originalCookie);
+                            }
 
-                            } else if (line.equals("")) {
+                            else if (line.equals("")) {
                                 responseReceived = true;
                             }
+                            responseB.append(line + "\n");
                         }
                     } catch (NumberFormatException e) {
                         logger.error("Wrong conent lenght: " + line);
                     } catch (IOException e) {
                         logger.error("Error Reading remote socket: ");
                     }
-                    // header is done
-                    String header = sb.toString();
-                    Pattern p = Pattern.compile("Set-Cookie:\\d+");
-                    Matcher m = p.matcher(header);
-                    String newCookie = null;
-                    if (m.find()) {
-                        newCookie = m.group(1);
-                    }
-                    p = Pattern.compile("Set-Cookie:\\d+");
-                    m = p.matcher(originalResponse);
-                    String original = null;
-                    if (m.find()) {
-                        original = m.group(1);
-                    }
-                    if (newCookie != null || original != null) {
-                        addNewCookie(newCookie, original);
-                    }
+
+                    System.out.println("RESPONSE:-----------------------");
+                    System.out.println(responseB.toString());
 
                     if (contentLenght != 0) {
                         char[] buffer = new char[contentLenght];
@@ -187,7 +184,6 @@ public class RedoWorker
                         } catch (IOException e) {
                             logger.error("Content Reading error:" + e.getMessage());
                         }
-                        // System.out.println(buffer);
                     }
 
                     if (request.contains("Connection: close")) {
@@ -196,27 +192,43 @@ public class RedoWorker
                     }
 
                     sb = new StringBuilder();
+                    System.out.println("NEW REQUEST---------------------------------------");
+
                 } else {
                     sb.append(line + "\n");
                 }
             }
             requestFile.close();
-            responseFile.close();
         } catch (IOException e) {
             logger.error("File Reading error:" + e.getMessage());
         }
     }
 
-    private synchronized static void addNewCookie(String newCookie, String original) {
-        cookiesMap.put(original, newCookie);
-    }
+
 
     /**
-     * @param original
-     * @return New Cookie session
+     * Sort by ID all directory file start by "startBy"
+     * 
+     * @param startBy
+     * @return
      */
-    private synchronized static String getCookie(String original) {
-        return cookiesMap.get(original);
+    private LinkedList<File> getFileList(String startBy) {
+        // Read requests from directory
+        File folder = new File(DIRECTOY);
+        LinkedList<File> listOfFiles = new LinkedList<File>();
+        int id;
+        String filename;
+        for (File file : folder.listFiles()) {
+            filename = file.getName();
+            if (filename.startsWith(startBy)) {
+                id = Integer.parseInt(filename.replaceAll("\\D+", ""));
+                if (id >= start && id < end) {
+                    listOfFiles.add(file);
+                }
+            }
+        }
+        Collections.sort(listOfFiles, new FileComparator());
+        return listOfFiles;
     }
 
 }

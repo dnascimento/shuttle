@@ -6,6 +6,8 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
+import java.io.File;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -27,6 +29,10 @@ public class UndoProxy {
     public void run() throws Exception {
         log.info("Proxying *:" + localPort + " to " + remoteHost + ':' + remotePort
                 + " ...");
+
+        File requestsFolder = new File("./requests");
+        requestsFolder.deleteOnExit();
+        requestsFolder.mkdir();
 
         // Configure the bootstrap.
         EventLoopGroup bossGroup = new NioEventLoopGroup();
