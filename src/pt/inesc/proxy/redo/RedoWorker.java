@@ -14,6 +14,8 @@ import java.net.Socket;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,6 +28,9 @@ public class RedoWorker
     protected Socket clientSocket = null;
     private BufferedWriter out;
     private BufferedReader in;
+
+    private BufferedReader requestFile;
+    BufferedReader responseFile;
 
     private static final String DIRECTOY = "./requests/";
 
@@ -58,6 +63,8 @@ public class RedoWorker
         // Read requests from directory
         File folder = new File(DIRECTOY);
         File[] listOfFiles = folder.listFiles();
+        // TODO Ordenar os ficheiros por ID
+
         String filename;
         int id;
         for (File file : listOfFiles) {
@@ -66,9 +73,9 @@ public class RedoWorker
                 id = Integer.parseInt(filename.replaceAll("\\D+", ""));
                 if (id >= start && id < end) {
                     try {
-                        processFile(file);
+                        processFile(file, id);
                     } catch (IOException e) {
-                        logger.error(e.getStackTrace());
+                        logger.error("Run: " + e.getMessage());
                     }
                 }
             }
@@ -77,19 +84,44 @@ public class RedoWorker
 
     }
 
-    private void processFile(File file) throws FileNotFoundException {
-        BufferedReader reader = new BufferedReader(new FileReader(file));
+    private void processFile(File file, int id) throws FileNotFoundException {
+        requestFile = new BufferedReader(new FileReader(file));
+        File response = new File(DIRECTOY + "res" + id + ".txt");
+        responseFile = new BufferedReader(new FileReader(response));
+        dataProcessing();
+    }
+
+
+    private String getNextResponse() throws IOException {
+        String line = null;
+        StringBuilder sb = new StringBuilder();
+        while ((line = responseFile.readLine()) != null) {
+            if (line.equals("================================")) {
+                return sb.toString();
+            }
+        }
+        return sb.toString();
+
+
+        // TODO Suportar o fim do ficheiro quer de requests quer de responses
+
+    }
+
+    private void dataProcessing() {
         String line = null;
         StringBuilder sb = new StringBuilder();
         Boolean responseReceived = false;
         try {
-            while ((line = reader.readLine()) != null) {
+            while ((line = requestFile.readLine()) != null) {
+                // Cookies converter
+                if (line.startsWith("Set-Cookie:")) {
+                    System.out.println(line);
+                    line = line.replace("Set-Cookie:", "");
+                    line = "Set-Cookie:" + getCookie(line);
+                }
                 if (line.equals("================================")) {
                     String request = sb.toString();
                     // Full Request done
-                    // TODO Cookies converter
-
-
 
                     // Send to server
                     // System.out.println(request);
@@ -104,6 +136,9 @@ public class RedoWorker
                         out.flush();
                     }
 
+
+                    String originalResponse = getNextResponse();
+
                     responseReceived = false;
                     int contentLenght = 0;
                     // Get response
@@ -115,22 +150,34 @@ public class RedoWorker
                             if (line.startsWith("Content-Length:")) {
                                 contentLenght = Integer.parseInt(line.replaceAll("\\D+",
                                                                                  ""));
-                            } else if (line.contains("Set-Cookie:")) {
-                                line = line.replace("Set-Cookie", "");
-                                // TODO get old response
-                                // TODO get old cookie
-                                // TODO save to table
 
                             } else if (line.equals("")) {
                                 responseReceived = true;
                             }
                         }
                     } catch (NumberFormatException e) {
-                        logger.error("Wrong File number: " + file.getAbsolutePath());
+                        logger.error("Wrong conent lenght: " + line);
                     } catch (IOException e) {
                         logger.error("Error Reading remote socket: ");
                     }
                     // header is done
+                    String header = sb.toString();
+                    Pattern p = Pattern.compile("Set-Cookie:\\d+");
+                    Matcher m = p.matcher(header);
+                    String newCookie = null;
+                    if (m.find()) {
+                        newCookie = m.group(1);
+                    }
+                    p = Pattern.compile("Set-Cookie:\\d+");
+                    m = p.matcher(originalResponse);
+                    String original = null;
+                    if (m.find()) {
+                        original = m.group(1);
+                    }
+                    if (newCookie != null || original != null) {
+                        addNewCookie(newCookie, original);
+                    }
+
                     if (contentLenght != 0) {
                         char[] buffer = new char[contentLenght];
                         try {
@@ -153,9 +200,23 @@ public class RedoWorker
                     sb.append(line + "\n");
                 }
             }
-            reader.close();
+            requestFile.close();
+            responseFile.close();
         } catch (IOException e) {
             logger.error("File Reading error:" + e.getMessage());
         }
     }
+
+    private synchronized static void addNewCookie(String newCookie, String original) {
+        cookiesMap.put(original, newCookie);
+    }
+
+    /**
+     * @param original
+     * @return New Cookie session
+     */
+    private synchronized static String getCookie(String original) {
+        return cookiesMap.get(original);
+    }
+
 }

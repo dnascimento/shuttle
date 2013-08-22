@@ -27,8 +27,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.inesc.proxy.clientSide.save.DataSaver;
-
 /**
  * Handler for client requests (client side)
  */
@@ -201,14 +199,6 @@ public class ProxyHandler extends
         // Exclusive zone
         int id = ProxyHandler.id++;
         requests.add(request);
-
-        if (requests.size() > MAX_REQUEST_PER_FILE) {
-            LinkedList<String> requestsToSave = requests;
-            requests = new LinkedList<String>();
-            requestsMutex.unlock();
-            new DataSaver(requestsToSave, id).start();
-            return id;
-        }
         requestsMutex.unlock();
         return id;
     }
@@ -219,12 +209,16 @@ public class ProxyHandler extends
         if (responses.size() > MAX_RESPONSES_PER_FILE) {
             Map<Integer, String> responsesToSave = responses;
             responses = new HashMap<Integer, String>();
+
+            requestsMutex.lock();
+            LinkedList<String> requestsToSave = requests;
+            requests = new LinkedList<String>();
+            requestsMutex.unlock();
+
             new DataSaver(responsesToSave, id).start();
+            new DataSaver(requestsToSave, id).start();
         }
     }
-
-
-
 
 
 

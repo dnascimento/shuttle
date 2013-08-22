@@ -1,4 +1,4 @@
-package pt.inesc.proxy.clientSide.save;
+package pt.inesc.proxy.clientSide;
 
 import java.io.BufferedWriter;
 import java.io.File;
