@@ -7,9 +7,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.multipart.DefaultHttpDataFactory;
-import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -93,11 +90,6 @@ public class ProxyHandler extends
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) {
         ByteBuf reqBuf = (ByteBuf) msg;
-        HttpRequest request = (HttpRequest) msg;
-        HttpPostRequestDecoder decoder = new HttpPostRequestDecoder(
-                new DefaultHttpDataFactory(false), request);
-
-
 
         String req = reqBuf.toString(io.netty.util.CharsetUtil.UTF_8);
         System.out.println("new request");
@@ -118,7 +110,6 @@ public class ProxyHandler extends
                 return;
             }
         }
-
 
         Boolean responseReceived = false;
         String line;
