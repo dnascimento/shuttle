@@ -5,6 +5,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOption;
@@ -24,6 +25,7 @@ import pt.inesc.proxy.real.RealInit;
 /**
  * Handler for client requests (client side)
  */
+@Sharable
 public class ProxyHandler extends
         ChannelInboundHandlerAdapter {
 
@@ -45,7 +47,6 @@ public class ProxyHandler extends
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        System.out.println("New Real Connection");
         final Channel inboundChannel = ctx.channel();
         Bootstrap b = new Bootstrap();
         b.group(inboundChannel.eventLoop())
