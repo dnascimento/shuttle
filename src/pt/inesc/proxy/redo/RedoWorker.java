@@ -179,6 +179,7 @@ public class RedoWorker
                         char[] buffer = new char[contentLenght];
                         try {
                             if (in.read(buffer, 0, contentLenght) != contentLenght) {
+                                // TODO Ignore content
                                 logger.error("ERROR: It must read all content");
                             }
                         } catch (IOException e) {

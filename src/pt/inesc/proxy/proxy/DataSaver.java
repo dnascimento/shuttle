@@ -1,4 +1,4 @@
-package pt.inesc.proxy.clientSide;
+package pt.inesc.proxy.proxy;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -14,20 +14,20 @@ import org.apache.logging.log4j.Logger;
 public class DataSaver extends
         Thread {
 
-    public Collection<String> log;
+    public Collection<HTTPackage> log;
     public int id;
     private static Logger logger = LogManager.getLogger("DataSaver");
     private String type;
 
 
-    public DataSaver(LinkedList<String> requests, int id) {
+    public DataSaver(LinkedList<HTTPackage> requests, int id) {
         log = requests;
         this.id = id;
         type = "req";
     }
 
 
-    public DataSaver(Map<Integer, String> responsesToSave, int id) {
+    public DataSaver(Map<Integer, HTTPackage> responsesToSave, int id) {
         log = responsesToSave.values();
         this.id = id;
         type = "res";
@@ -42,10 +42,15 @@ public class DataSaver extends
             return;
         }
         try {
+            String string;
             BufferedWriter out = new BufferedWriter(new FileWriter(file));
-            for (String string : log) {
+            for (HTTPackage pack : log) {
+                string = pack.header;
                 string = string.replace("Connection: close", "");
                 out.write(string);
+                if (pack.body != null) {
+                    out.write(pack.body);
+                }
                 out.write("\n================================\n");
             }
             out.flush();
