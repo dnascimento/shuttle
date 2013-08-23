@@ -65,17 +65,13 @@ public class RealHandler extends
             }
         });
         // Response is here
-        System.out.println("Response: " + id);
         // addResponse(msg, id);
     }
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        System.out.println("Writing" + msg);
         ctx.write(msg, promise);
     }
-
-
 
 
     @Override
