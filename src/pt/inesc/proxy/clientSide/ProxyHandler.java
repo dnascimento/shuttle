@@ -1,23 +1,15 @@
 package pt.inesc.proxy.clientSide;
 
-import io.netty.buffer.ByteBuf;
+import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOption;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.TreeMap;
@@ -27,6 +19,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.inesc.proxy.real.RealInit;
+
 /**
  * Handler for client requests (client side)
  */
@@ -35,9 +29,7 @@ public class ProxyHandler extends
 
     private static final int MAX_MESSAGES_PER_FILE = 10;
     private InetSocketAddress remoteHost = null;
-    private Socket clientSocket = null;
-    private BufferedWriter out;
-    private BufferedReader in;
+    private Channel realOUTChannel;
 
     public static int id = 0;
     private static Logger logger = LogManager.getLogger("ProxyHandler");
@@ -46,130 +38,68 @@ public class ProxyHandler extends
     private static Lock requestsMutex = new ReentrantLock();
 
 
-    public ProxyHandler(String remoteHostname, int remotePort) {
-        try {
-            remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
-                    remotePort);
-            connect();
-            // logger.info("New Handler");
-        } catch (UnknownHostException e) {
-            logger.error("handler: " + e.getStackTrace());
-        }
+
+    public ProxyHandler(InetSocketAddress remoteHost) {
+        this.remoteHost = remoteHost;
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        ctx.read();
-        ctx.write(Unpooled.EMPTY_BUFFER);
+        System.out.println("New Real Connection");
+        final Channel inboundChannel = ctx.channel();
+        Bootstrap b = new Bootstrap();
+        b.group(inboundChannel.eventLoop())
+         .channel(ctx.channel().getClass())
+         .handler(new RealInit(inboundChannel))
+         .option(ChannelOption.AUTO_READ, false);
+
+        ChannelFuture f = b.connect(remoteHost.getHostName(), remoteHost.getPort());
+
+        realOUTChannel = f.channel();
+        f.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (future.isSuccess()) {
+                    inboundChannel.read();
+                } else {
+                    inboundChannel.close();
+                }
+            }
+        });
+
     }
-
-    private void connect() {
-        // Open socket to server and hold it
-        try {
-            // logger.info("new connection");
-            clientSocket = new Socket(remoteHost.getAddress(), remoteHost.getPort());
-            clientSocket.setKeepAlive(true);
-            clientSocket.setSoTimeout(0);
-            out = new BufferedWriter(new OutputStreamWriter(
-                    clientSocket.getOutputStream()));
-            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        } catch (IOException e) {
-            logger.error("connect: " + e.getStackTrace());
-        }
-    }
-
-
-    @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) {
-        ctx.flush();
-    }
-
 
     /**
      * Read request from Client and write to real
      */
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, Object msg) {
-        ByteBuf reqBuf = (ByteBuf) msg;
+    public void channelRead(final ChannelHandlerContext ctx, Object msg) throws InterruptedException {
+        if (realOUTChannel.isActive()) {
 
-        String req = reqBuf.toString(io.netty.util.CharsetUtil.UTF_8);
-        System.out.println(req);
-        int id = addRequest(req);
-        // TODO Optimizar tornando o envio assincrono
-        try {
-            out.write(req);
-            out.flush();
-        } catch (IOException e) {
-            logger.warn("ChannelReader: send to real fail. Reconnect");
-            connect();
-            try {
-                out.write(req);
-                out.flush();
-            } catch (IOException e1) {
-                logger.error("Giveup");
-                return;
-            }
-        }
 
-        Boolean responseReceived = false;
-        String line;
-        int contentLenght = 0;
-        StringBuilder sb = new StringBuilder();
 
-        // Get response
-        try {
-            while (!responseReceived && ((line = in.readLine()) != null)) {
-                // System.out.println(line);
-                // TODO Response Filters
-                // Translate response
-                if (line.startsWith("Content-Length:")) {
-                    contentLenght = Integer.parseInt(line.replaceAll("\\D+", ""));
-                } else if (line.equals("")) {
-                    responseReceived = true;
+
+
+            realOUTChannel.writeAndFlush(msg).addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    if (future.isSuccess()) {
+                        ctx.channel().read();
+                    } else {
+                        future.channel().close();
+                    }
                 }
-                sb.append(line + "\r\n");
-            }
-
-        } catch (NumberFormatException e) {
-            logger.error("Wrong Content-Lenght");
-        } catch (IOException e) {
-            logger.error("Error Reading remote socket: ");
+            });
         }
-        // header is done
-        if (contentLenght != 0) {
-            char[] content = new char[contentLenght];
-            try {
-                if (in.read(content, 0, contentLenght) != contentLenght) {
-                    logger.error("ERROR: It must read all content");
-                }
-            } catch (IOException e) {
-                logger.error("Content Reading error:" + e.getMessage());
-            }
-            sb.append(content);
-        }
-        if (msg.toString().contains("Connection: close")) {
-            // Open the connection again
-            connect();
-        }
-
-        String response = sb.toString();
-        addResponse(response, id);
-
-
-        ByteBuf data = Unpooled.copiedBuffer(response.getBytes());
-        ctx.channel().writeAndFlush(data).addListener(new ChannelFutureListener() {
-            @Override
-            public void operationComplete(ChannelFuture future) throws Exception {
-                if (future.isSuccess()) {
-                    ctx.channel().read();
-                } else {
-                    future.channel().close();
-                }
-            }
-        });
-        reqBuf.release();
-        ctx.read();
     }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        if (realOUTChannel != null) {
+            closeOnFlush(realOUTChannel);
+        }
+    }
+
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
@@ -203,27 +133,4 @@ public class ProxyHandler extends
         requestsMutex.unlock();
         return id;
     }
-
-
-    public synchronized static void addResponse(String response, int id) {
-        responses.put(id, response);
-        if (responses.size() > MAX_MESSAGES_PER_FILE) {
-            Map<Integer, String> responsesToSave = responses;
-            responses = new HashMap<Integer, String>();
-
-            requestsMutex.lock();
-            LinkedList<String> requestsToSave = requests;
-            requests = new LinkedList<String>();
-            requestsMutex.unlock();
-
-            new DataSaver(responsesToSave, id).start();
-            new DataSaver(requestsToSave, id).start();
-        }
-    }
-
-
-
-
-
-
 }

@@ -1,7 +1,6 @@
 package pt.inesc.proxy;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -44,10 +43,12 @@ public class UndoProxy {
             b.group(bossGroup, workerGroup)
              .channel(NioServerSocketChannel.class)
              .childHandler(new ClientInit(remoteHost, remotePort))
-             .childOption(ChannelOption.AUTO_READ, false);
-
-            Channel ch = b.bind(localPort).sync().channel();
-            ch.closeFuture().sync();
+             .childOption(ChannelOption.AUTO_READ, false)
+             .bind(localPort)
+             .sync()
+             .channel()
+             .closeFuture()
+             .sync();
         } finally {
             bossGroup.shutdownGracefully();
             workerGroup.shutdownGracefully();
