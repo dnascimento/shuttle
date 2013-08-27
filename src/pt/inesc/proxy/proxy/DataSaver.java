@@ -24,6 +24,7 @@ public class DataSaver extends
         log = requests;
         this.id = id;
         type = "req";
+
     }
 
 
