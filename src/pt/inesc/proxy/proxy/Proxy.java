@@ -66,7 +66,6 @@ public class Proxy {
                     ServerSocketChannel server = (ServerSocketChannel) key.channel();
                     SocketChannel channel = server.accept();
                     registerChannel(selector, channel, SelectionKey.OP_READ);
-                    // TODO check if throws rradable
                 }
 
                 if (key.isReadable()) {
