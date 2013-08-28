@@ -143,7 +143,6 @@ public class WorkerThread extends
         int closeIndex = 0;
         int id = -1;
         Boolean requestReceived = false;
-        // TODO Corrigir os IDs pelas excepcoes (da valores estupidos)
 
         buffer.clear();
         // Loop while data is available; channel is nonblocking
@@ -151,28 +150,37 @@ public class WorkerThread extends
             requestReceived = true;
             buffer.flip(); // make buffer readable
             closeIndex = indexOf(buffer, connectionClose);
+
+            realSocket.isConnected();
             if (closeIndex != -1) {
                 close = true;
-            }
 
-            id = addRequest(clone(buffer));
+                // Igonore close string
+                // ByteBuffer init = buffer.slice();
+                // init.position(0).limit(closeIndex);
+                // ByteBuffer end = buffer.slice();
+                // end.position(closeIndex + 17);
+                // try {
+                // realSocket.write(init);
+                // realSocket.write(end);
+                // } catch (IOException e) {
+                // e.printStackTrace();
+                // }
 
-            closeIndex = indexOf(buffer, connectionClose);
-            if (closeIndex != -1) {
-                close = true;
-            }
-
-            // Send the data; may not go all at once
-            while (buffer.hasRemaining()) {
-                // UTF8_CHARSET.decode(buffer).toString().getBytes();
-                // buffer.flip();
-                try {
-                    realSocket.write(buffer);
-                } catch (IOException e) {
-                    connect();
-                    realSocket.write(buffer);
+            } else {
+                // Send the data; may not go all at once
+                while (buffer.hasRemaining()) {
+                    try {
+                        realSocket.write(buffer);
+                    } catch (IOException e) {
+                        connect();
+                        realSocket.write(buffer);
+                    }
                 }
             }
+            buffer.rewind();
+            // TODO A request can be readed separated
+            id = addRequest(clone(buffer));
             buffer.compact();
         }
 
@@ -186,11 +194,8 @@ public class WorkerThread extends
         int toWrite = 0;
         buffer.clear();
         while ((count = realSocket.read(buffer)) > 0) {
-            // System.out.println("Reading");
             buffer.flip(); // make buffer readable
-            // System.out.println(UTF8_CHARSET.decode(buffer));
             toWrite = extractMessageTotalSize(buffer);
-            // String s = new String(b, "UTF-8");
             buffer.rewind();
             written = channel.write(buffer);
             addResponse(clone(buffer), id);
@@ -198,7 +203,6 @@ public class WorkerThread extends
                 break;
             }
             buffer.compact();
-            // TODO Write to File to Store (Assnyc)
         }
 
         // Store data
@@ -235,7 +239,9 @@ public class WorkerThread extends
     }
 
     public static void println(ByteBuffer bufferP) {
-        for (int i = 0; i < bufferP.limit(); i++) {
+        int position = bufferP.position();
+
+        for (int i = position; i < bufferP.limit(); i++) {
             System.out.print(Integer.toHexString(bufferP.get(i)));
         }
         System.out.println("Limit: " + bufferP.limit());

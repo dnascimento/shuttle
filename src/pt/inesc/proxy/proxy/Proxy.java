@@ -25,7 +25,6 @@ public class Proxy {
     }
 
 
-
     public void run() throws IOException {
         // Allocate an unbound server socket channel
         ServerSocketChannel ssc = ServerSocketChannel.open();
