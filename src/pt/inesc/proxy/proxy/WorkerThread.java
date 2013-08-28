@@ -150,24 +150,29 @@ public class WorkerThread extends
         Boolean close = false;
         int closeIndex = 0;
         int id = -1;
-        // TODO Corrigir os IDs pelas excepcoes
+        // TODO Corrigir os IDs pelas excepcoes (da valores estupidos)
 
 
         // Loop while data is available; channel is nonblocking
         while ((count = channel.read(buffer)) > 0) {
             buffer.flip(); // make buffer readable
+            closeIndex = indexOf(buffer, connectionClose);
+            if (closeIndex != -1) {
+                close = true;
+            }
+            id = addRequest(clone(buffer));
+            closeIndex = indexOf(buffer, connectionClose);
+            if (closeIndex != -1) {
+                close = true;
+            }
+
             // Send the data; may not go all at once
             while (buffer.hasRemaining()) {
-                closeIndex = indexOf(buffer, connectionClose);
-                if (closeIndex != -1) {
-                    close = true;
-                }
+
                 // cs.decode(buffer).toString().getBytes();
                 // buffer.flip();
                 try {
                     realSocket.write(buffer);
-                    // TODO Previnir caso seja invocado 2a vez, anexar
-                    id = addRequest(clone(buffer));
                 } catch (IOException e) {
                     connect();
                     realSocket.write(buffer);
@@ -276,6 +281,7 @@ public class WorkerThread extends
         requestsMutex.lock();
         // Exclusive zone
         int id = WorkerThread.id++;
+        System.out.println("update");
         requests.add(request);
         requestsMutex.unlock();
         return id;

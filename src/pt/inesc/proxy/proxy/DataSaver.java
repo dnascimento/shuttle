@@ -47,10 +47,7 @@ public class DataSaver extends
             RandomAccessFile file = new RandomAccessFile(temp, "rw");
             FileChannel fileChannel = file.getChannel();
 
-            if (temp.exists()) {
-                logger.error("ERRO!!!! File already exists");
-                return;
-            }
+
             try {
                 for (ByteBuffer pack : log) {
                     int index = indexOf(pack, connectionClose);
@@ -59,6 +56,7 @@ public class DataSaver extends
                     }
                     fileChannel.write(pack);
                     fileChannel.write(separator);
+                    separator.rewind();
                 }
                 fileChannel.close();
                 file.close();
@@ -68,6 +66,7 @@ public class DataSaver extends
         } catch (FileNotFoundException e1) {
             e1.printStackTrace();
         }
+        log = null;
 
     }
 
