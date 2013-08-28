@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collection;
@@ -18,9 +19,9 @@ public class DataSaver extends
 
     public Collection<ByteBuffer> log;
     public int id;
-    private static Logger logger = LogManager.getLogger("DataSaver");
+    private Logger logger = LogManager.getLogger("DataSaver");
     private String type;
-    private static ByteBuffer separator = ByteBuffer.wrap("\n================================\n".getBytes());
+    private ByteBuffer separator = ByteBuffer.wrap("\n===\n".getBytes());
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
 
 
@@ -43,25 +44,28 @@ public class DataSaver extends
     public void run() {
         try {
             File temp = new File("requests/" + type + id + ".txt");
-            System.out.println(temp.getAbsolutePath());
             RandomAccessFile file = new RandomAccessFile(temp, "rw");
             FileChannel fileChannel = file.getChannel();
 
-
+            ByteBuffer error = null;
             try {
                 for (ByteBuffer pack : log) {
+                    error = pack;
                     int index = indexOf(pack, connectionClose);
                     if (index != -1) {
                         // TODO Retirar a string daqui
                     }
                     fileChannel.write(pack);
-                    fileChannel.write(separator);
                     separator.rewind();
+                    fileChannel.write(separator);
                 }
                 fileChannel.close();
                 file.close();
             } catch (IOException e) {
                 logger.error(e.getMessage());
+            } catch (BufferOverflowException e) {
+                e.printStackTrace();
+                WorkerThread.println(error);
             }
         } catch (FileNotFoundException e1) {
             e1.printStackTrace();

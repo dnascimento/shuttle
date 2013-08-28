@@ -33,6 +33,8 @@ public class RedoWorker
     private LinkedList<File> responseList;
     private String originalCookie;
 
+    private final String SEPARATOR = "===";
+
     private static final String DIRECTOY = "./requests/";
 
     private static Logger logger = LogManager.getLogger("RedoWorker");
@@ -95,7 +97,7 @@ public class RedoWorker
         StringBuilder sb = new StringBuilder();
         while ((line = responseFile.readLine()) != null) {
             sb.append(line);
-            if (line.equals("================================")) {
+            if (line.equals(SEPARATOR)) {
                 return sb.toString();
             } else if (line.startsWith("Set-Cookie:")) {
                 // Got a Cookie
@@ -121,7 +123,7 @@ public class RedoWorker
                     line = line.replace("Cookie:", "");
                     line = "Cookie:" + cookieManager.toNewRequest(line);
                 }
-                if (line.equals("================================")) {
+                if (line.equals(SEPARATOR)) {
                     String request = sb.toString();
                     // Full Request done
 
@@ -204,7 +206,6 @@ public class RedoWorker
             logger.error("File Reading error:" + e.getMessage());
         }
     }
-
 
 
     /**

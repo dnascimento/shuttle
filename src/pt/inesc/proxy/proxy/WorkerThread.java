@@ -32,7 +32,7 @@ public class WorkerThread extends
         Thread {
     private static Logger logger = LogManager.getLogger("ProxyWorker");
 
-    private static final int PACKAGE_PER_FILE = 2;
+    private static final int PACKAGE_PER_FILE = 100;
     private ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024)
                                           .order(ByteOrder.BIG_ENDIAN);
     private ThreadPool pool;

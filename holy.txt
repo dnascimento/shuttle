@@ -1,7 +1,0 @@
-GET /agenda/login HTTP/1.1
-Host: localhost:9000
-Accept: */*
-Accept-Encoding: gzip
-User-Agent: JoeDog/1.00 [en] (X11; I; Siege 3.0.3)
-Connection: close
-
