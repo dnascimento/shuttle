@@ -1,18 +1,16 @@
 package pt.inesc.proxy.proxy;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.CharBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.locks.Lock;
@@ -41,42 +39,38 @@ public class WorkerThread extends
     private SelectionKey key;
     private InetSocketAddress remote;
     SocketChannel realSocket = null;
-    Charset cs = Charset.forName("UTF-8");
+    private final Charset UTF8_CHARSET = Charset.forName("UTF-8");
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
+    ByteBuffer contentLenght = ByteBuffer.wrap("Content-Length: ".getBytes());
+    ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     public static int id = 0;
     private static LinkedList<ByteBuffer> requests = new LinkedList<ByteBuffer>();
     private static Map<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
     private static Lock requestsMutex = new ReentrantLock();
-    FileChannel debugChannel;
-    RandomAccessFile file;
+
 
 
     public WorkerThread(ThreadPool pool, String remoteHost, int remotePort) {
         this.pool = pool;
         // TODO ABRIR SOCKET PARA O DESTINO
         remote = new InetSocketAddress(remoteHost, remotePort);
-
-        try {
-            File temp = new File("holy.txt");
-            System.out.println(temp.getAbsolutePath());
-            file = new RandomAccessFile(temp, "rw");
-            debugChannel = file.getChannel();
-
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
         connect();
     }
 
     private void connect() {
         try {
             // Open socket to server and hold it
+            if (realSocket != null) {
+                realSocket.close();
+            }
             realSocket = SocketChannel.open(remote);
             realSocket.socket().setKeepAlive(true);
-            realSocket.socket().setSoTimeout(0);
         } catch (IOException e) {
+            if (e.getMessage().equals("Connection refused")) {
+                throw new RuntimeException("ERROR: Remote server is DOWN");
+            }
             System.out.println("Connecting to real Server" + e.getMessage());
+            connect();
         }
     }
 
@@ -145,22 +139,24 @@ public class WorkerThread extends
     void drainAndSend(SelectionKey key) throws Exception {
         SocketChannel channel = (SocketChannel) key.channel();
         int count;
-        CharBuffer viewCharBuffer = buffer.asCharBuffer();
-        buffer.clear();
         Boolean close = false;
         int closeIndex = 0;
         int id = -1;
+        Boolean requestReceived = false;
         // TODO Corrigir os IDs pelas excepcoes (da valores estupidos)
 
-
+        buffer.clear();
         // Loop while data is available; channel is nonblocking
         while ((count = channel.read(buffer)) > 0) {
+            requestReceived = true;
             buffer.flip(); // make buffer readable
             closeIndex = indexOf(buffer, connectionClose);
             if (closeIndex != -1) {
                 close = true;
             }
+
             id = addRequest(clone(buffer));
+
             closeIndex = indexOf(buffer, connectionClose);
             if (closeIndex != -1) {
                 close = true;
@@ -168,8 +164,7 @@ public class WorkerThread extends
 
             // Send the data; may not go all at once
             while (buffer.hasRemaining()) {
-
-                // cs.decode(buffer).toString().getBytes();
+                // UTF8_CHARSET.decode(buffer).toString().getBytes();
                 // buffer.flip();
                 try {
                     realSocket.write(buffer);
@@ -180,27 +175,36 @@ public class WorkerThread extends
             }
             buffer.compact();
         }
-        if (count < 0) {
+
+        if (count < 0 || !requestReceived) {
             // Close channel on EOF; invalidates the key
             channel.close();
             return;
         }
+
+        int written = 0;
+        int toWrite = 0;
         buffer.clear();
         while ((count = realSocket.read(buffer)) > 0) {
             // System.out.println("Reading");
-            // buffer.flip(); // make buffer readable
-            // System.out.println(cs.decode(buffer));
             buffer.flip(); // make buffer readable
-            channel.write(buffer);
+            // System.out.println(UTF8_CHARSET.decode(buffer));
+            toWrite = extractMessageTotalSize(buffer);
+            // String s = new String(b, "UTF-8");
+            buffer.rewind();
+            written = channel.write(buffer);
             addResponse(clone(buffer), id);
+            if (written == toWrite) {
+                break;
+            }
             buffer.compact();
             // TODO Write to File to Store (Assnyc)
         }
 
         // Store data
         if (close) {
-            connect();
             channel.close();
+            connect();
         } else {
             // Resume interest in OP_READ
             key.interestOps(key.interestOps() | SelectionKey.OP_READ);
@@ -210,7 +214,27 @@ public class WorkerThread extends
         key.selector().wakeup();
     }
 
-    private static void println(ByteBuffer bufferP) {
+    /**
+     * Exctract how long is all message.
+     * 
+     * @param buffer2
+     * @return
+     */
+    private int extractMessageTotalSize(ByteBuffer buffer2) {
+        int pos = indexOf(buffer, contentLenght);
+        int i = 0;
+        byte b;
+        List<Byte> lenght = new ArrayList<Byte>();
+        while ((b = buffer.get(pos + 16 + i++)) != (byte) 13) {
+            lenght.add(b);
+        }
+        int contentLenght = Integer.parseInt(decodeUTF8(lenght));
+        contentLenght += indexOf(buffer, newLines);
+        contentLenght += 4; // 4 newlines bytes
+        return contentLenght;
+    }
+
+    public static void println(ByteBuffer bufferP) {
         for (int i = 0; i < bufferP.limit(); i++) {
             System.out.print(Integer.toHexString(bufferP.get(i)));
         }
@@ -270,6 +294,14 @@ public class WorkerThread extends
     }
 
 
+    String decodeUTF8(List<Byte> lenght) {
+        byte[] lenghtValue = new byte[lenght.size()];
+        int i = 0;
+        for (byte b : lenght) {
+            lenghtValue[i++] = b;
+        }
+        return new String(lenghtValue, UTF8_CHARSET);
+    }
 
     /**
      * Add new request to Queue
@@ -281,7 +313,6 @@ public class WorkerThread extends
         requestsMutex.lock();
         // Exclusive zone
         int id = WorkerThread.id++;
-        System.out.println("update");
         requests.add(request);
         requestsMutex.unlock();
         return id;
