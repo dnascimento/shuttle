@@ -1,77 +1,113 @@
 package pt.inesc.proxy.proxy;
 
-import java.io.File;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-public class Proxy
-        implements Runnable {
-    private static Logger logger = LogManager.getLogger("Proxy");
-
+public class Proxy {
+    private static final int MAX_THREADS = 20;
+    private ThreadPool pool;
     private final int localPort;
-    private final String remoteHost;
-    private final int remotePort;
-    protected ExecutorService threadPool = Executors.newFixedThreadPool(40);
-    private ServerSocket serverSocket;
-    private boolean isStopped = false;
-
-    private Socket clientSocket;
-
 
 
     public Proxy(int localPort, String remoteHost, int remotePort) {
         this.localPort = localPort;
-        this.remoteHost = remoteHost;
-        this.remotePort = remotePort;
+        pool = new ThreadPool(MAX_THREADS, remoteHost, remotePort);
+    }
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        new Proxy(9000, "localhost", 8080).run();
     }
 
 
-    @Override
-    public void run() {
-        logger.info("Proxying *:" + localPort + " to " + remoteHost + ':' + remotePort
-                + " ...");
 
-        File requestsFolder = new File("./requests");
-        requestsFolder.deleteOnExit();
-        requestsFolder.mkdir();
+    public void run() throws IOException {
+        // Allocate an unbound server socket channel
+        ServerSocketChannel ssc = ServerSocketChannel.open();
 
-        openServerSocket();
-        while (!isStopped) {
-            try {
-                clientSocket = serverSocket.accept();
-                threadPool.execute(new ProxyWorker(clientSocket, remoteHost, remotePort));
-            } catch (IOException e) {
-                if (isStopped) {
-                    logger.info("Socket Stopped");
-                    return;
+        // Get the associated ServerSocket to bind it with
+        ServerSocket serverSocket = ssc.socket();
+
+        // Create a new Selector for use below
+        Selector selector = Selector.open();
+
+        // Set the port the server channel will listen to
+        serverSocket.bind(new InetSocketAddress(localPort));
+
+
+        // Set nonblocking mode for the listening socket
+        ssc.configureBlocking(false);
+
+
+        ssc.register(selector, SelectionKey.OP_ACCEPT);
+
+        while (true) {
+            // This may block for a long time. Upon returning, the
+            // selected set contains keys of the ready channels.
+            int n = selector.select();
+
+            if (n == 0) {
+                continue;
+            }
+
+            // Get an iterator over the set of selected keys
+            Iterator<SelectionKey> it = selector.selectedKeys().iterator();
+
+            while (it.hasNext()) {
+                SelectionKey key = it.next();
+
+                // New connection?
+                if (key.isAcceptable()) {
+                    ServerSocketChannel server = (ServerSocketChannel) key.channel();
+                    SocketChannel channel = server.accept();
+                    registerChannel(selector, channel, SelectionKey.OP_READ);
+                    // TODO check if throws rradable
                 }
-                logger.error("Error Accept Client: " + e.getMessage());
+
+                if (key.isReadable()) {
+                    readDataFromSocket(key);
+                }
+
+                // Remove the key
+                it.remove();
             }
         }
     }
 
 
-    private void openServerSocket() {
-        try {
-            serverSocket = new ServerSocket(localPort);
-        } catch (IOException e) {
-            logger.error(e.getMessage());
+    /**
+     * Sample data handler method for a channel with data ready to read. * @param key A
+     * SelectionKey object associated with a channel determined by the selector to be
+     * ready for reading. If the channel returns an EOF condition, it is closed here,
+     * which automatically invalidates the associated key. The selector will then
+     * de-register the channel on the next select call.
+     * 
+     * @throws IOException
+     */
+    private void readDataFromSocket(SelectionKey key) throws IOException {
+        WorkerThread worker = pool.getWorker();
+        if (worker == null) {
+            return;
         }
+        // Invoking this wakes up the worker thread, then returns
+        worker.serviceChannel(key);
     }
 
+    private void registerChannel(Selector selector, SocketChannel channel, int opRead) throws IOException {
 
-    public static void main(String[] args) throws Exception {
-        // Parse command line options.
-        int localPort = 9000;
-        String remoteHost = "localhost";
-        int remotePort = 8080;
+        if (channel == null) {
+            return;
+        }
 
-        new Proxy(localPort, remoteHost, remotePort).run();
+        // set the new channel non-blooking
+        channel.configureBlocking(false);
+
+        // register with the selector
+        channel.register(selector, opRead);
     }
 }

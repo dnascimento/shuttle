@@ -1,0 +1,39 @@
+Serve como abstracao para trocar dados dentro da mesma VM.
+Pode ser um file, um socket, um channel, tudo é encapsulado dentro do pipe para tornar o código identico.
+Podemos ter um consumidor a coleccionar dados de vários canais simultaeos usando um Selector.
+
+
+///////////Selectors//////////////////////
+Da a possibilidade de verificar se ha algo e se nao houver, segue para o seguinte.
+Uma unica thread pode verificar e seguir.
+
+
+
+Registo um ou mais canais no mesmo objecto selector. Devolve uma chave que representa um ou mais canais
+Quando invoco select(), vai verificar todos os canis registados no selector.
+Devolve entao um array de keys dos canais que estao prontos.
+
+Permite ver se um SocketChannel tem dados para ler ou escrever ou se um ServerSocket tem ligações pendentes.
+
+O non-block permite que se existe seja lido e temos logo de fazer com esses dados, o selector permite ver se ha algo e pedir que outra va tratar disso.
+
+Pode verificar um monte de sockets em simultaneo.
+
+
+
+Selector: Manages info about a set of registered channels and their readiness states.
+Channels are registered with selectors and a selector can be asked to update the readiness state of a channel.
+The invoker can indicate that it would prefer to be suspended until one of the channels is ready.
+
+Selection Key: registration relationship between selector and socket. It is returned from SelectableChannel.register()
+
+
+
+1st: Set as non-block
+2nd: register with a selector
+3rd: Invocar Select para verificar quais os canais que estão prontos a fazer a acção para a qual foram registados
+4th: 
+
+
+
+
