@@ -1,9 +1,12 @@
 package pt.inesc.proxy.proxy;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
@@ -13,6 +16,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -32,28 +36,36 @@ public class WorkerThread extends
         Thread {
     private static Logger logger = LogManager.getLogger("ProxyWorker");
 
-    private static final int PACKAGE_PER_FILE = 100;
+    private static final int PACKAGE_PER_FILE = 3;
     private ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024)
                                           .order(ByteOrder.BIG_ENDIAN);
     private ThreadPool pool;
     private SelectionKey key;
     private InetSocketAddress remote;
     SocketChannel realSocket = null;
-    private final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+    private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
+    ByteBuffer connectionAlive = ByteBuffer.wrap("Connection: keep-alive".getBytes());
     ByteBuffer contentLenght = ByteBuffer.wrap("Content-Length: ".getBytes());
     ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
-    public static int id = 0;
+    ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
+    public static AtomicInteger id = new AtomicInteger(0);
     private static LinkedList<ByteBuffer> requests = new LinkedList<ByteBuffer>();
     private static Map<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
     private static Lock requestsMutex = new ReentrantLock();
-
+    RandomAccessFile aFile;
+    FileChannel debugChannel;
 
 
     public WorkerThread(ThreadPool pool, String remoteHost, int remotePort) {
         this.pool = pool;
-        // TODO ABRIR SOCKET PARA O DESTINO
         remote = new InetSocketAddress(remoteHost, remotePort);
+        try {
+            aFile = new RandomAccessFile("debug.txt", "rw");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        debugChannel = aFile.getChannel();
         connect();
     }
 
@@ -141,8 +153,11 @@ public class WorkerThread extends
         int count;
         Boolean close = false;
         int closeIndex = 0;
-        int id = -1;
         Boolean requestReceived = false;
+
+
+        int id = WorkerThread.id.getAndIncrement();
+
 
         buffer.clear();
         // Loop while data is available; channel is nonblocking
@@ -151,10 +166,24 @@ public class WorkerThread extends
             buffer.flip(); // make buffer readable
             closeIndex = indexOf(buffer, connectionClose);
 
-            realSocket.isConnected();
-            if (closeIndex != -1) {
-                close = true;
+            ByteBuffer contentVia = ByteBuffer.wrap(("Id: " + id).getBytes());
 
+            // Add Via: msgId
+            int endOfFirstLine = indexOf(buffer, separator);
+            ByteBuffer init = buffer.slice();
+            init.position(0).limit(endOfFirstLine);
+            ByteBuffer end = buffer.slice();
+            end.position(endOfFirstLine);
+            realSocket.write(init);
+            realSocket.write(separator);
+            realSocket.write(contentVia);
+            realSocket.write(separator);
+            realSocket.write(end);
+
+            if (closeIndex != -1 && !close) {
+                close = true;
+                // TODO Adaptar ao de cima
+                // Send Connection: Keep-Alive instead of close
                 // Igonore close string
                 // ByteBuffer init = buffer.slice();
                 // init.position(0).limit(closeIndex);
@@ -162,25 +191,16 @@ public class WorkerThread extends
                 // end.position(closeIndex + 17);
                 // try {
                 // realSocket.write(init);
+                // realSocket.write(connectionAlive);
                 // realSocket.write(end);
                 // } catch (IOException e) {
                 // e.printStackTrace();
                 // }
-
-            } else {
-                // Send the data; may not go all at once
-                while (buffer.hasRemaining()) {
-                    try {
-                        realSocket.write(buffer);
-                    } catch (IOException e) {
-                        connect();
-                        realSocket.write(buffer);
-                    }
-                }
             }
             buffer.rewind();
             // TODO A request can be readed separated
-            id = addRequest(clone(buffer));
+            // TODO GET's que nao mudam os dados (sem parametros) ignorar
+            addRequest(clone(buffer));
             buffer.compact();
         }
 
@@ -197,6 +217,9 @@ public class WorkerThread extends
             buffer.flip(); // make buffer readable
             toWrite = extractMessageTotalSize(buffer);
             buffer.rewind();
+            // TODO If I want extract the answer ID: idFiled
+            // int resId = extractMessageIdSize(buffer);
+
             written = channel.write(buffer);
             addResponse(clone(buffer), id);
             if (written == toWrite) {
@@ -236,6 +259,18 @@ public class WorkerThread extends
         contentLenght += indexOf(buffer, newLines);
         contentLenght += 4; // 4 newlines bytes
         return contentLenght;
+    }
+
+    public static void printContent(ByteBuffer buffer) {
+        int position = buffer.position();
+        int k = 0;
+        List<Byte> content = new ArrayList<Byte>();
+        for (int i = position; i < buffer.limit(); i++) {
+            content.add(buffer.get(i));
+        }
+        System.out.println(decodeUTF8(content));
+        System.out.println("Limit: " + buffer.limit());
+        System.out.println("Position" + buffer.position());
     }
 
     public static void println(ByteBuffer bufferP) {
@@ -300,7 +335,7 @@ public class WorkerThread extends
     }
 
 
-    String decodeUTF8(List<Byte> lenght) {
+    static String decodeUTF8(List<Byte> lenght) {
         byte[] lenghtValue = new byte[lenght.size()];
         int i = 0;
         for (byte b : lenght) {
@@ -315,13 +350,11 @@ public class WorkerThread extends
      * @param request
      * @return the ID (number in queue)
      */
-    public static int addRequest(ByteBuffer request) {
+    public static void addRequest(ByteBuffer request) {
         requestsMutex.lock();
         // Exclusive zone
-        int id = WorkerThread.id++;
         requests.add(request);
         requestsMutex.unlock();
-        return id;
     }
 
 
