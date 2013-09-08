@@ -174,15 +174,16 @@ public class WorkerThread extends
             init.position(0).limit(endOfFirstLine);
             ByteBuffer end = buffer.slice();
             end.position(endOfFirstLine);
-            realSocket.write(init);
-            realSocket.write(separator);
-            realSocket.write(contentVia);
-            realSocket.write(separator);
-            realSocket.write(end);
+            writeToRemote(init);
+            writeToRemote(separator);
+            writeToRemote(contentVia);
+            writeToRemote(separator);
+            writeToRemote(end);
 
             if (closeIndex != -1 && !close) {
                 close = true;
-                // TODO Adaptar ao de cima
+                // TODO Adapt to up
+                // TODO Send Keep-alive
                 // Send Connection: Keep-Alive instead of close
                 // Igonore close string
                 // ByteBuffer init = buffer.slice();
@@ -190,9 +191,9 @@ public class WorkerThread extends
                 // ByteBuffer end = buffer.slice();
                 // end.position(closeIndex + 17);
                 // try {
-                // realSocket.write(init);
-                // realSocket.write(connectionAlive);
-                // realSocket.write(end);
+                // writeToRemote(init);
+                // writeToRemote(connectionAlive);
+                // writeToRemote(end);
                 // } catch (IOException e) {
                 // e.printStackTrace();
                 // }
@@ -356,6 +357,20 @@ public class WorkerThread extends
         requests.add(request);
         requestsMutex.unlock();
     }
+
+    public void writeToRemote(ByteBuffer buffer) {
+        try {
+            realSocket.write(buffer);
+        } catch (IOException e) {
+            connect();
+            try {
+                realSocket.write(buffer);
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+        }
+    }
+
 
 
     public static ByteBuffer clone(ByteBuffer original) {
