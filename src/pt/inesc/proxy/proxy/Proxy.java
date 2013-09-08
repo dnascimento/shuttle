@@ -10,7 +10,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
 public class Proxy {
-    private static final int MAX_THREADS = 20;
+    private static final int MAX_THREADS = 40;
     private ThreadPool pool;
     private final int localPort;
 
