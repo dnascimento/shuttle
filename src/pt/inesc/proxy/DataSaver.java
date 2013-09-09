@@ -17,38 +17,51 @@ public class DataSaver extends
         Thread {
 
     public TreeMap<Integer, ByteBuffer> log;
-    public int id;
+    public int fileId;
     private Logger logger = LogManager.getLogger("DataSaver");
     private String type;
     private ByteBuffer separator = ByteBuffer.wrap("\n===\n".getBytes());
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
+    ByteBuffer newLine = ByteBuffer.wrap(new byte[] { 13, 10 });
 
 
     public DataSaver(TreeMap<Integer, ByteBuffer> packagesToSave, String type) {
         log = packagesToSave;
-        id = packagesToSave.lastKey();
+        fileId = packagesToSave.lastKey();
         this.type = type;
     }
 
     @Override
     public void run() {
         try {
-            File temp = new File("requests/" + type + id + ".txt");
+            File temp = new File("requests/" + type + fileId + ".txt");
             RandomAccessFile file = new RandomAccessFile(temp, "rw");
             FileChannel fileChannel = file.getChannel();
+            ByteBuffer messageIdHeader;
             ByteBuffer pack;
             Entry<Integer, ByteBuffer> entry;
             try {
                 while ((entry = log.pollFirstEntry()) != null) {
                     pack = entry.getValue();
+                    messageIdHeader = ByteBuffer.wrap(("Id: " + entry.getKey().toString()).getBytes());
 
                     // int index = indexOf(pack, connectionClose);
                     // if (index != -1) {
                     // TODO Retirar a string daqui?
                     // }
                     fileChannel.write(ByteBuffer.wrap((entry.getKey().toString() + "\n").getBytes()));
+
+                    int endOfFirstLine = indexOf(pack, newLine);
+                    ByteBuffer firstLine = pack.slice();
+                    firstLine.position(0).limit(endOfFirstLine);
+                    pack.position(endOfFirstLine);
+
+                    fileChannel.write(firstLine);
+                    fileChannel.write(newLine);
+                    fileChannel.write(messageIdHeader);
                     fileChannel.write(pack);
                     fileChannel.write(separator);
+                    newLine.rewind();
                     separator.rewind();
                 }
                 fileChannel.close();
