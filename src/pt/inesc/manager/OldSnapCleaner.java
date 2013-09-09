@@ -1,4 +1,4 @@
-package pt.inesc.proxy;
+package pt.inesc.manager;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -9,27 +9,21 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.LinkedList;
 
-import pt.inesc.proxy.redo.RedoWorker;
+import pt.inesc.manager.redo.RedoWorker;
 
-public class CleanOldSnapshots {
+public class OldSnapCleaner {
 
     int minimumId;
     BufferedReader reqFile;
     String type;
     private final String SEPARATOR = "===";
 
-    public static void main(String[] args) throws IOException {
-        CleanOldSnapshots cc = new CleanOldSnapshots(6, "req");
-        cc.clean();
+    public void clean(int minimumId) throws IOException {
+        cleanType(minimumId, "req");
+        cleanType(minimumId, "res");
     }
 
-
-    public CleanOldSnapshots(int minimumId, String type) {
-        this.minimumId = minimumId;
-        this.type = type;
-    }
-
-    public void clean() throws IOException {
+    private void cleanType(int minimumId, String type) throws IOException {
         LinkedList<File> files = RedoWorker.getFileList(type, 0, minimumId);
         // Delete all files with ID < minimumId
         for (File f : files) {

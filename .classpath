@@ -7,5 +7,6 @@
 	<classpathentry kind="lib" path="lib/netty-all-4.0.7.Final-sources.jar"/>
 	<classpathentry kind="lib" path="lib/netty-all-4.0.7.Final.jar" sourcepath="/Users/darionascimento/.m2/repository/io/netty/netty-all/4.0.7.Final/netty-all-4.0.7.Final-sources.jar"/>
 	<classpathentry kind="lib" path="lib/httpclient-4.2.5.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-java-5.1.26-bin.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

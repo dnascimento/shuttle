@@ -1,4 +1,4 @@
-package pt.inesc.proxy.redo;
+package pt.inesc.manager.redo;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;

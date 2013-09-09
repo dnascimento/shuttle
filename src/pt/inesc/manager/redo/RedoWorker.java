@@ -1,4 +1,4 @@
-package pt.inesc.proxy.redo;
+package pt.inesc.manager.redo;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;

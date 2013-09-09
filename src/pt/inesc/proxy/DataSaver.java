@@ -1,4 +1,4 @@
-package pt.inesc.proxy.proxy;
+package pt.inesc.proxy;
 
 import java.io.File;
 import java.io.FileNotFoundException;
