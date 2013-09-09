@@ -7,8 +7,9 @@ import java.io.RandomAccessFile;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.Map.Entry;
-import java.util.TreeMap;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,7 +17,7 @@ import org.apache.logging.log4j.Logger;
 public class DataSaver extends
         Thread {
 
-    public TreeMap<Integer, ByteBuffer> log;
+    public Collection<ByteBuffer> log;
     public int id;
     private Logger logger = LogManager.getLogger("DataSaver");
     private String type;
@@ -24,10 +25,18 @@ public class DataSaver extends
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
 
 
-    public DataSaver(TreeMap<Integer, ByteBuffer> packageToSave, int id, String type) {
-        log = packageToSave;
+    public DataSaver(LinkedList<ByteBuffer> requests, int id) {
+        log = requests;
         this.id = id;
-        this.type = type;
+        type = "req";
+
+    }
+
+
+    public DataSaver(Map<Integer, ByteBuffer> responsesToSave, int id) {
+        log = responsesToSave.values();
+        this.id = id;
+        type = "res";
     }
 
 
@@ -38,12 +47,10 @@ public class DataSaver extends
             RandomAccessFile file = new RandomAccessFile(temp, "rw");
             FileChannel fileChannel = file.getChannel();
 
-            // TODO Iterar ordenadamente e adicionar ao log com ID
-            Entry<Integer, ByteBuffer> entry;
-            ByteBuffer pack;
+            ByteBuffer error = null;
             try {
-                while ((entry = log.pollFirstEntry()) != null) {
-                    pack = entry.getValue();
+                for (ByteBuffer pack : log) {
+                    error = pack;
                     int index = indexOf(pack, connectionClose);
                     if (index != -1) {
                         // TODO Retirar a string daqui
@@ -51,7 +58,6 @@ public class DataSaver extends
                     fileChannel.write(pack);
                     separator.rewind();
                     fileChannel.write(separator);
-                    // TODO Write the ID
                 }
                 fileChannel.close();
                 file.close();
@@ -59,6 +65,7 @@ public class DataSaver extends
                 logger.error(e.getMessage());
             } catch (BufferOverflowException e) {
                 e.printStackTrace();
+                WorkerThread.println(error);
             }
         } catch (FileNotFoundException e1) {
             e1.printStackTrace();
@@ -66,6 +73,7 @@ public class DataSaver extends
         log = null;
 
     }
+
 
     public int indexOf(ByteBuffer buffer, ByteBuffer pattern) {
         int patternPos = pattern.position();
