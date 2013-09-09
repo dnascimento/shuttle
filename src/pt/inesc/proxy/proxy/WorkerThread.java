@@ -41,7 +41,7 @@ public class WorkerThread extends
     private InetSocketAddress remote;
     SocketChannel realSocket = null;
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
-    ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
+    ByteBuffer connectionHeader = ByteBuffer.wrap("Connection: ".getBytes());
     ByteBuffer connectionAlive = ByteBuffer.wrap("Connection: keep-alive".getBytes());
     ByteBuffer contentLenght = ByteBuffer.wrap("Content-Length: ".getBytes());
     ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
@@ -67,6 +67,7 @@ public class WorkerThread extends
     }
 
     private void connect() {
+        System.out.println("Connect to remote");
         try {
             // Open socket to server and hold it
             if (realSocket != null) {
@@ -147,56 +148,56 @@ public class WorkerThread extends
 
     void drainAndSend(SelectionKey key) throws Exception {
         SocketChannel channel = (SocketChannel) key.channel();
-        int count;
-        Boolean close = false;
-        int closeIndex = 0;
+        int count = 0;
+        int connectionHeaderIndex = -1;
         Boolean requestReceived = false;
 
 
         int id = WorkerThread.id.getAndIncrement();
         // TODO Add to pendent ID queue
 
+        ByteBuffer messageIdHeader = ByteBuffer.wrap(("Id: " + id).getBytes());
+
+
         buffer.clear();
         // Loop while data is available; channel is nonblocking
         while ((count = channel.read(buffer)) > 0) {
-            requestReceived = true;
             buffer.flip(); // make buffer readable
-            closeIndex = indexOf(buffer, connectionClose);
-
-            ByteBuffer contentVia = ByteBuffer.wrap(("Id: " + id).getBytes());
+            // TODO A request can be readed separated
+            requestReceived = true;
 
             // Add Via: msgId
             int endOfFirstLine = indexOf(buffer, separator);
-            ByteBuffer init = buffer.slice();
-            init.position(0).limit(endOfFirstLine);
-            ByteBuffer end = buffer.slice();
-            end.position(endOfFirstLine);
-            writeToRemote(init);
-            writeToRemote(separator);
-            writeToRemote(contentVia);
-            writeToRemote(separator);
-            writeToRemote(end);
+            connectionHeaderIndex = indexOf(buffer, connectionHeader);
 
-            if (closeIndex != -1 && !close) {
-                close = true;
-                // TODO Adapt to up
-                // TODO Send Keep-alive
-                // Send Connection: Keep-Alive instead of close
-                // Igonore close string
-                // ByteBuffer init = buffer.slice();
-                // init.position(0).limit(closeIndex);
-                // ByteBuffer end = buffer.slice();
-                // end.position(closeIndex + 17);
-                // try {
-                // writeToRemote(init);
-                // writeToRemote(connectionAlive);
-                // writeToRemote(end);
-                // } catch (IOException e) {
-                // e.printStackTrace();
-                // }
+            ByteBuffer firstLine = buffer.slice();
+            firstLine.position(0).limit(endOfFirstLine);
+            writeToRemote(firstLine);
+            separator.rewind();
+            writeToRemote(separator);
+            writeToRemote(messageIdHeader);
+            separator.rewind();
+            writeToRemote(separator);
+            writeToRemote(connectionAlive);
+
+            ByteBuffer rest = buffer.slice();
+            rest.position(endOfFirstLine);
+
+
+            if (connectionHeaderIndex != -1) {
+                // Remove Close Connection or other Connection Detail
+                rest.limit(connectionHeaderIndex - 1);
+                ByteBuffer end = buffer.slice();
+                end.position(connectionHeaderIndex);
+                separator.rewind();
+                int lineEnd = indexOf(end, separator);
+                end.position(lineEnd + 1);
+                writeToRemote(rest);
+                writeToRemote(end);
+            } else {
+                writeToRemote(rest);
             }
-            buffer.rewind();
-            // TODO A request can be readed separated
+
             // TODO GET's que nao mudam os dados (sem parametros) ignorar
             addRequest(clone(buffer), id);
             buffer.compact();
@@ -208,12 +209,23 @@ public class WorkerThread extends
             return;
         }
 
+
+
         int written = 0;
         int toWrite = 0;
         buffer.clear();
         while ((count = realSocket.read(buffer)) > 0) {
             buffer.flip(); // make buffer readable
-            toWrite = extractMessageTotalSize(buffer);
+            try {
+                toWrite = extractMessageTotalSize(buffer);
+            } catch (NumberFormatException e) {
+                // Bad request message
+                written = channel.write(buffer);
+                addResponse(clone(buffer), id);
+                break;
+            }
+
+
             buffer.rewind();
             // TODO If I want extract the answer ID: idFiled
             // int resId = extractMessageIdSize(buffer);
@@ -229,13 +241,13 @@ public class WorkerThread extends
         // TODO Remove from pendent ID queue
 
         // Store data
-        if (close) {
-            channel.close();
-            connect();
-        } else {
-            // Resume interest in OP_READ
-            key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-        }
+        // if (close) {
+        // channel.close();
+        // connect();
+        // } else {
+        // Resume interest in OP_READ
+        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+        // }
 
         // Cycle the selector so this key is active again
         key.selector().wakeup();
@@ -247,7 +259,7 @@ public class WorkerThread extends
      * @param buffer2
      * @return
      */
-    private int extractMessageTotalSize(ByteBuffer buffer2) {
+    private int extractMessageTotalSize(ByteBuffer buffer) {
         int pos = indexOf(buffer, contentLenght);
         int i = 0;
         byte b;
@@ -273,14 +285,14 @@ public class WorkerThread extends
         System.out.println("Position" + buffer.position());
     }
 
-    public static void println(ByteBuffer bufferP) {
-        int position = bufferP.position();
+    public static void println(ByteBuffer buffer) {
+        int position = buffer.position();
 
-        for (int i = position; i < bufferP.limit(); i++) {
-            System.out.print(Integer.toHexString(bufferP.get(i)));
+        for (int i = position; i < buffer.limit(); i++) {
+            System.out.print(Integer.toHexString(buffer.get(i)));
         }
-        System.out.println("Limit: " + bufferP.limit());
-        System.out.println("Position" + bufferP.position());
+        System.out.println("Limit: " + buffer.limit());
+        System.out.println("Position" + buffer.position());
     }
 
     /**
@@ -293,6 +305,7 @@ public class WorkerThread extends
      *         buffer
      */
     public int indexOf(ByteBuffer buffer, ByteBuffer pattern) {
+        pattern.rewind();
         int patternPos = pattern.position();
         int patternLen = pattern.remaining();
         int lastIndex = buffer.limit() - patternLen + 1;
@@ -358,6 +371,8 @@ public class WorkerThread extends
 
     public void writeToRemote(ByteBuffer buffer) {
         try {
+            // Debug to File
+            // debugChannel.write(buffer);
             realSocket.write(buffer);
         } catch (IOException e) {
             connect();
