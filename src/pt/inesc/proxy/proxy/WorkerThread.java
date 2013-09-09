@@ -11,10 +11,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -44,14 +41,15 @@ public class WorkerThread extends
     private InetSocketAddress remote;
     SocketChannel realSocket = null;
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
+    ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
     ByteBuffer connectionHeader = ByteBuffer.wrap("Connection: ".getBytes());
     ByteBuffer connectionAlive = ByteBuffer.wrap("Connection: keep-alive".getBytes());
     ByteBuffer contentLenght = ByteBuffer.wrap("Content-Length: ".getBytes());
     ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
     public static AtomicInteger id = new AtomicInteger(0);
-    private static LinkedList<ByteBuffer> requests = new LinkedList<ByteBuffer>();
-    private static Map<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
+    private static TreeMap<Integer, ByteBuffer> requests = new TreeMap<Integer, ByteBuffer>();
+    private static TreeMap<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
     private static Lock requestsMutex = new ReentrantLock();
     RandomAccessFile aFile;
     FileChannel debugChannel;
@@ -70,7 +68,6 @@ public class WorkerThread extends
     }
 
     private void connect() {
-        System.out.println("Connect to remote");
         try {
             // Open socket to server and hold it
             if (realSocket != null) {
@@ -154,7 +151,7 @@ public class WorkerThread extends
         int count = 0;
         int connectionHeaderIndex = -1;
         Boolean requestReceived = false;
-
+        Boolean close = false;
 
         int id = WorkerThread.id.getAndIncrement();
 
@@ -167,11 +164,13 @@ public class WorkerThread extends
         while ((count = channel.read(buffer)) > 0) {
             buffer.flip(); // make buffer readable
             // TODO A request can be readed separated
+            // TODO Tentar colocar keepalive a dar de vez
             requestReceived = true;
 
             // Add Via: msgId
             int endOfFirstLine = indexOf(buffer, separator);
-            connectionHeaderIndex = indexOf(buffer, connectionHeader);
+            // connectionHeaderIndex = indexOf(buffer, connectionHeader);
+            connectionHeaderIndex = indexOf(buffer, connectionClose);
 
             ByteBuffer firstLine = buffer.slice();
             firstLine.position(0).limit(endOfFirstLine);
@@ -179,9 +178,9 @@ public class WorkerThread extends
             separator.rewind();
             writeToRemote(separator);
             writeToRemote(messageIdHeader);
-            separator.rewind();
-            writeToRemote(separator);
-            writeToRemote(connectionAlive);
+            // separator.rewind();
+            // writeToRemote(separator);
+            // writeToRemote(connectionAlive);
 
             ByteBuffer rest = buffer.slice();
             rest.position(endOfFirstLine);
@@ -189,20 +188,22 @@ public class WorkerThread extends
 
             if (connectionHeaderIndex != -1) {
                 // Remove Close Connection or other Connection Detail
-                rest.limit(connectionHeaderIndex - 1);
-                ByteBuffer end = buffer.slice();
-                end.position(connectionHeaderIndex);
-                separator.rewind();
-                int lineEnd = indexOf(end, separator);
-                end.position(lineEnd + 1);
+                // rest.limit(connectionHeaderIndex - 1);
+                // ByteBuffer end = buffer.slice();
+                // end.position(connectionHeaderIndex);
+                // separator.rewind();
+                // int lineEnd = indexOf(end, separator);
+                // end.position(lineEnd + 1);
+                // writeToRemote(rest);
+                // writeToRemote(end);
+                close = true;
                 writeToRemote(rest);
-                writeToRemote(end);
             } else {
                 writeToRemote(rest);
             }
 
             // TODO GET's que nao mudam os dados (sem parametros) ignorar
-            addRequest(clone(buffer));
+            addRequest(clone(buffer), id);
             buffer.compact();
         }
 
@@ -211,7 +212,6 @@ public class WorkerThread extends
             channel.close();
             return;
         }
-
 
 
         int written = 0;
@@ -242,14 +242,13 @@ public class WorkerThread extends
         }
 
         // Store data
-        // if (close) {
-        // channel.close();
-        // connect();
-        // } else {
-        // Resume interest in OP_READ
-        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-        // }
-
+        if (close) {
+            channel.close();
+            connect();
+        } else {
+            // Resume interest in OP_READ
+            key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+        }
         // Cycle the selector so this key is active again
         key.selector().wakeup();
     }
@@ -335,16 +334,16 @@ public class WorkerThread extends
     public synchronized static void addResponse(ByteBuffer response, int id) {
         responses.put(id, response);
         if (responses.size() > PACKAGE_PER_FILE) {
-            Map<Integer, ByteBuffer> responsesToSave = responses;
-            responses = new HashMap<Integer, ByteBuffer>();
+            TreeMap<Integer, ByteBuffer> responsesToSave = responses;
+            responses = new TreeMap<Integer, ByteBuffer>();
 
             requestsMutex.lock();
-            LinkedList<ByteBuffer> requestsToSave = requests;
-            requests = new LinkedList<ByteBuffer>();
+            TreeMap<Integer, ByteBuffer> requestsToSave = requests;
+            requests = new TreeMap<Integer, ByteBuffer>();
             requestsMutex.unlock();
 
-            new DataSaver(responsesToSave, id).start();
-            new DataSaver(requestsToSave, id).start();
+            new DataSaver(responsesToSave, id, "res").start();
+            new DataSaver(requestsToSave, id, "req").start();
         }
     }
 
@@ -364,10 +363,10 @@ public class WorkerThread extends
      * @param request
      * @return the ID (number in queue)
      */
-    public static void addRequest(ByteBuffer request) {
+    public static void addRequest(ByteBuffer request, int id) {
         requestsMutex.lock();
         // Exclusive zone
-        requests.add(request);
+        requests.put(id, request);
         requestsMutex.unlock();
     }
 

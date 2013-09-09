@@ -95,7 +95,13 @@ public class RedoWorker
         originalCookie = "";
         String line = null;
         StringBuilder sb = new StringBuilder();
+        int id = -1;
+
         while ((line = responseFile.readLine()) != null) {
+            if (id == -1) {
+                id = Integer.parseInt(line);
+                continue;
+            }
             sb.append(line);
             if (line.equals(SEPARATOR)) {
                 return sb.toString();
@@ -115,8 +121,13 @@ public class RedoWorker
         String line = null;
         StringBuilder sb = new StringBuilder();
         Boolean responseReceived = false;
+        int id = -1;
         try {
             while ((line = requestFile.readLine()) != null) {
+                if (id == -1) {
+                    id = Integer.parseInt(line);
+                    continue;
+                }
                 // Cookies converter
                 if (line.startsWith("Cookie:")) {
                     System.out.println(line);
@@ -129,7 +140,6 @@ public class RedoWorker
 
                     // Send to server
                     request = request.substring(0, request.length() - 1);
-                    System.out.println(request);
                     try {
                         out.write(request);
                         out.flush();
@@ -141,13 +151,11 @@ public class RedoWorker
                         out.flush();
                     }
 
+                    // Original Response to check cookies.
                     getNextResponse();
 
                     responseReceived = false;
                     int contentLenght = 0;
-
-
-
 
 
                     StringBuilder responseB = new StringBuilder();
@@ -196,7 +204,7 @@ public class RedoWorker
 
                     sb = new StringBuilder();
                     System.out.println("NEW REQUEST---------------------------------------");
-
+                    id = -1;
                 } else {
                     sb.append(line + "\n");
                 }
