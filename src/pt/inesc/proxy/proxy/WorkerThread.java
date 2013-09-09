@@ -11,10 +11,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -50,8 +47,8 @@ public class WorkerThread extends
     ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
     public static AtomicInteger id = new AtomicInteger(0);
-    private static LinkedList<ByteBuffer> requests = new LinkedList<ByteBuffer>();
-    private static Map<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
+    private static TreeMap<Integer, ByteBuffer> requests = new TreeMap<Integer, ByteBuffer>();
+    private static TreeMap<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
     private static Lock requestsMutex = new ReentrantLock();
     RandomAccessFile aFile;
     FileChannel debugChannel;
@@ -157,7 +154,7 @@ public class WorkerThread extends
 
 
         int id = WorkerThread.id.getAndIncrement();
-
+        // TODO Add to pendent ID queue
 
         buffer.clear();
         // Loop while data is available; channel is nonblocking
@@ -201,7 +198,7 @@ public class WorkerThread extends
             buffer.rewind();
             // TODO A request can be readed separated
             // TODO GET's que nao mudam os dados (sem parametros) ignorar
-            addRequest(clone(buffer));
+            addRequest(clone(buffer), id);
             buffer.compact();
         }
 
@@ -228,6 +225,8 @@ public class WorkerThread extends
             }
             buffer.compact();
         }
+
+        // TODO Remove from pendent ID queue
 
         // Store data
         if (close) {
@@ -322,19 +321,18 @@ public class WorkerThread extends
     public synchronized static void addResponse(ByteBuffer response, int id) {
         responses.put(id, response);
         if (responses.size() > PACKAGE_PER_FILE) {
-            Map<Integer, ByteBuffer> responsesToSave = responses;
-            responses = new HashMap<Integer, ByteBuffer>();
+            TreeMap<Integer, ByteBuffer> responsesToSave = responses;
+            responses = new TreeMap<Integer, ByteBuffer>();
 
             requestsMutex.lock();
-            LinkedList<ByteBuffer> requestsToSave = requests;
-            requests = new LinkedList<ByteBuffer>();
+            TreeMap<Integer, ByteBuffer> requestsToSave = requests;
+            requests = new TreeMap<Integer, ByteBuffer>();
             requestsMutex.unlock();
 
-            new DataSaver(responsesToSave, id).start();
-            new DataSaver(requestsToSave, id).start();
+            new DataSaver(responsesToSave, id, "res").start();
+            new DataSaver(requestsToSave, id, "req").start();
         }
     }
-
 
     static String decodeUTF8(List<Byte> lenght) {
         byte[] lenghtValue = new byte[lenght.size()];
@@ -351,10 +349,10 @@ public class WorkerThread extends
      * @param request
      * @return the ID (number in queue)
      */
-    public static void addRequest(ByteBuffer request) {
+    public static void addRequest(ByteBuffer request, int id) {
         requestsMutex.lock();
         // Exclusive zone
-        requests.add(request);
+        requests.put(id, request);
         requestsMutex.unlock();
     }
 
