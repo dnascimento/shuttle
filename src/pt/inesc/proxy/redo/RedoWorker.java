@@ -35,7 +35,7 @@ public class RedoWorker
 
     private final String SEPARATOR = "===";
 
-    private static final String DIRECTOY = "./requests/";
+    public static final String DIRECTOY = "./requests/";
 
     private static Logger logger = LogManager.getLogger("RedoWorker");
 
@@ -65,9 +65,9 @@ public class RedoWorker
         System.out.println("time:" + new Date().getTime());
 
         // List and sort all request files
-        requestList = getFileList("req");
+        requestList = getFileList("req", start, end);
         // List and sort all response files
-        responseList = getFileList("res");
+        responseList = getFileList("res", start, end);
 
 
         // start
@@ -222,7 +222,10 @@ public class RedoWorker
      * @param startBy
      * @return
      */
-    private LinkedList<File> getFileList(String startBy) {
+    public static LinkedList<File> getFileList(
+            String startBy,
+                int lowerLimit,
+                int upperLimit) {
         // Read requests from directory
         File folder = new File(DIRECTOY);
         LinkedList<File> listOfFiles = new LinkedList<File>();
@@ -232,9 +235,13 @@ public class RedoWorker
             filename = file.getName();
             if (filename.startsWith(startBy)) {
                 id = Integer.parseInt(filename.replaceAll("\\D+", ""));
-                if (id >= start && id < end) {
-                    listOfFiles.add(file);
+                if (lowerLimit != -1 && id < lowerLimit) {
+                    continue;
                 }
+                if (upperLimit != -1 && id > upperLimit) {
+                    continue;
+                }
+                listOfFiles.add(file);
             }
         }
         Collections.sort(listOfFiles, new FileComparator());

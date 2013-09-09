@@ -24,12 +24,11 @@ public class DataSaver extends
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
 
 
-    public DataSaver(TreeMap<Integer, ByteBuffer> responsesToSave, int id, String type) {
-        log = responsesToSave;
-        this.id = id;
+    public DataSaver(TreeMap<Integer, ByteBuffer> packagesToSave, String type) {
+        log = packagesToSave;
+        id = packagesToSave.lastKey();
         this.type = type;
     }
-
 
     @Override
     public void run() {

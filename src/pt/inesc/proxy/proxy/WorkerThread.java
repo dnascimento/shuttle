@@ -342,8 +342,8 @@ public class WorkerThread extends
             requests = new TreeMap<Integer, ByteBuffer>();
             requestsMutex.unlock();
 
-            new DataSaver(responsesToSave, id, "res").start();
-            new DataSaver(requestsToSave, id, "req").start();
+            new DataSaver(responsesToSave, "res").start();
+            new DataSaver(requestsToSave, "req").start();
         }
     }
 
