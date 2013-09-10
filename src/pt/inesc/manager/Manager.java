@@ -2,13 +2,13 @@ package pt.inesc.manager;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.TreeMap;
 
 import pt.inesc.manager.redo.RedoBoss;
 
 public class Manager {
-    private static TreeMap<Integer, List<URLVersion>> snapshotList = new TreeMap<Integer, List<URLVersion>>();
+    private static TreeMap<Integer, LinkedList<String>> snapshotList = new TreeMap<Integer, LinkedList<String>>();
     static BufferedReader terminal = new BufferedReader(new InputStreamReader(System.in));
     static SnapshotAPI snapAPI = new SQLSnapshoter();
 
@@ -46,7 +46,7 @@ public class Manager {
         System.out.println("Enter snapshot ID: ");
         int id = Integer.parseInt(terminal.readLine());
 
-        List<URLVersion> snap = snapAPI.shot(id);
+        LinkedList<String> snap = snapAPI.shot(id);
         snapshotList.put(id, snap);
         System.out.println("Snapshot Done:");
         System.out.println(snap);
@@ -67,7 +67,7 @@ public class Manager {
         OldSnapCleaner cleaner = new OldSnapCleaner();
         cleaner.clean(id);
 
-        snapAPI.load(snapshotList.get(id));
+        snapAPI.load(snapshotList.get(id), id);
         // REDO
         RedoBoss boss = new RedoBoss();
         boss.run();

@@ -17,9 +17,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 /**
  * A worker thread class which can drain channels and echo-back the input. Each instance
  * is constructed with a reference to the owning thread pool object. When started, the
@@ -31,8 +28,6 @@ import org.apache.logging.log4j.Logger;
  */
 public class WorkerThread extends
         Thread {
-    private static Logger logger = LogManager.getLogger("ProxyWorker");
-
     private static final int PACKAGE_PER_FILE = 3;
     private ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024)
                                           .order(ByteOrder.BIG_ENDIAN);
@@ -152,16 +147,14 @@ public class WorkerThread extends
         int connectionHeaderIndex = -1;
         Boolean requestReceived = false;
         Boolean close = false;
-
-        int id = WorkerThread.id.getAndIncrement();
-
-
-        ByteBuffer messageIdHeader = ByteBuffer.wrap(("Id: " + id).getBytes());
-
+        int id = 0;
+        ByteBuffer messageIdHeader;
 
         buffer.clear();
         // Loop while data is available; channel is nonblocking
         while ((count = channel.read(buffer)) > 0) {
+            id = WorkerThread.id.getAndIncrement();
+            messageIdHeader = ByteBuffer.wrap(("Id: " + id).getBytes());
             buffer.flip(); // make buffer readable
             // TODO A request can be readed separated
             // TODO Tentar colocar keepalive a dar de vez
@@ -275,7 +268,6 @@ public class WorkerThread extends
 
     public static void printContent(ByteBuffer buffer) {
         int position = buffer.position();
-        int k = 0;
         List<Byte> content = new ArrayList<Byte>();
         for (int i = position; i < buffer.limit(); i++) {
             content.add(buffer.get(i));

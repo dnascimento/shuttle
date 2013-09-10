@@ -6,8 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedList;
 
 public class SQLSnapshoter
         implements SnapshotAPI {
@@ -28,20 +27,61 @@ public class SQLSnapshoter
 
 
     @Override
-    public List<URLVersion> shot(Integer id) throws SQLException {
-        List<URLVersion> snapshot = new ArrayList<URLVersion>();
+    public LinkedList<String> shot(Integer id) throws SQLException {
+        LinkedList<String> snapshot = new LinkedList<String>();
         try {
-            PreparedStatement stat = conn.prepareStatement("SELECT * FROM Pages P WHERE id = (SELECT MAX(id) FROM Pages WHERE URL = P.URL and id <= ?)");
-            stat.setString(1, id.toString());
-            ResultSet rs = stat.executeQuery();
-            // Get the ID's for snapshot
+
+            // Simulate row by row snapshot
+            // Set new entry on log
+            Statement stat1 = conn.createStatement();
+            ResultSet rtimes = stat1.executeQuery("select max(event_time) from mysql.general_log;");
+            rtimes.next();
+            String lastLogEntry = rtimes.getString(0);
+
+            // Get all URL
+            Statement query = conn.createStatement();
+            ResultSet rs = query.executeQuery("Select url from Pages");
+
+            PreparedStatement stat;
+
+            // Slect and copy each data
             while (rs.next()) {
-                URLVersion entry = new URLVersion(rs.getString("url"), rs.getString("id"));
-                snapshot.add(entry);
-                stat = conn.prepareStatement("delete FROM Pages WHERE id < ? and url = ?");
-                stat.setString(1, entry.version);
-                stat.setString(2, entry.url);
-                stat.execute();
+                String url = rs.getString("url");
+                stat = conn.prepareStatement("SELECT * FROM Pages P WHERE url=?");
+                stat.setString(1, url);
+                ResultSet urls = stat.executeQuery();
+
+                while (urls.next()) {
+                    stat = conn.prepareStatement("insert into Pages(url,author,title,date,content,id,snap) values(?,?,?,?,?,?,?)");
+                    stat.setString(1, urls.getString("url"));
+                    stat.setString(2, urls.getString("author"));
+                    stat.setString(3, urls.getString("title"));
+                    stat.setString(4, urls.getString("date"));
+                    stat.setString(5, urls.getString("content"));
+                    stat.setString(6, urls.getString("id"));
+                    stat.setString(7, id.toString());
+                    stat.execute();
+                    // Delay the copy to simulate long file delay
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+            }
+            rs.close();
+
+
+            // Read the log
+            PreparedStatement stat3 = conn.prepareStatement("select * from mysql.general_log where event_time >= ?");
+            stat3.setString(1, lastLogEntry);
+            ResultSet pendentLog = stat3.executeQuery();
+
+            while (pendentLog.next()) {
+                String command = pendentLog.getString("argument");
+                System.out.println(command);
+                snapshot.add(command);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -49,30 +89,17 @@ public class SQLSnapshoter
         return snapshot;
     }
 
-
-
     @Override
-    public void load(List<URLVersion> snapshot) throws SQLException {
+    public void load(LinkedList<String> pendentOperations, int id) throws SQLException {
         // Delete all versions more recent than snapshot
-        StringBuilder sb = new StringBuilder();
-        sb.append("delete from Pages where url not in (");
-        for (URLVersion v : snapshot) {
-            sb.append("'");
-            sb.append(v.url);
-            sb.append("',");
-            PreparedStatement stat = conn.prepareStatement("delete FROM Pages WHERE id > ? and url = ?");
-            stat.setString(1, v.version);
-            stat.setString(2, v.url);
-            stat.execute();
+        PreparedStatement stat = conn.prepareStatement("delete FROM Pages WHERE snap <> ?");
+        stat.setInt(1, id);
+        stat.execute();
 
+        String op;
+        while ((op = pendentOperations.getFirst()) != null) {
+            Statement pendentOp = conn.createStatement();
+            pendentOp.execute(op);
         }
-        String query = sb.toString();
-        query = query.substring(0, query.length() - 1);
-        query = query + ")";
-
-        // Delete all URL not in snapshot
-        System.out.println(query);
-        Statement stat = conn.createStatement();
-        stat.execute(query);
     }
 }

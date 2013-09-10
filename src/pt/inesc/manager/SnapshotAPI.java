@@ -1,10 +1,10 @@
 package pt.inesc.manager;
 
-import java.util.List;
+import java.util.LinkedList;
 
 public interface SnapshotAPI {
 
-    public List<URLVersion> shot(Integer id) throws Exception;
+    public LinkedList<String> shot(Integer id) throws Exception;
 
-    public void load(List<URLVersion> snapshot) throws Exception;
+    public void load(LinkedList<String> pendentOperations, int id) throws Exception;
 }
