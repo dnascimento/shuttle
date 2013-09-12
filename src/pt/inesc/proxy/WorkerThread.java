@@ -46,6 +46,11 @@ public class WorkerThread extends
     private static TreeMap<Integer, ByteBuffer> requests = new TreeMap<Integer, ByteBuffer>();
     private static TreeMap<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
     private static Lock requestsMutex = new ReentrantLock();
+
+    // List of replied ID's but not incremented
+    private static List<Integer> idWaitingList = new ArrayList<Integer>();
+    private static int nextRepliedID = 1;
+
     RandomAccessFile aFile;
     FileChannel debugChannel;
 
@@ -324,6 +329,21 @@ public class WorkerThread extends
 
 
     public synchronized static void addResponse(ByteBuffer response, int id) {
+        // Check if this is the next ID to add to List
+        if (id == nextRepliedID) {
+            nextRepliedID++;
+            // Add pendent old requests
+            System.out.println(nextRepliedID);
+            while (idWaitingList.contains(nextRepliedID)) {
+                nextRepliedID++;
+                idWaitingList.remove(id);
+                System.out.println(nextRepliedID);
+            }
+        } else {
+            idWaitingList.add(id);
+            System.out.println("wait" + nextRepliedID);
+        }
+
         responses.put(id, response);
         if (responses.size() > PACKAGE_PER_FILE) {
             TreeMap<Integer, ByteBuffer> responsesToSave = responses;
@@ -338,7 +358,6 @@ public class WorkerThread extends
             new DataSaver(requestsToSave, "req").start();
         }
     }
-
 
     static String decodeUTF8(List<Byte> lenght) {
         byte[] lenghtValue = new byte[lenght.size()];
