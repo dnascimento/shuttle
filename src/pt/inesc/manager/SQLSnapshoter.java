@@ -7,6 +7,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.LinkedList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 public class SQLSnapshoter
         implements SnapshotAPI {
@@ -74,6 +77,14 @@ public class SQLSnapshoter
             }
             rs.close();
 
+            System.out.println("waiting for you");
+            try {
+                Thread.sleep(20000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            System.out.println("lets go");
+
             // Get the biggest ID of snap
             stat1 = conn.createStatement();
             rtimes = stat1.executeQuery("select max(id) from Pages_temp;");
@@ -91,25 +102,58 @@ public class SQLSnapshoter
 
             // Program is snaped, log is copy
 
-
-
             // Apply log only on ID lowers than biggest ID
-            // TODO Problem: how to decide which are lower? SQL can move multiple lines
-            // each transaction.
-            // TODO This system just works with document based, 1 row each time.
-
-
             while (pendentLog.next()) {
+                int transactionID = -1;
+
                 String op = pendentLog.getString("argument");
                 // Remove all queries due to data copy
                 if (!op.startsWith("insert into Pages_temp")
                         && (op.startsWith("insert") || op.startsWith("update"))) {
-                    continue;
-                }
 
-                // TODO Check-id
-                Statement pendentOp = conn.createStatement();
-                pendentOp.execute(op);
+                    // Valid Operation
+
+                    if (op.startsWith("update")) {
+                        // Check-id: UPDATE
+                        Pattern p = Pattern.compile("(.*)id=(\\d*)(.*)");
+                        Matcher matcher = p.matcher(op);
+                        if (matcher.matches()) {
+                            System.out.println(matcher.group(1));
+                            transactionID = Integer.parseInt(matcher.group(1));
+                        }
+                    }
+
+                    // CheckID: insert
+                    if (op.startsWith("insert")) {
+                        // Split fields and values
+                        String[] parts = op.split("\\)");
+
+
+                        // parse insert fields to get the ID entry
+                        String[] fields = parts[0].split("\\(")[1].split(",");
+                        int i;
+                        for (i = 0; i < fields.length; i++) {
+                            if (fields[i].equals("id")) {
+                                break;
+                            }
+                        }
+
+                        String[] values = parts[1].split("\\(")[1].split(",");
+                        transactionID = Integer.parseInt(values[i].replaceAll("\'", ""));
+
+
+                    }
+
+                    assert (transactionID != -1);
+
+                    if (transactionID <= biggestID) {
+                        // Change op to apply on copy
+                        op = op.replaceAll("Pages", "Pages_temp");
+                        Statement pendentOp = conn.createStatement();
+                        System.out.println(op);
+                        pendentOp.execute(op);
+                    }
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
