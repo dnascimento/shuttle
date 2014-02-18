@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+
+// http://nadeausoftware.com/articles/2008/02/java_tip_how_read_files_quickly
+
 /**
  * A worker thread class which can drain channels and echo-back the input. Each instance
  * is constructed with a reference to the owning thread pool object. When started, the
@@ -369,13 +372,17 @@ public class WorkerThread extends
     }
 
     /**
-     * Add new request to Queue
+     * Add new request to Queue This is the serialization point.
      * 
      * @param request
      * @return the ID (number in queue)
      */
     public static void addRequest(ByteBuffer request, int id) {
         requestsMutex.lock();
+        /*
+         * TODO: Id should be defined here and the reference added to list. Just that.
+         * Treemap is not the best datastructure.
+         */
         // Exclusive zone
         requests.put(id, request);
         requestsMutex.unlock();

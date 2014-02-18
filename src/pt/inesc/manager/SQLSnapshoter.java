@@ -140,8 +140,6 @@ public class SQLSnapshoter
 
                         String[] values = parts[1].split("\\(")[1].split(",");
                         transactionID = Integer.parseInt(values[i].replaceAll("\'", ""));
-
-
                     }
 
                     assert (transactionID != -1);
