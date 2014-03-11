@@ -1,12 +1,13 @@
-package pt.inesc.proxy.save;
+package pt.inesc.proxy.save.channel;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.WritableByteChannel;
 
 public class SaveFile extends
-        SaveThread {
+        SaveChannel {
     private final String FOLDER = "requests/";
     private final String EXTENSION = ".txt";
     SaveType type;
@@ -21,7 +22,7 @@ public class SaveFile extends
 
     @SuppressWarnings("resource")
     @Override
-    WritableByteChannel getChannel() throws IOException {
+    public WritableByteChannel getChannel() throws FileNotFoundException {
         File temp = new File(FOLDER + type + end + EXTENSION);
         RandomAccessFile file;
         file = new RandomAccessFile(temp, "rw");
@@ -30,7 +31,7 @@ public class SaveFile extends
     }
 
     @Override
-    void closeChannel() throws IOException {
+    public void closeChannel() throws IOException {
         channel.close();
     }
 

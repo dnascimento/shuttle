@@ -24,6 +24,7 @@ public class Proxy {
     public Proxy(int localPort, String remoteHost, int remotePort) {
         this.localPort = localPort;
         pool = new ThreadPool(MAX_THREADS, remoteHost, remotePort);
+        log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
@@ -32,6 +33,7 @@ public class Proxy {
         new File("./requests/").mkdir();
 
         new Proxy(9000, "", 8080).run();
+
     }
 
 

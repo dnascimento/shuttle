@@ -37,7 +37,7 @@ public class WorkerThread extends
         Thread {
     private static Logger logger = LogManager.getLogger("WorkerThread");
 
-    private static final int PACKAGE_PER_FILE = 30;
+    private static final int PACKAGE_PER_FILE = 3;
     // cada buffer sao 512k
     private ByteBuffer buffer = allocateBuffer();
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
@@ -58,8 +58,8 @@ public class WorkerThread extends
 
 
 
-    public static ConcurrentHashMap<Integer, BytePackage> requests = new ConcurrentHashMap<Integer, BytePackage>();
-    public static ConcurrentHashMap<Integer, BytePackage> responses = new ConcurrentHashMap<Integer, BytePackage>();
+    public static ConcurrentHashMap<Integer, ByteBuffer> requests = new ConcurrentHashMap<Integer, ByteBuffer>();
+    public static ConcurrentHashMap<Integer, ByteBuffer> responses = new ConcurrentHashMap<Integer, ByteBuffer>();
 
     public static AtomicInteger id = new AtomicInteger(0);
 
@@ -154,46 +154,54 @@ public class WorkerThread extends
         ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + id).getBytes());
         int id = WorkerThread.id.getAndIncrement();
 
-        BytePackage pack = new BytePackage();
         buffer.clear();
-        boolean headerReceived = false;
         // Loop while data is available; channel is nonblocking
+
         while (frontendChannel.read(buffer) > 0) {
-            // store in memory
-            int written = 0;
-            if (!headerReceived) {
-                buffer.flip(); // make buffer readable
-                buffer.rewind();
-                int endOfFirstLine = indexOf(buffer, separator);
-                int originalLimit = buffer.limit();
-                buffer.position(0).limit(endOfFirstLine);
-                written += backendSocket.write(buffer);
-                backendSocket.write(messageIdHeader);
-                buffer.limit(originalLimit);
-                headerReceived = true;
+            if (buffer.remaining() == 0) {
+                resizeBuffer();
             }
-            pack.add(buffer);
-            written += backendSocket.write(buffer);
-            buffer = allocateBuffer();
         }
+        buffer.flip(); // make buffer readable
+        buffer.rewind();
 
+        ByteBuffer request = ByteBuffer.allocate(buffer.limit()
+                + messageIdHeader.capacity());
+        int endOfFirstLine = indexOf(buffer, separator);
+        int originalLimit = buffer.limit();
+
+        buffer.limit(endOfFirstLine);
+        while (buffer.hasRemaining())
+            request.put(buffer);
+
+        while (messageIdHeader.hasRemaining())
+            request.put(messageIdHeader);
+
+        buffer.limit(originalLimit);
+        while (buffer.hasRemaining())
+            request.put(buffer);
+
+        request.rewind();
+        backendSocket.write(request);
+
+        // TODO Testar enviar directo cassandra
         // compact
-        addRequest(pack, id);
+        addRequest(request, id);
 
-        pack = new BytePackage();
         // Answer
         buffer.clear();
         while (backendSocket.read(buffer) > 0) {
-            pack.add(buffer);
-            buffer.flip(); // make buffer readable
-            buffer.rewind();
-            frontendChannel.write(buffer);
-            buffer = allocateBuffer();
+            if (buffer.remaining() == 0) {
+                resizeBuffer();
+            }
         }
+        buffer.flip(); // make buffer readable
+        buffer.rewind();
+        frontendChannel.write(buffer);
 
-        addResponse(pack, id);
-        buffer.clear();
-
+        // TODO Testar enviar directo cassandra
+        addResponse(buffer, id);
+        buffer = ByteBuffer.allocate(BUFFER_SIZE);
 
         // Store data
         if (close) {
@@ -205,6 +213,12 @@ public class WorkerThread extends
         }
         // Cycle the selector so this key is active again
         key.selector().wakeup();
+    }
+
+    private void resizeBuffer() {
+        ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
+        newBuffer.put(buffer);
+        buffer = newBuffer;
     }
 
     /**
@@ -285,14 +299,14 @@ public class WorkerThread extends
      * @param request
      * @return the ID (number in queue)
      */
-    public void addRequest(BytePackage request, int id) {
+    public void addRequest(ByteBuffer request, int id) {
         requests.put(id, request);
     }
 
 
 
-    public void addResponse(BytePackage response, int id) {
-        responses.put(id, response);
+    public void addResponse(ByteBuffer buffer, int id) {
+        responses.put(id, buffer);
 
         // Check if this is the next ID to add to List
         if (repliedID.compareAndSet(id - 1, id)) {
@@ -326,16 +340,6 @@ public class WorkerThread extends
 
 
 
-
-
-    public static ByteBuffer clone(ByteBuffer original) {
-        ByteBuffer clone = ByteBuffer.allocate(original.capacity());
-        original.rewind();// copy from the beginning
-        clone.put(original);
-        original.rewind();
-        clone.flip();
-        return clone;
-    }
 
     private WritableByteChannel getDebugChannel() {
         File temp = new File("debug.txt");

@@ -1,4 +1,4 @@
-package pt.inesc.proxy.save;
+package pt.inesc.proxy.save.channel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -6,7 +6,7 @@ import java.nio.channels.WritableByteChannel;
 
 
 public class SaveRemote extends
-        SaveThread {
+        SaveChannel {
 
     public SaveRemote(SaveType type, int start, int end, InetAddress address) {
         super(type, start, end);
@@ -14,13 +14,13 @@ public class SaveRemote extends
     }
 
     @Override
-    WritableByteChannel getChannel() throws IOException {
+    public WritableByteChannel getChannel() throws IOException {
         // TODO criar o socket ao servidor remoto
         return null;
     }
 
     @Override
-    void closeChannel() throws IOException {
+    public void closeChannel() throws IOException {
         // TODO Auto-generated method stub
 
     }
