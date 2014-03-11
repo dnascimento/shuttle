@@ -1,45 +1,30 @@
 package pt.inesc.manager.redo;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.util.Collections;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.SocketChannel;
 import java.util.Date;
-import java.util.LinkedList;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.manager.redo.cookies.CookieMan;
+import pt.inesc.proxy.save.CassandraClient;
+
 public class RedoWorker
         implements Runnable {
+    private static Logger logger = LogManager.getLogger("RedoWorker");
+
     private final InetSocketAddress remoteHost;
     private final int start;
     private final int end;
-    protected Socket clientSocket = null;
-    private BufferedWriter out;
-    private BufferedReader in;
-
-    private BufferedReader requestFile;
-    private BufferedReader responseFile;
-    private LinkedList<File> requestList;
-    private LinkedList<File> responseList;
-    private String originalCookie;
-
-    private final String SEPARATOR = "===";
-
-    public static final String DIRECTOY = "./requests/";
-
-    private static Logger logger = LogManager.getLogger("RedoWorker");
-
+    protected SocketChannel backendSocket = null;
     public static CookieMan cookieManager = new CookieMan();
+    private static final int BUFFER_SIZE = 512 * 1024;
+    private ByteBuffer buffer;
 
     public RedoWorker(int start, int end, String remoteHostname, int remotePort) throws IOException {
         super();
@@ -53,198 +38,55 @@ public class RedoWorker
 
     private void connect() throws IOException {
         // Open socket to server and hold it
-        clientSocket = new Socket(remoteHost.getAddress(), remoteHost.getPort());
-        clientSocket.setKeepAlive(true);
-        clientSocket.setSoTimeout(0);
-        out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        backendSocket = SocketChannel.open(remoteHost);
+
     }
 
     public void run() {
         System.out.println("time:" + new Date().getTime());
+        CassandraClient cassandra = CassandraClient.getInstance();
 
-        // List and sort all request files
-        requestList = getFileList("req", start, end);
-        // List and sort all response files
-        responseList = getFileList("res", start, end);
-
-
-        // start
-        for (File file : requestList) {
+        for (int reqID = start; reqID <= end; reqID++) {
+            buffer = allocateBuffer();
+            ByteBuffer request = cassandra.getRequest(reqID);
+            if (request == null)
+                break;
             try {
-                processFile(file);
-            } catch (FileNotFoundException e) {
-                logger.error("RedoWorkeer:79:" + e.getMessage());
+                backendSocket.write(request);
+                ByteBuffer originalResponse = cassandra.getResponse(reqID);
+                // TODO update cookies
+                while (backendSocket.read(buffer) > 0) {
+                    if (buffer.remaining() == 0) {
+                        resizeBuffer();
+                    }
+                }
+                buffer.flip(); // make buffer readable
+                buffer.rewind();
+                if (originalResponse != null) {
+                    while (originalResponse.get() == buffer.get())
+                        ;
+                    // TODO Fix to compare correctly (cookies)
+                    System.out.println(originalResponse.remaining() == 0
+                            && buffer.remaining() == 0);
+                }
+                backendSocket.close();
+                connect();
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+
         System.out.println("time:" + new Date().getTime());
     }
 
 
-
-
-
-
-    private String getNextResponse() throws IOException {
-        if (responseFile == null) {
-            File resFile = responseList.pollFirst();
-            responseFile = new BufferedReader(new FileReader(resFile));
-        }
-        originalCookie = "";
-        String line = null;
-        StringBuilder sb = new StringBuilder();
-        int id = -1;
-
-        while ((line = responseFile.readLine()) != null) {
-            if (id == -1) {
-                id = Integer.parseInt(line);
-                continue;
-            }
-            sb.append(line);
-            if (line.equals(SEPARATOR)) {
-                return sb.toString();
-            } else if (line.startsWith("Set-Cookie:")) {
-                // Got a Cookie
-                originalCookie = line.replace("Set-Cookie:", "");
-            }
-        }
-        // Last request, file is done
-        responseFile.close();
-        responseFile = null;
-        return sb.toString();
+    private ByteBuffer allocateBuffer() {
+        return ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
     }
 
-    private void processFile(File file) throws FileNotFoundException {
-        requestFile = new BufferedReader(new FileReader(file));
-        String line = null;
-        StringBuilder sb = new StringBuilder();
-        Boolean responseReceived = false;
-        int id = -1;
-        try {
-            while ((line = requestFile.readLine()) != null) {
-                if (id == -1) {
-                    id = Integer.parseInt(line);
-                    continue;
-                }
-                // Cookies converter
-                if (line.startsWith("Cookie:")) {
-                    System.out.println(line);
-                    line = line.replace("Cookie:", "");
-                    line = "Cookie:" + cookieManager.toNewRequest(line);
-                }
-                if (line.equals(SEPARATOR)) {
-                    String request = sb.toString();
-                    // Full Request done
-
-                    // Send to server
-                    request = request.substring(0, request.length() - 1);
-                    try {
-                        out.write(request);
-                        out.flush();
-                    } catch (IOException e) {
-                        logger.warn(e.getMessage());
-                        logger.warn("connecting again");
-                        connect();
-                        out.write(sb.toString());
-                        out.flush();
-                    }
-
-                    // Original Response to check cookies.
-                    getNextResponse();
-
-                    responseReceived = false;
-                    int contentLenght = 0;
-
-
-                    StringBuilder responseB = new StringBuilder();
-                    // Get response
-                    try {
-                        while (!responseReceived && ((line = in.readLine()) != null)) {
-                            if (line.startsWith("Content-Length:")) {
-                                contentLenght = Integer.parseInt(line.replaceAll("\\D+",
-                                                                                 ""));
-                            } else if (line.startsWith("Set-Cookie:")) {
-                                String cookie = line.replace("Set-Cookie:", "");
-                                // header is done
-                                cookieManager.fromNewResponse(cookie, originalCookie);
-                            }
-
-                            else if (line.equals("")) {
-                                responseReceived = true;
-                            }
-                            responseB.append(line + "\n");
-                        }
-                    } catch (NumberFormatException e) {
-                        logger.error("Wrong conent lenght: " + line);
-                    } catch (IOException e) {
-                        logger.error("Error Reading remote socket: ");
-                    }
-
-                    System.out.println("RESPONSE:-----------------------");
-                    System.out.println(responseB.toString());
-
-                    if (contentLenght != 0) {
-                        char[] buffer = new char[contentLenght];
-                        try {
-                            if (in.read(buffer, 0, contentLenght) != contentLenght) {
-                                // TODO Ignore content
-                                logger.error("ERROR: It must read all content");
-                            }
-                        } catch (IOException e) {
-                            logger.error("Content Reading error:" + e.getMessage());
-                        }
-                    }
-
-                    if (request.contains("Connection: close")) {
-                        // Open the connection again
-                        connect();
-                    }
-
-                    sb = new StringBuilder();
-                    System.out.println("NEW REQUEST---------------------------------------");
-                    id = -1;
-                } else {
-                    sb.append(line + "\n");
-                }
-            }
-            requestFile.close();
-        } catch (IOException e) {
-            logger.error("File Reading error:" + e.getMessage());
-        }
+    private void resizeBuffer() {
+        ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
+        newBuffer.put(buffer);
+        buffer = newBuffer;
     }
-
-
-    /**
-     * Sort by ID all directory file start by "startBy"
-     * 
-     * @param startBy
-     * @return
-     */
-    public static LinkedList<File> getFileList(
-            String startBy,
-                int lowerLimit,
-                int upperLimit) {
-        // Read requests from directory
-        File folder = new File(DIRECTOY);
-        LinkedList<File> listOfFiles = new LinkedList<File>();
-        int id;
-        String filename;
-        for (File file : folder.listFiles()) {
-            filename = file.getName();
-            if (filename.startsWith(startBy)) {
-                id = Integer.parseInt(filename.replaceAll("\\D+", ""));
-                if (lowerLimit != -1 && id < lowerLimit) {
-                    continue;
-                }
-                if (upperLimit != -1 && id > upperLimit) {
-                    continue;
-                }
-                listOfFiles.add(file);
-            }
-        }
-        Collections.sort(listOfFiles, new FileComparator());
-        return listOfFiles;
-    }
-
 }

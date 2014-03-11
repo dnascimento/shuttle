@@ -5,15 +5,21 @@ import java.nio.ByteBuffer;
 public class SaveCassandra extends
         SaveThread {
     CassandraClient cassandra;
+    final SaveType type;
 
     public SaveCassandra(SaveType type, int start, int end) {
         super(type, start, end);
+        this.type = type;
         cassandra = CassandraClient.getInstance();
     }
 
     @Override
     public void save(int id, ByteBuffer pack) {
-        cassandra.putRequest(id, pack);
+        if (type.equals(SaveType.Request)) {
+            cassandra.putRequest(id, pack);
+        } else {
+            cassandra.putResponse(id, pack);
+        }
     }
 
     @Override

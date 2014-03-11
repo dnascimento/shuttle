@@ -215,11 +215,7 @@ public class WorkerThread extends
         key.selector().wakeup();
     }
 
-    private void resizeBuffer() {
-        ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
-        newBuffer.put(buffer);
-        buffer = newBuffer;
-    }
+
 
     /**
      * Exctract how long is all message.
@@ -357,5 +353,11 @@ public class WorkerThread extends
 
     private ByteBuffer allocateBuffer() {
         return ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
+    }
+
+    private void resizeBuffer() {
+        ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
+        newBuffer.put(buffer);
+        buffer = newBuffer;
     }
 }

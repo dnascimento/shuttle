@@ -9,15 +9,14 @@ import java.util.concurrent.Executors;
  * Pool of channels ready to connect to Real Server and get the data Then return the data
  * to origal thread and continue
  */
-public class RedoBoss
+public class RedoScheduler
         implements Runnable {
 
-    protected ExecutorService threadPool = Executors.newFixedThreadPool(10);
-
+    protected ExecutorService threadPool = Executors.newFixedThreadPool(1);
 
     public void run() {
         try {
-            threadPool.execute(new RedoWorker(0, 90000, "localhost", 8080));
+            threadPool.execute(new RedoWorker(1, 9000, "localhost", 8080));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -25,7 +24,7 @@ public class RedoBoss
 
 
     public static void main(String[] args) {
-        RedoBoss boss = new RedoBoss();
+        RedoScheduler boss = new RedoScheduler();
         boss.run();
     }
 

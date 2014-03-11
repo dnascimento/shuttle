@@ -5,23 +5,22 @@ import java.io.InputStreamReader;
 import java.util.LinkedList;
 import java.util.TreeMap;
 
-import pt.inesc.manager.redo.RedoBoss;
+import pt.inesc.manager.redo.RedoScheduler;
 
 public class Manager {
     private static TreeMap<Integer, LinkedList<String>> snapshotList = new TreeMap<Integer, LinkedList<String>>();
     static BufferedReader terminal = new BufferedReader(new InputStreamReader(System.in));
-    static SnapshotAPI snapAPI = new SQLSnapshoter();
 
 
 
     public static void main(String[] args) throws Exception {
         System.out.println("INESC Undo Manager");
         while (true) {
-
             System.out.println("-------------------------------");
             System.out.println("a) Do Snapshot");
             System.out.println("b) Recover from Snapshot");
             System.out.println("c) List Snapshots");
+            System.out.println("d) Redo");
 
             char option = terminal.readLine().charAt(0);
 
@@ -35,6 +34,9 @@ public class Manager {
             case 'c':
                 listSnapshots();
                 break;
+            case 'd':
+                redo();
+                break;
             default:
                 System.out.println("Invalid Option");
                 break;
@@ -42,14 +44,17 @@ public class Manager {
         }
     }
 
+    private static void redo() {
+        RedoScheduler boss = new RedoScheduler();
+        boss.run();
+
+    }
+
     private static void doSnapshot() throws Exception {
         System.out.println("Enter snapshot ID: ");
         int id = Integer.parseInt(terminal.readLine());
 
-        LinkedList<String> snap = snapAPI.shot(id);
-        snapshotList.put(id, snap);
         System.out.println("Snapshot Done:");
-        System.out.println(snap);
         System.out.println("---------------------------");
     }
 
@@ -63,14 +68,7 @@ public class Manager {
             return;
         }
 
-        // Cut request files
-        OldSnapCleaner cleaner = new OldSnapCleaner();
-        cleaner.clean(id);
 
-        snapAPI.load(snapshotList.get(id), id);
-        // REDO
-        RedoBoss boss = new RedoBoss();
-        boss.run();
 
         System.out.println("Load Done");
     }
@@ -83,6 +81,5 @@ public class Manager {
         for (Integer id : snapshotList.keySet()) {
             System.out.println(id);
         }
-
     }
 }
