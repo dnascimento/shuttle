@@ -11,14 +11,11 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-
-// http://nadeausoftware.com/articles/2008/02/java_tip_how_read_files_quickly
 
 /**
  * A worker thread class which can drain channels and echo-back the input. Each instance
@@ -32,11 +29,11 @@ import java.util.concurrent.locks.ReentrantLock;
 public class WorkerThread extends
         Thread {
     private static final int PACKAGE_PER_FILE = 3;
-    private ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024)
-                                          .order(ByteOrder.BIG_ENDIAN);
-    private ThreadPool pool;
+    private final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024)
+                                                .order(ByteOrder.BIG_ENDIAN);
+    private final ThreadPool pool;
     private SelectionKey key;
-    private InetSocketAddress remote;
+    private final InetSocketAddress remote;
     SocketChannel realSocket = null;
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
@@ -45,14 +42,16 @@ public class WorkerThread extends
     ByteBuffer contentLenght = ByteBuffer.wrap("Content-Length: ".getBytes());
     ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
+
+
+    private static ConcurrentHashMap<Integer, ByteBuffer> requests = new ConcurrentHashMap<Integer, ByteBuffer>();
+    private static ConcurrentHashMap<Integer, ByteBuffer> responses = new ConcurrentHashMap<Integer, ByteBuffer>();
+
     public static AtomicInteger id = new AtomicInteger(0);
-    private static TreeMap<Integer, ByteBuffer> requests = new TreeMap<Integer, ByteBuffer>();
-    private static TreeMap<Integer, ByteBuffer> responses = new TreeMap<Integer, ByteBuffer>();
-    private static Lock requestsMutex = new ReentrantLock();
 
     // List of replied ID's but not incremented
-    private static List<Integer> idWaitingList = new ArrayList<Integer>();
-    private static int nextRepliedID = 1;
+    private static HashSet<Integer> idWaitingList = new HashSet<Integer>();
+    private static AtomicInteger nextRepliedID = new AtomicInteger(1);
 
     RandomAccessFile aFile;
     FileChannel debugChannel;
@@ -100,24 +99,15 @@ public class WorkerThread extends
                 // Clear interrupt status
                 interrupted();
             }
-            if (key == null) {
-                continue; // just in case
-            }
-
             try {
-                // Juice
                 drainAndSend(key);
+                key.channel().close();
+                key.selector().wakeup();
+            } catch (IOException ex) {
+                ex.printStackTrace();
             } catch (Exception e) {
                 System.out.println("Caught '" + e + "' closing channel");
                 e.printStackTrace();
-
-                // Close channel and nudge selector
-                try {
-                    key.channel().close();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-                key.selector().wakeup();
             }
             key = null;
             // Done. Ready for more. Return to pool
@@ -143,10 +133,10 @@ public class WorkerThread extends
     }
 
     /**
-     * The actual code which drains the channel associated with * the given key. This
-     * method assumes the key has been modified prior to invocation to turn off selection
-     * interest in OP_READ. When this method completes it re-enables OP_READ and calls
-     * wakeup() on the selector so the selector will resume watching this channel.
+     * The actual code which drains the channel associated with the given key.
+     * This method assumes the key has been modified prior to invocation to turn off
+     * selection interest in OP_READ. When this method completes it re-enables OP_READ and
+     * calls wakeup() on the selector so the selector will resume watching this channel.
      */
 
     void drainAndSend(SelectionKey key) throws Exception {
@@ -155,16 +145,14 @@ public class WorkerThread extends
         int connectionHeaderIndex = -1;
         Boolean requestReceived = false;
         Boolean close = false;
-        int id = 0;
+        int id = WorkerThread.id.getAndIncrement();
         ByteBuffer messageIdHeader;
 
         buffer.clear();
         // Loop while data is available; channel is nonblocking
         while ((count = channel.read(buffer)) > 0) {
-            id = WorkerThread.id.getAndIncrement();
             messageIdHeader = ByteBuffer.wrap(("Id: " + id).getBytes());
             buffer.flip(); // make buffer readable
-            // TODO A request can be readed separated
             // TODO Tentar colocar keepalive a dar de vez
             requestReceived = true;
 
@@ -203,7 +191,6 @@ public class WorkerThread extends
                 writeToRemote(rest);
             }
 
-            // TODO GET's que nao mudam os dados (sem parametros) ignorar
             addRequest(clone(buffer), id);
             buffer.compact();
         }
@@ -327,38 +314,41 @@ public class WorkerThread extends
 
 
     // ////////////////////////////////////////////////////////////////////////////////////////////////
+    /**
+     * Add new request to Queue This is the serialization point.
+     * 
+     * @param request
+     * @return the ID (number in queue)
+     */
+    public void addRequest(ByteBuffer request, int id) {
+        requests.put(id, request);
+    }
 
 
 
+    public void addResponse(ByteBuffer response, int id) {
+        responses.put(id, response);
 
-    public synchronized static void addResponse(ByteBuffer response, int id) {
+        // TODO there are 5 gets here, does a lock outperfom it?
         // Check if this is the next ID to add to List
-        if (id == nextRepliedID) {
-            nextRepliedID++;
+        if (nextRepliedID.compareAndSet(id, id + 1)) {
             // Add pendent old requests
-            System.out.println(nextRepliedID);
-            while (idWaitingList.contains(nextRepliedID)) {
-                nextRepliedID++;
-                idWaitingList.remove(id);
-                System.out.println(nextRepliedID);
+            System.out.println("lastRepliedID:" + id);
+            int pendentId = nextRepliedID.get();
+            while ((idWaitingList.contains(pendentId))
+                    && nextRepliedID.compareAndSet(pendentId, pendentId + 1)) {
+                idWaitingList.remove(pendentId);
+                System.out.println("Last replied ID:" + pendentId);
+                pendentId = nextRepliedID.get();
             }
         } else {
             idWaitingList.add(id);
             System.out.println("wait" + nextRepliedID);
         }
-
-        responses.put(id, response);
         if (responses.size() > PACKAGE_PER_FILE) {
-            TreeMap<Integer, ByteBuffer> responsesToSave = responses;
-            responses = new TreeMap<Integer, ByteBuffer>();
-
-            requestsMutex.lock();
-            TreeMap<Integer, ByteBuffer> requestsToSave = requests;
-            requests = new TreeMap<Integer, ByteBuffer>();
-            requestsMutex.unlock();
-
-            new DataSaver(responsesToSave, "res").start();
-            new DataSaver(requestsToSave, "req").start();
+            int lastReplied = nextRepliedID.get() - 1;
+            new DataSaver(requests, "req", lastReplied);
+            new DataSaver(responses, "res", lastReplied);
         }
     }
 
@@ -371,22 +361,7 @@ public class WorkerThread extends
         return new String(lenghtValue, UTF8_CHARSET);
     }
 
-    /**
-     * Add new request to Queue This is the serialization point.
-     * 
-     * @param request
-     * @return the ID (number in queue)
-     */
-    public static void addRequest(ByteBuffer request, int id) {
-        requestsMutex.lock();
-        /*
-         * TODO: Id should be defined here and the reference added to list. Just that.
-         * Treemap is not the best datastructure.
-         */
-        // Exclusive zone
-        requests.put(id, request);
-        requestsMutex.unlock();
-    }
+
 
     public void writeToRemote(ByteBuffer buffer) {
         try {
