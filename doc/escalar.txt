@@ -1,8 +1,0 @@
-Usamos um selector para todos os canais que estao a ser vigiados e criamos uma nova thread para tratar
-de cada um deles
-You have a single point to monitor channel readiness and a decoupled pool of worker threads to handle the incoming data.
- The thread pool size can be tuned (or tune itself, dynamically) according to deployment conditions. 
- Management of selectable channels remains simple, and simple is good.
- 
- 
- Podemos usar vários selectors e várias pools para definir prioridades

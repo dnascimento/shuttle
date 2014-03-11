@@ -1,20 +1,27 @@
 package pt.inesc.proxy;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import pt.inesc.proxy.save.DataSaver;
+
 
 
 /**
@@ -28,14 +35,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class WorkerThread extends
         Thread {
-    private static final int PACKAGE_PER_FILE = 3;
-    private final ByteBuffer buffer = ByteBuffer.allocateDirect(16 * 1024)
-                                                .order(ByteOrder.BIG_ENDIAN);
-    private final ThreadPool pool;
-    private SelectionKey key;
-    private final InetSocketAddress remote;
-    SocketChannel realSocket = null;
+    private static Logger logger = LogManager.getLogger("WorkerThread");
+
+    private static final int PACKAGE_PER_FILE = 30;
+    // cada buffer sao 512k
+    private ByteBuffer buffer = allocateBuffer();
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
+
+    private static final int BUFFER_SIZE = 512 * 1024;
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
     ByteBuffer connectionHeader = ByteBuffer.wrap("Connection: ".getBytes());
     ByteBuffer connectionAlive = ByteBuffer.wrap("Connection: keep-alive".getBytes());
@@ -44,39 +51,42 @@ public class WorkerThread extends
     ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
 
 
-    private static ConcurrentHashMap<Integer, ByteBuffer> requests = new ConcurrentHashMap<Integer, ByteBuffer>();
-    private static ConcurrentHashMap<Integer, ByteBuffer> responses = new ConcurrentHashMap<Integer, ByteBuffer>();
+    private final ThreadPool pool;
+    private SelectionKey key;
+    private final InetSocketAddress backendAddress;
+    SocketChannel backendSocket = null;
+
+
+
+    public static ConcurrentHashMap<Integer, BytePackage> requests = new ConcurrentHashMap<Integer, BytePackage>();
+    public static ConcurrentHashMap<Integer, BytePackage> responses = new ConcurrentHashMap<Integer, BytePackage>();
 
     public static AtomicInteger id = new AtomicInteger(0);
 
     // List of replied ID's but not incremented
     private static HashSet<Integer> idWaitingList = new HashSet<Integer>();
-    private static AtomicInteger nextRepliedID = new AtomicInteger(1);
-
-    RandomAccessFile aFile;
-    FileChannel debugChannel;
-
+    private static AtomicInteger repliedID = new AtomicInteger(-1);
+    private static AtomicInteger nextFlushLevel = new AtomicInteger(PACKAGE_PER_FILE);
 
     public WorkerThread(ThreadPool pool, String remoteHost, int remotePort) {
         this.pool = pool;
-        remote = new InetSocketAddress(remoteHost, remotePort);
-        try {
-            aFile = new RandomAccessFile("debug.txt", "rw");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        debugChannel = aFile.getChannel();
+        backendAddress = new InetSocketAddress(remoteHost, remotePort);
         connect();
     }
 
+    /**
+     * Create connection to server
+     */
     private void connect() {
+        // System.out.print("Connect to backend");
+
         try {
             // Open socket to server and hold it
-            if (realSocket != null) {
-                realSocket.close();
+            if (backendSocket != null) {
+                backendSocket.close();
             }
-            realSocket = SocketChannel.open(remote);
-            realSocket.socket().setKeepAlive(true);
+            backendSocket = SocketChannel.open(backendAddress);
+            // backendSocket.socket().setKeepAlive(true);
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
                 throw new RuntimeException("ERROR: Remote server is DOWN");
@@ -89,7 +99,6 @@ public class WorkerThread extends
     // Loop forever waiting for work to do
     @Override
     public synchronized void run() {
-        System.out.println(getName() + " is ready");
         while (true) {
             try {
                 // Sleep and release object lock
@@ -103,11 +112,9 @@ public class WorkerThread extends
                 drainAndSend(key);
                 key.channel().close();
                 key.selector().wakeup();
-            } catch (IOException ex) {
-                ex.printStackTrace();
             } catch (Exception e) {
-                System.out.println("Caught '" + e + "' closing channel");
                 e.printStackTrace();
+                logger.error(e);
             }
             key = null;
             // Done. Ready for more. Return to pool
@@ -137,102 +144,61 @@ public class WorkerThread extends
      * This method assumes the key has been modified prior to invocation to turn off
      * selection interest in OP_READ. When this method completes it re-enables OP_READ and
      * calls wakeup() on the selector so the selector will resume watching this channel.
+     * 
+     * @throws IOException
      */
 
-    void drainAndSend(SelectionKey key) throws Exception {
-        SocketChannel channel = (SocketChannel) key.channel();
-        int count = 0;
-        int connectionHeaderIndex = -1;
-        Boolean requestReceived = false;
-        Boolean close = false;
+    void drainAndSend(SelectionKey key) throws IOException {
+        SocketChannel frontendChannel = (SocketChannel) key.channel();
+        Boolean close = true;
+        ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + id).getBytes());
         int id = WorkerThread.id.getAndIncrement();
-        ByteBuffer messageIdHeader;
 
+        BytePackage pack = new BytePackage();
         buffer.clear();
+        boolean headerReceived = false;
         // Loop while data is available; channel is nonblocking
-        while ((count = channel.read(buffer)) > 0) {
-            messageIdHeader = ByteBuffer.wrap(("Id: " + id).getBytes());
-            buffer.flip(); // make buffer readable
-            // TODO Tentar colocar keepalive a dar de vez
-            requestReceived = true;
-
-            // Add Via: msgId
-            int endOfFirstLine = indexOf(buffer, separator);
-            // connectionHeaderIndex = indexOf(buffer, connectionHeader);
-            connectionHeaderIndex = indexOf(buffer, connectionClose);
-
-            ByteBuffer firstLine = buffer.slice();
-            firstLine.position(0).limit(endOfFirstLine);
-            writeToRemote(firstLine);
-            separator.rewind();
-            writeToRemote(separator);
-            writeToRemote(messageIdHeader);
-            // separator.rewind();
-            // writeToRemote(separator);
-            // writeToRemote(connectionAlive);
-
-            ByteBuffer rest = buffer.slice();
-            rest.position(endOfFirstLine);
-
-
-            if (connectionHeaderIndex != -1) {
-                // Remove Close Connection or other Connection Detail
-                // rest.limit(connectionHeaderIndex - 1);
-                // ByteBuffer end = buffer.slice();
-                // end.position(connectionHeaderIndex);
-                // separator.rewind();
-                // int lineEnd = indexOf(end, separator);
-                // end.position(lineEnd + 1);
-                // writeToRemote(rest);
-                // writeToRemote(end);
-                close = true;
-                writeToRemote(rest);
-            } else {
-                writeToRemote(rest);
+        while (frontendChannel.read(buffer) > 0) {
+            // store in memory
+            int written = 0;
+            if (!headerReceived) {
+                buffer.flip(); // make buffer readable
+                buffer.rewind();
+                int endOfFirstLine = indexOf(buffer, separator);
+                int originalLimit = buffer.limit();
+                buffer.position(0).limit(endOfFirstLine);
+                written += backendSocket.write(buffer);
+                backendSocket.write(messageIdHeader);
+                buffer.limit(originalLimit);
+                headerReceived = true;
             }
-
-            addRequest(clone(buffer), id);
-            buffer.compact();
+            pack.add(buffer);
+            written += backendSocket.write(buffer);
+            buffer = allocateBuffer();
         }
 
-        if (count < 0 || !requestReceived) {
-            // Close channel on EOF; invalidates the key
-            channel.close();
-            return;
-        }
+        // compact
+        addRequest(pack, id);
 
-
-        int written = 0;
-        int toWrite = 0;
+        pack = new BytePackage();
+        // Answer
         buffer.clear();
-        while ((count = realSocket.read(buffer)) > 0) {
+        while (backendSocket.read(buffer) > 0) {
+            pack.add(buffer);
             buffer.flip(); // make buffer readable
-            try {
-                toWrite = extractMessageTotalSize(buffer);
-            } catch (NumberFormatException e) {
-                // Bad request message
-                written = channel.write(buffer);
-                addResponse(clone(buffer), id);
-                break;
-            }
-
-
             buffer.rewind();
-            // TODO If I want extract the answer ID: idFiled
-            // int resId = extractMessageIdSize(buffer);
-
-            written = channel.write(buffer);
-            addResponse(clone(buffer), id);
-            if (written == toWrite) {
-                break;
-            }
-            buffer.compact();
+            frontendChannel.write(buffer);
+            buffer = allocateBuffer();
         }
+
+        addResponse(pack, id);
+        buffer.clear();
+
 
         // Store data
         if (close) {
-            channel.close();
-            connect();
+            frontendChannel.close();
+            connect(); // TODO Manter sessao
         } else {
             // Resume interest in OP_READ
             key.interestOps(key.interestOps() | SelectionKey.OP_READ);
@@ -268,8 +234,7 @@ public class WorkerThread extends
             content.add(buffer.get(i));
         }
         System.out.println(decodeUTF8(content));
-        System.out.println("Limit: " + buffer.limit());
-        System.out.println("Position" + buffer.position());
+        buffer.rewind();
     }
 
     public static void println(ByteBuffer buffer) {
@@ -320,35 +285,32 @@ public class WorkerThread extends
      * @param request
      * @return the ID (number in queue)
      */
-    public void addRequest(ByteBuffer request, int id) {
+    public void addRequest(BytePackage request, int id) {
         requests.put(id, request);
     }
 
 
 
-    public void addResponse(ByteBuffer response, int id) {
+    public void addResponse(BytePackage response, int id) {
         responses.put(id, response);
 
-        // TODO there are 5 gets here, does a lock outperfom it?
         // Check if this is the next ID to add to List
-        if (nextRepliedID.compareAndSet(id, id + 1)) {
+        if (repliedID.compareAndSet(id - 1, id)) {
             // Add pendent old requests
-            System.out.println("lastRepliedID:" + id);
-            int pendentId = nextRepliedID.get();
+            int pendentId = id + 1;
             while ((idWaitingList.contains(pendentId))
-                    && nextRepliedID.compareAndSet(pendentId, pendentId + 1)) {
+                    && repliedID.compareAndSet(pendentId - 1, pendentId)) {
                 idWaitingList.remove(pendentId);
                 System.out.println("Last replied ID:" + pendentId);
-                pendentId = nextRepliedID.get();
+                pendentId = repliedID.get();
             }
         } else {
             idWaitingList.add(id);
-            System.out.println("wait" + nextRepliedID);
+            System.out.println("wait" + repliedID);
         }
-        if (responses.size() > PACKAGE_PER_FILE) {
-            int lastReplied = nextRepliedID.get() - 1;
-            new DataSaver(requests, "req", lastReplied);
-            new DataSaver(responses, "res", lastReplied);
+        if (repliedID.get() == nextFlushLevel.get()) {
+            int lastReplied = nextFlushLevel.getAndAdd(PACKAGE_PER_FILE);
+            DataSaver.getInstance().save(lastReplied);
         }
     }
 
@@ -363,20 +325,6 @@ public class WorkerThread extends
 
 
 
-    public void writeToRemote(ByteBuffer buffer) {
-        try {
-            // Debug to File
-            // debugChannel.write(buffer);
-            realSocket.write(buffer);
-        } catch (IOException e) {
-            connect();
-            try {
-                realSocket.write(buffer);
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        }
-    }
 
 
 
@@ -387,5 +335,23 @@ public class WorkerThread extends
         original.rewind();
         clone.flip();
         return clone;
+    }
+
+    private WritableByteChannel getDebugChannel() {
+        File temp = new File("debug.txt");
+        temp.delete();
+        temp = new File("debug.txt");
+        RandomAccessFile file;
+        try {
+            return new RandomAccessFile(temp, "rw").getChannel();
+        } catch (FileNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        return backendSocket;
+    }
+
+    private ByteBuffer allocateBuffer() {
+        return ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
     }
 }

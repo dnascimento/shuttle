@@ -2,12 +2,9 @@ package pt.inesc.proxy;
 
 import java.util.LinkedList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class ThreadPool {
     LinkedList<WorkerThread> idle = new LinkedList<WorkerThread>();
-    private static Logger logger = LogManager.getLogger("ProxyWorker");
 
     public ThreadPool(int maxThreads, String remoteHost, int remotePort) {
         for (int i = 0; i < maxThreads; i++) {

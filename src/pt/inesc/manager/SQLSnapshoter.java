@@ -14,9 +14,9 @@ import java.util.regex.Pattern;
 public class SQLSnapshoter
         implements SnapshotAPI {
     private Connection conn;
-    private String url = "jdbc:mysql://localhost/wiki";
-    private String user = "root";
-    private String password = "";
+    private final String url = "jdbc:mysql://localhost/wiki";
+    private final String user = "root";
+    private final String password = "";
 
     public SQLSnapshoter() {
         try {
@@ -29,7 +29,6 @@ public class SQLSnapshoter
 
 
 
-    @Override
     public LinkedList<String> shot(Integer id) throws SQLException {
         LinkedList<String> snapshot = new LinkedList<String>();
         Statement clean = conn.createStatement();
@@ -160,7 +159,6 @@ public class SQLSnapshoter
         return snapshot;
     }
 
-    @Override
     public void load(LinkedList<String> pendentOperations, int id) throws SQLException {
         // Delete all versions more recent than snapshot
         Statement stat = conn.createStatement();

@@ -2,8 +2,8 @@ package pt.inesc.manager.redo;
 
 import java.util.HashMap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 public class CookieMan {
     // ID, values

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/"
+	debug="false">
+	<!-- Log to stdout if betwwen [DEBUG,WARN] -->
+	<appender name="stdout" class="org.apache.log4j.ConsoleAppender">
+		<param name="Target" value="System.out" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%-5p [%t][%F:%L]: %m%n" />
+		</layout>
+		<filter class="org.apache.log4j.varia.LevelRangeFilter">
+			<param name="LevelMax" value="WARN" />
+			<param name="LevelMin" value="DEBUG" />
+			<param name="AcceptOnMatch" value="true" />
+		</filter>
+	</appender>
+
+	<!-- Log to stderror if betwwen [ERROR,FATAL] -->
+	<appender name="stderr" class="org.apache.log4j.ConsoleAppender">
+		<param name="Target" value="System.err" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%-5p [%t][%F:%L]: %m%n" />
+		</layout>
+		<filter class="org.apache.log4j.varia.LevelRangeFilter">
+			<param name="LevelMax" value="FATAL" />
+			<param name="LevelMin" value="ERROR" />
+			<param name="AcceptOnMatch" value="true" />
+		</filter>
+	</appender>
+
+
+	<!-- Log everything to file: app.log -->
+	<appender name="error-out" class="org.apache.log4j.FileAppender">
+		<!-- Start a new log on each run -->
+		<param name="Append" value="false" />
+		<param name="File" value="app.log" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%-5p [%t][%F:%L]: %m%n" />
+		</layout>
+	</appender>
+	<logger name="log4logger">
+		<level value="info" />
+		<!-- <appender-ref ref="file" /> -->
+		<appender-ref ref="stdout" />
+		<appender-ref ref="stderr" />
+	</logger>
+
+	<root>
+		<priority value="info" />
+		<!-- <appender-ref ref="file" /> -->
+		<appender-ref ref="stdout" />
+		<appender-ref ref="stderr" />
+	</root>
+</log4j:configuration>

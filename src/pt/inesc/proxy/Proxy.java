@@ -1,5 +1,6 @@
 package pt.inesc.proxy;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -9,10 +10,15 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.log4j.xml.DOMConfigurator;
+
 public class Proxy {
-    private static final int MAX_THREADS = 40;
-    private ThreadPool pool;
+    private static final int MAX_THREADS = 1;
+    private final ThreadPool pool;
     private final int localPort;
+    private final Logger log = LogManager.getLogger("Proxy");
 
 
     public Proxy(int localPort, String remoteHost, int remotePort) {
@@ -21,7 +27,11 @@ public class Proxy {
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
-        new Proxy(9000, "localhost", 8080).run();
+        DOMConfigurator.configure("log4j.xml");
+        new File("./requests/").delete();
+        new File("./requests/").mkdir();
+
+        new Proxy(9000, "", 8080).run();
     }
 
 
