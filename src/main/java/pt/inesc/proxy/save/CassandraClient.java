@@ -1,7 +1,6 @@
 package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
@@ -28,16 +27,7 @@ public class CassandraClient {
         init();
     }
 
-    public static void main(String[] args) {
-        CassandraClient client = CassandraClient.getInstance();
-        byte[] data = "darionascimento".getBytes();
-        ByteBuffer buffer = ByteBuffer.wrap(data);
-        client.putRequest(2, buffer);
-        buffer = client.getRequest(2);
-        byte[] result = new byte[buffer.remaining()];
-        buffer.get(result, 0, result.length);
-        System.out.println(Arrays.equals(data, result));
-    }
+
 
     private void init() {
         String node = "localhost";
