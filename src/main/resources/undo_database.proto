@@ -1,0 +1,15 @@
+package UndoProto;
+
+option java_package = "pt.inesc.shared";
+option java_outer_classname = "DatabasePB";
+
+message DataAccessList{
+	repeated DataAccessUnit msgs = 1;
+}
+
+message DataAccessUnit{
+	required string id = 1;
+	optional string source = 2;
+	repeated string readIds = 3;
+	repeated string writeIds = 4;
+}
