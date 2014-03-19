@@ -1,4 +1,4 @@
-package pt.inesc.manager.database;
+package pt.inesc.manager;
 
 import java.io.IOException;
 import java.io.InputStream;

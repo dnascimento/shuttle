@@ -1,4 +1,4 @@
-package pt.inesc.manager.redo;
+package pt.inesc.redoNode;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;

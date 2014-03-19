@@ -1,4 +1,4 @@
-package pt.inesc.manager.redo;
+package pt.inesc.redoNode;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -11,8 +11,8 @@ import java.util.Date;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.manager.redo.cookies.CookieMan;
 import pt.inesc.proxy.save.CassandraClient;
+import pt.inesc.redoNode.cookies.CookieMan;
 
 public class RedoWorker
         implements Runnable {

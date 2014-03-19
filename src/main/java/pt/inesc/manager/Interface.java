@@ -5,9 +5,9 @@ import java.io.InputStreamReader;
 import java.util.LinkedList;
 import java.util.TreeMap;
 
-import pt.inesc.manager.redo.RedoScheduler;
+import pt.inesc.redoNode.RedoScheduler;
 
-public class Manager {
+public class Interface {
     private static TreeMap<Integer, LinkedList<String>> snapshotList = new TreeMap<Integer, LinkedList<String>>();
     static BufferedReader terminal = new BufferedReader(new InputStreamReader(System.in));
 
