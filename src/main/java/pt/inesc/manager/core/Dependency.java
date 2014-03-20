@@ -1,7 +1,6 @@
 package pt.inesc.manager.core;
 
 import java.util.HashSet;
-import java.util.Iterator;
 
 public class Dependency
         implements Comparable<Dependency> {
@@ -21,8 +20,8 @@ public class Dependency
         return !after.isEmpty();
     }
 
-    public Iterator<Long> getAfterIterator() {
-        return after.iterator();
+    public HashSet<Long> getAfter() {
+        return after;
     }
 
     public void addAfter(Long key) {
@@ -46,5 +45,9 @@ public class Dependency
 
     public Long getKey() {
         return start;
+    }
+
+    public void removeAfter(Long key) {
+        after.remove(key);
     }
 }

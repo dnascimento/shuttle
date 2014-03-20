@@ -3,7 +3,6 @@ package pt.inesc.manager.core;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -33,18 +32,27 @@ public class DependencyGraph {
      * 
      * @param dependenciesMap
      */
-    public void addDependencies(Map<Long, List<Long>> dependenciesMap) {
-        for (Entry<Long, List<Long>> keyDepPair : dependenciesMap.entrySet()) {
-            Dependency keyEntry = getEntry(keyDepPair.getKey());
-            // Remove cycles
-            if (keyEntry.hasAfter()) {
-                searchCycle(keyDepPair.getKey(), keyDepPair.getValue());
-            }
-            // add dependencies
-            for (Long depKey : keyDepPair.getValue()) {
-                Dependency depKeyEntry = getEntry(depKey);
-                depKeyEntry.addAfter(keyDepPair.getKey());
-            }
+    public void addDependencies(Map<Long, long[]> dependenciesMap) {
+        for (Entry<Long, long[]> keyDepPair : dependenciesMap.entrySet()) {
+            addDependencies(keyDepPair.getKey(), keyDepPair.getValue());
+        }
+    }
+
+    public void addDependencies(Long key, long... dependencies) {
+        Dependency keyEntry = getEntry(key);
+        Long[] possibleCicles = null;
+        // Remove cycles
+        if (keyEntry.hasAfter()) {
+            possibleCicles = keyEntry.getAfter().toArray(new Long[0]);
+        }
+        // add dependencies
+        for (Long depKey : dependencies) {
+            Dependency depKeyEntry = getEntry(depKey);
+            depKeyEntry.addAfter(key);
+            keyEntry.countBefore++;
+        }
+        if (possibleCicles != null) {
+            searchCycle(key, possibleCicles);
         }
     }
 
@@ -55,8 +63,10 @@ public class DependencyGraph {
      * @return
      */
     public List<Long> getExecutionList(long rootKey) {
+        // TODO: FIX
         Dependency entry = graph.get(rootKey);
-        assert entry.countBefore == 0;
+        assert (entry != null); // TODO Handle exception: invalid root
+        assert (entry.countBefore == 0);
         LinkedList<Long> executionList = new LinkedList<Long>();
         PriorityQueue<Dependency> readyHeap = new PriorityQueue<Dependency>();
         readyHeap.add(entry);
@@ -80,9 +90,7 @@ public class DependencyGraph {
         groupOfparallelRequest.add(entry);
 
         long previousEnd = entry.end;
-        Iterator<Long> iterator = entry.getAfterIterator();
-        while (iterator.hasNext()) {
-            long key = iterator.next();
+        for (long key : entry.getAfter()) {
             Dependency req = graph.get(key);
             req.countBefore--;
             if (req.countBefore == 0) {
@@ -98,34 +106,33 @@ public class DependencyGraph {
 
     // ////////////////////////////////////////////////////////////////////
     /**
-     * Search cycle using BSF algorithm (FIFO)
+     * Search cycle using DSF algorithm (LIFO)
      * 
-     * @param key
-     * @param dependencies
+     * @param root
+     * @param possibleCicles
      */
-    private void searchCycle(Long key, List<Long> dependencies) {
-        LinkedList<Long> queue = new LinkedList<Long>();
-        Dependency sourceEntry = graph.get(key);
-        queue.addLast(key);
-        while (!queue.isEmpty() && !dependencies.isEmpty()) {
-            long k = queue.getFirst();
-            Dependency kEntry = graph.get(k);
-            if (!kEntry.hasAfter())
-                continue;
-            for (Long dep : dependencies) {
-                if (kEntry.hasAfter(dep)) {
-                    dependencies.remove(dep);
-                }
-            }
-            Iterator<Long> iterator = kEntry.getAfterIterator();
-            while (iterator.hasNext()) {
-                long next = iterator.next();
-                Dependency child = graph.get(next);
-                if (child.end > sourceEntry.start) {
-                    queue.add(next);
-                }
+    private void searchCycle(Long root, Long[] possibleCiclesNexts) {
+        Dependency rootEntry = graph.get(root);
+        for (Long next : rootEntry.getAfter()) {
+            Dependency nextNode = graph.get(next);
+            if (searchCycleAux(nextNode, root)) {
+                rootEntry.removeAfter(next);
+                nextNode.countBefore--;
             }
         }
+    }
+
+    private Boolean searchCycleAux(Dependency nextNode, Long rootStart) {
+        for (long next : nextNode.getAfter()) {
+            if (next == rootStart)
+                return true;
+
+            Dependency child = graph.get(next);
+            if (child.end > rootStart)
+                if (searchCycleAux(child, rootStart))
+                    return true;
+        }
+        return false;
     }
 
     public Dependency getEntry(long key) {

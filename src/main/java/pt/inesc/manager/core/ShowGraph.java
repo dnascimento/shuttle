@@ -4,7 +4,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Paint;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map.Entry;
 
 import javax.swing.JFrame;
@@ -36,9 +35,7 @@ public class ShowGraph {
         for (Entry<Long, Dependency> entry : hashGraph.entrySet()) {
 
             g.addVertex(entry.getValue().toString());
-            Iterator<Long> iter = entry.getValue().getAfterIterator();
-            while (iter.hasNext()) {
-                Long depKey = iter.next();
+            for (long depKey : entry.getValue().getAfter()) {
                 Dependency depEntry = hashGraph.get(depKey);
                 g.addVertex(depEntry.toString());
                 addEdge(entry.getValue().toString(), depEntry.toString());
