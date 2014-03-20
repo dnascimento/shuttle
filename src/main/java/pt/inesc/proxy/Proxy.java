@@ -31,7 +31,6 @@ public class Proxy {
         DOMConfigurator.configure("log4j.xml");
         new File("./requests/").delete();
         new File("./requests/").mkdir();
-
         new Proxy(9000, "", 8080).run();
 
     }

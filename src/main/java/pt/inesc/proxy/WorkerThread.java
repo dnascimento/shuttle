@@ -12,15 +12,16 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.proxy.save.DataSaver;
+import pt.inesc.proxy.save.Request;
+import pt.inesc.proxy.save.Response;
+import pt.inesc.proxy.save.SaveWorker;
+
 
 
 
@@ -37,12 +38,11 @@ public class WorkerThread extends
         Thread {
     private static Logger logger = LogManager.getLogger("WorkerThread");
 
-    private static final int PACKAGE_PER_FILE = 3;
-    // cada buffer sao 512k
+    /** time between attempt to flush to disk ms */
+    private static final int BUFFER_SIZE = 512 * 1024;
     private ByteBuffer buffer = allocateBuffer();
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
-    private static final int BUFFER_SIZE = 512 * 1024;
     ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
     ByteBuffer connectionHeader = ByteBuffer.wrap("Connection: ".getBytes());
     ByteBuffer connectionAlive = ByteBuffer.wrap("Connection: keep-alive".getBytes());
@@ -58,18 +58,12 @@ public class WorkerThread extends
 
 
 
-    public static ConcurrentHashMap<Integer, ByteBuffer> requests = new ConcurrentHashMap<Integer, ByteBuffer>();
-    public static ConcurrentHashMap<Integer, ByteBuffer> responses = new ConcurrentHashMap<Integer, ByteBuffer>();
-
-    public static AtomicInteger id = new AtomicInteger(0);
-
-    // List of replied ID's but not incremented
-    private static HashSet<Integer> idWaitingList = new HashSet<Integer>();
-    private static AtomicInteger repliedID = new AtomicInteger(-1);
-    private static AtomicInteger nextFlushLevel = new AtomicInteger(PACKAGE_PER_FILE);
+    public LinkedList<Request> requests = new LinkedList<Request>();
+    public LinkedList<Response> responses = new LinkedList<Response>();
 
     public WorkerThread(ThreadPool pool, String remoteHost, int remotePort) {
         this.pool = pool;
+        new SaveWorker(requests, responses).start();
         backendAddress = new InetSocketAddress(remoteHost, remotePort);
         connect();
     }
@@ -79,7 +73,6 @@ public class WorkerThread extends
      */
     private void connect() {
         // System.out.print("Connect to backend");
-
         try {
             // Open socket to server and hold it
             if (backendSocket != null) {
@@ -139,6 +132,8 @@ public class WorkerThread extends
         notify(); // Awaken the thread
     }
 
+    // TODO Tornar assync, manter sessao
+
     /**
      * The actual code which drains the channel associated with the given key.
      * This method assumes the key has been modified prior to invocation to turn off
@@ -147,16 +142,13 @@ public class WorkerThread extends
      * 
      * @throws IOException
      */
-
     void drainAndSend(SelectionKey key) throws IOException {
         SocketChannel frontendChannel = (SocketChannel) key.channel();
         Boolean close = true;
-        ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + id).getBytes());
-        int id = WorkerThread.id.getAndIncrement();
-
+        long startTS = System.currentTimeMillis();
+        ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + startTS).getBytes());
         buffer.clear();
         // Loop while data is available; channel is nonblocking
-
         while (frontendChannel.read(buffer) > 0) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
@@ -186,7 +178,7 @@ public class WorkerThread extends
 
         // TODO Testar enviar directo cassandra
         // compact
-        addRequest(request, id);
+        addRequest(request, startTS);
 
         // Answer
         buffer.clear();
@@ -195,12 +187,13 @@ public class WorkerThread extends
                 resizeBuffer();
             }
         }
+        long endTS = System.currentTimeMillis();
         buffer.flip(); // make buffer readable
         buffer.rewind();
         frontendChannel.write(buffer);
 
         // TODO Testar enviar directo cassandra
-        addResponse(buffer, id);
+        addResponse(buffer, startTS, endTS);
         buffer = ByteBuffer.allocate(BUFFER_SIZE);
 
         // Store data
@@ -214,8 +207,6 @@ public class WorkerThread extends
         // Cycle the selector so this key is active again
         key.selector().wakeup();
     }
-
-
 
     /**
      * Exctract how long is all message.
@@ -295,33 +286,14 @@ public class WorkerThread extends
      * @param request
      * @return the ID (number in queue)
      */
-    public void addRequest(ByteBuffer request, int id) {
-        requests.put(id, request);
+    public void addRequest(ByteBuffer request, long start) {
+        requests.add(new Request(buffer, start));
     }
 
 
 
-    public void addResponse(ByteBuffer buffer, int id) {
-        responses.put(id, buffer);
-
-        // Check if this is the next ID to add to List
-        if (repliedID.compareAndSet(id - 1, id)) {
-            // Add pendent old requests
-            int pendentId = id + 1;
-            while ((idWaitingList.contains(pendentId))
-                    && repliedID.compareAndSet(pendentId - 1, pendentId)) {
-                idWaitingList.remove(pendentId);
-                System.out.println("Last replied ID:" + pendentId);
-                pendentId = repliedID.get();
-            }
-        } else {
-            idWaitingList.add(id);
-            System.out.println("wait" + repliedID);
-        }
-        if (repliedID.get() == nextFlushLevel.get()) {
-            int lastReplied = nextFlushLevel.getAndAdd(PACKAGE_PER_FILE);
-            DataSaver.getInstance().save(lastReplied);
-        }
+    public void addResponse(ByteBuffer buffer, long start, long end) {
+        responses.add(new Response(buffer, start, end));
     }
 
     static String decodeUTF8(List<Byte> lenght) {
@@ -345,7 +317,6 @@ public class WorkerThread extends
         try {
             return new RandomAccessFile(temp, "rw").getChannel();
         } catch (FileNotFoundException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
         return backendSocket;

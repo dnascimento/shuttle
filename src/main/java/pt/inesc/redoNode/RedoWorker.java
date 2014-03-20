@@ -40,14 +40,17 @@ public class RedoWorker
 
     }
 
+
+
+
     public void run() {
         System.out.println("time:" + new Date().getTime());
-        CassandraClient cassandra = CassandraClient.getInstance();
+        CassandraClient cassandra = new CassandraClient();
 
         for (long reqID : executionArray) {
             if (reqID == -1) {
-                // TODO wait response: aqui poderia ser full async
-
+                // TODO WAIT responses
+                continue;
             }
             buffer = allocateBuffer();
             ByteBuffer request = cassandra.getRequest(reqID);

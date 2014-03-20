@@ -13,7 +13,7 @@ public class CassandraTest {
 
     @Test
     public void Test() {
-        CassandraClient client = CassandraClient.getInstance();
+        CassandraClient client = new CassandraClient();
         byte[] data = "darionascimento".getBytes();
         ByteBuffer buffer = ByteBuffer.wrap(data);
         client.putRequest(2, buffer);

@@ -14,22 +14,15 @@ import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 
 public class CassandraClient {
-    static CassandraClient instance = new CassandraClient();
     private static final int CONCURRENCY = 20;
     private static final int MAX_CONNECTIONS = 10;
     private static final String REQUEST = "request";
     private static final String RESPONSE = "response";
     private static final String TABLE_NAME = "requests";
-    private Cluster cluster;
-    private Session session;
+    private final Cluster cluster;
+    private final Session session;
 
     public CassandraClient() {
-        init();
-    }
-
-
-
-    private void init() {
         String node = "localhost";
         PoolingOptions pools = new PoolingOptions();
         pools.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL,
@@ -53,19 +46,19 @@ public class CassandraClient {
 
     }
 
-
-    public void putRequest(int id, ByteBuffer data) {
-        putPackage(REQUEST, id, data);
+    public void putRequest(long start, ByteBuffer data) {
+        putPackage(REQUEST, start, data);
 
     }
 
-    public void putResponse(int id, ByteBuffer data) {
-        putPackage(RESPONSE, id, data);
+    public void putResponse(long start, ByteBuffer data) {
+        putPackage(RESPONSE, start, data);
     }
 
-    private void putPackage(String type, int id, ByteBuffer data) {
+    private void putPackage(String type, long start, ByteBuffer data) {
+        data.rewind();
         Insert query = QueryBuilder.insertInto(TABLE_NAME)
-                                   .value("id", id)
+                                   .value("id", start)
                                    .value(type, data);
 
         // ResultSetFuture resultSetFuture =
@@ -103,10 +96,6 @@ public class CassandraClient {
 
     public void close() {
         cluster.close();
-    }
-
-    public static CassandraClient getInstance() {
-        return instance;
     }
 
     public Session getSession() {
