@@ -51,7 +51,7 @@ public class GraphTest {
 
     @org.junit.Before
     public void initTest() {
-        parallelLines();
+        abcdIndependentCycle();
     }
 
     @Test
@@ -67,10 +67,10 @@ public class GraphTest {
             sb.append("\n");
         }
         System.out.println(sb.toString());
+        display();
     }
 
-    // @Test
-    public void display() {
+    private void display() {
         graph.display();
         System.out.println("Press enter to exit");
         try {

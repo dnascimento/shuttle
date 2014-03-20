@@ -16,12 +16,12 @@ public class RedoScheduler
 
     public void run() {
         try {
-            threadPool.execute(new RedoWorker(1, 9000, "localhost", 8080));
+            long[] requestsToExecute = new long[] { 1, 2, 3 }; // TODO fix
+            threadPool.execute(new RedoWorker(requestsToExecute, "localhost", 8080));
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
 
     public static void main(String[] args) {
         RedoScheduler boss = new RedoScheduler();

@@ -19,19 +19,17 @@ public class RedoWorker
     private static Logger logger = LogManager.getLogger("RedoWorker");
 
     private final InetSocketAddress remoteHost;
-    private final int start;
-    private final int end;
+    private final long[] executionArray;
     protected SocketChannel backendSocket = null;
     public static CookieMan cookieManager = new CookieMan();
     private static final int BUFFER_SIZE = 512 * 1024;
     private ByteBuffer buffer;
 
-    public RedoWorker(int start, int end, String remoteHostname, int remotePort) throws IOException {
+    public RedoWorker(long[] executionArray, String remoteHostname, int remotePort) throws IOException {
         super();
+        this.executionArray = executionArray;
         remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
                 remotePort);
-        this.start = start;
-        this.end = end;
         logger.info("New Worker");
         connect();
     }
@@ -46,7 +44,11 @@ public class RedoWorker
         System.out.println("time:" + new Date().getTime());
         CassandraClient cassandra = CassandraClient.getInstance();
 
-        for (int reqID = start; reqID <= end; reqID++) {
+        for (long reqID : executionArray) {
+            if (reqID == -1) {
+                // TODO wait response: aqui poderia ser full async
+
+            }
             buffer = allocateBuffer();
             ByteBuffer request = cassandra.getRequest(reqID);
             if (request == null)
@@ -75,8 +77,6 @@ public class RedoWorker
                 e.printStackTrace();
             }
         }
-
-        System.out.println("time:" + new Date().getTime());
     }
 
 

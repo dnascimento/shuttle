@@ -74,12 +74,12 @@ public class CassandraClient {
 
     // /////////////////////////////////////////////////////////////
 
-    public ByteBuffer getRequest(int id) {
+    public ByteBuffer getRequest(long id) {
         return getPackage(REQUEST, id);
     }
 
 
-    public ByteBuffer getResponse(int id) {
+    public ByteBuffer getResponse(long id) {
         return getPackage(RESPONSE, id);
     }
 
@@ -90,7 +90,7 @@ public class CassandraClient {
      * @param id
      * @return
      */
-    private ByteBuffer getPackage(String type, int id) {
+    private ByteBuffer getPackage(String type, long id) {
         String query = new String("select " + type + " from " + TABLE_NAME + " where id="
                 + id + ";");
 

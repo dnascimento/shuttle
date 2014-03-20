@@ -63,7 +63,6 @@ public class DependencyGraph {
      * @return
      */
     public List<Long> getExecutionList(long rootKey) {
-        // TODO: FIX
         Dependency entry = graph.get(rootKey);
         assert (entry != null); // TODO Handle exception: invalid root
         assert (entry.countBefore == 0);
@@ -83,6 +82,13 @@ public class DependencyGraph {
         return executionList;
     }
 
+    /**
+     * Load every request which have been executed concurrently with entry
+     * 
+     * @param entry
+     * @param groupOfparallelRequest
+     * @param readyHeap
+     */
     public void expandEntry(
             Dependency entry,
                 ArrayList<Dependency> groupOfparallelRequest,
@@ -124,9 +130,16 @@ public class DependencyGraph {
 
     private Boolean searchCycleAux(Dependency nextNode, Long rootStart) {
         for (long next : nextNode.getAfter()) {
-            if (next == rootStart)
-                return true;
-
+            if (next == rootStart) {
+                // found cycle
+                if (nextNode.start > rootStart) {
+                    nextNode.removeAfter(rootStart);
+                    getEntry(rootStart).countBefore--;
+                    return false;
+                } else {
+                    return true;
+                }
+            }
             Dependency child = graph.get(next);
             if (child.end > rootStart)
                 if (searchCycleAux(child, rootStart))
