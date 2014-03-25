@@ -3,14 +3,17 @@ package pt.inesc.manager.graph;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Paint;
+import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
 import java.util.HashMap;
 import java.util.Map.Entry;
 
 import javax.swing.JFrame;
+import javax.swing.JScrollPane;
 
 import org.apache.commons.collections15.Transformer;
 
-import edu.uci.ics.jung.algorithms.layout.CircleLayout;
+import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.SparseMultigraph;
@@ -82,7 +85,7 @@ public class ShowGraph extends
     public void refresh() {
         // generate new g
         generateGraphFromHash();
-        layout = new CircleLayout<String, String>(g);
+        layout = new FRLayout<String, String>(g);
         layout.setSize(new Dimension(WIDTH, HEIGHT));
         vv.setGraphLayout(layout);
         vv.repaint(0);
@@ -91,7 +94,7 @@ public class ShowGraph extends
 
     public void display() {
         // TODO test new layouts
-        layout = new CircleLayout<String, String>(g);
+        layout = new FRLayout<String, String>(g);
         layout.setSize(new Dimension(WIDTH, HEIGHT));
         vv = new VisualizationViewer<String, String>(layout);
         vv.setSize(new Dimension(WIDTH + MARGIN, HEIGHT + MARGIN));
@@ -102,15 +105,21 @@ public class ShowGraph extends
                 return Color.decode("#4586F5");
             }
         };
-
+        Transformer<String, Shape> vertexSize = new Transformer<String, Shape>() {
+            public Shape transform(String i) {
+                Ellipse2D circle = new Ellipse2D.Double(-15, -15, 70, 30);
+                return circle;
+            }
+        };
         vv.getRenderContext().setVertexFillPaintTransformer(vertexPaint);
         vv.getRenderContext().setVertexLabelTransformer(new TruncatedStringLabeller());
-        vv.getRenderContext().setEdgeLabelTransformer(new TruncatedStringLabeller());
+        vv.getRenderContext().setVertexShapeTransformer(vertexSize);
         vv.getRenderer().getVertexLabelRenderer().setPosition(Position.CNTR);
 
 
         frame = new JFrame("Dependency Graph");
-        frame.getContentPane().add(vv);
+        JScrollPane jsp = new JScrollPane(vv);
+        frame.getContentPane().add(jsp);
         frame.pack();
         frame.setVisible(true);
     }
