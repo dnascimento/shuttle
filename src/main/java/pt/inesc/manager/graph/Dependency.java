@@ -1,4 +1,4 @@
-package pt.inesc.manager.core;
+package pt.inesc.manager.graph;
 
 import java.util.HashSet;
 
@@ -15,6 +15,10 @@ public class Dependency
 
     /** IDs dependent from entry */
     private final HashSet<Long> after = new HashSet<Long>();
+
+    public Dependency(long key) {
+        start = key;
+    }
 
     public Boolean hasAfter() {
         return !after.isEmpty();

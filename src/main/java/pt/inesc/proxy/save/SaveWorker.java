@@ -41,7 +41,6 @@ public class SaveWorker extends
 
 
     private void save() {
-        System.out.println("Save");
         file.openChannels();
         // disconnect
         // TODO: there is inconsistency due to concurrence?
@@ -51,6 +50,9 @@ public class SaveWorker extends
         requests = new LinkedList<Request>();
         responses = new LinkedList<Response>();
 
+        if (requestsSave.size() != 0 || responsesSave.size() != 0) {
+            System.out.println("Save");
+        }
         saveRequests(requestsSave);
         saveResponses(responsesSave);
         file.closeChannels();
