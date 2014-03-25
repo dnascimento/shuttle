@@ -1,0 +1,15 @@
+package voldemort;
+
+option java_package = "voldemort.undoTracker.proto";
+option java_outer_classname = "OpProto";
+option optimize_for = SPEED;
+
+
+message TrackEntry {
+  required int64 rid = 1;
+  repeated int64 dependencies = 2;
+}
+message TrackList{
+  repeated TrackEntry entry = 1;
+  optional string nodeId = 2;
+}

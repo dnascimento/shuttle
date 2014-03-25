@@ -1,11 +1,12 @@
 package pt.inesc;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Test;
 
-import pt.inesc.manager.core.DependencyGraph;
+import pt.inesc.manager.graph.DependencyGraph;
 
 
 public class GraphTest {
@@ -18,10 +19,18 @@ public class GraphTest {
         // List with 4 nodes: A:0-1; B:1-2; C:2-3; com A->B->C->D D->B
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5, 4, 7 };
         graph.updateStartEnd(startEndArray);
-        graph.addDependencies((long) 2, 1, 4);
-        graph.addDependencies((long) 3, (long) 2);
-        graph.addDependencies((long) 4, (long) 3);
+        graph.addDependencies((long) 2, toList(1, 4));
+        graph.addDependencies((long) 3, toList(2));
+        graph.addDependencies((long) 4, toList(3));
         rootArray = new long[] { 1 };
+    }
+
+    private List<Long> toList(int... args) {
+        List<Long> list = new ArrayList<Long>();
+        for (int a : args) {
+            list.add((long) a);
+        }
+        return list;
     }
 
     public void abcIndependentLine() {
@@ -29,8 +38,8 @@ public class GraphTest {
         // List with 3 nodes: A:0-1; B:1-2; C:2-3; com A->B->C
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5 };
         graph.updateStartEnd(startEndArray);
-        graph.addDependencies((long) 2, 1);
-        graph.addDependencies((long) 3, 2);
+        graph.addDependencies((long) 2, toList(1));
+        graph.addDependencies((long) 3, toList(2));
         rootArray = new long[] { 1 };
     }
 
@@ -39,10 +48,10 @@ public class GraphTest {
         // 2x List with 3 nodes: A:0-1; B:1-2; C:2-3; com A->B->C
         long[] startEndArray = new long[] { 1, 4, 3, 6, 5, 7, 2, 5, 4, 7, 6, 8 };
         graph.updateStartEnd(startEndArray);
-        graph.addDependencies((long) 3, 1);
-        graph.addDependencies((long) 5, 3);
-        graph.addDependencies((long) 4, 2);
-        graph.addDependencies((long) 6, 4);
+        graph.addDependencies((long) 3, toList(1));
+        graph.addDependencies((long) 5, toList(3));
+        graph.addDependencies((long) 4, toList(2));
+        graph.addDependencies((long) 6, toList(4));
         rootArray = new long[] { 1, 2 };
     }
 

@@ -65,7 +65,7 @@
 		</dependency>
 
 	</dependencies>
-	<build>
+	<build> 
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -77,21 +77,24 @@
 						<configuration>
 							<tasks>
 								<echo message="Generating Google Protocol Buffers" />
-								<mkdir dir="target/generated-sources" />
-								<!-- <exec executable='protoc'> -->
-								<exec executable='/usr/local/bin/protoc'>
-									<arg value='--java_out=target/generated-sources' />
-									<arg value='src/main/resources/undo_proxy.proto' />
-								</exec>
-								<!-- <exec executable='protoc'> -->
-								<exec executable='/usr/local/bin/protoc'>
-									<arg value='--java_out=target/generated-sources' />
-									<arg value='src/main/resources/undo_database.proto' />
-								</exec>
-							</tasks>
+								<property name="proto.path" location="src/main/resources/"/>
+								<property name="proto.out" location="target/generated-sources"/>								
+								
+								<pathconvert property="proto.sources" pathsep=" ">
+      								<path id="proto-files">
+										<fileset dir="${proto.path}" />
+							        </path> 
+							    </pathconvert>
+								<mkdir dir="target/generated-sources" />								
+								<exec executable='/usr/local/bin/protoc' failonerror="true">
+									<arg value="-I=${proto.path}"/>
+									<arg value='--java_out=${proto.out}' />
+									<arg line='${proto.sources}' /> 
+								</exec>   
+							</tasks>   
 							<sourceRoot>target/generated-sources</sourceRoot>
-						</configuration>
-						<goals>
+						</configuration> 
+						<goals> 
 							<goal>run</goal>
 						</goals>
 					</execution>
@@ -116,21 +119,7 @@
 						</archive>
 					</configuration>
 				</plugin>
-				<plugin>
-					<groupId>org.codehaus.mojo</groupId>
-					<artifactId>exec-maven-plugin</artifactId>
-					<version>1.2.1</version>
-					<executions>
-						<execution>
-							<goals>
-								<goal>java</goal>
-							</goals>
-							<configuration>
-								<mainClass>inesc.master.MasterMain</mainClass>
-							</configuration>
-						</execution>
-					</executions>
-				</plugin>
+
 				<!--This plugin's configuration is used to store Eclipse m2e settings 
 					only. It has no influence on the Maven build itself. -->
 				<plugin>
@@ -166,4 +155,53 @@
 			</plugins>
 		</pluginManagement>
 	</build>
+	<profiles> 
+		<profile>
+			<id>proxy</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.codehaus.mojo</groupId>
+						<artifactId>exec-maven-plugin</artifactId>
+						<version>1.2.1</version>
+						<executions>
+							<execution>
+								<phase>test</phase>
+								<goals>
+									<goal>java</goal>
+								</goals>
+								<configuration>
+									<mainClass>pt.inesc.proxy.Proxy</mainClass>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile> 
+		<profile>
+			<id>manager</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.codehaus.mojo</groupId>
+						<artifactId>exec-maven-plugin</artifactId>
+						<version>1.2.1</version>
+						<executions>
+							<execution>
+								<phase>test</phase>
+								<goals>
+									<goal>java</goal>
+								</goals>
+								<configuration>
+									<mainClass>pt.inesc.manager.Manager</mainClass>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile> 
+	</profiles>
+	
 </project>

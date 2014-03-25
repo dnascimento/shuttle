@@ -1,12 +1,10 @@
-package pt.inesc.manager.core;
+package pt.inesc.manager.graph;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.PriorityQueue;
 
 public class DependencyGraph {
@@ -30,15 +28,9 @@ public class DependencyGraph {
     /**
      * For each StartID X map the list of StartID Y's which X reads from
      * 
-     * @param dependenciesMap
+     * @param list
      */
-    public void addDependencies(Map<Long, long[]> dependenciesMap) {
-        for (Entry<Long, long[]> keyDepPair : dependenciesMap.entrySet()) {
-            addDependencies(keyDepPair.getKey(), keyDepPair.getValue());
-        }
-    }
-
-    public void addDependencies(Long key, long... dependencies) {
+    public void addDependencies(Long key, List<Long> dependencies) {
         Dependency keyEntry = getEntry(key);
         Long[] possibleCicles = null;
         // Remove cycles
@@ -151,7 +143,7 @@ public class DependencyGraph {
     public Dependency getEntry(long key) {
         Dependency entry = graph.get(key);
         if (entry == null) {
-            entry = new Dependency();
+            entry = new Dependency(key);
             graph.put(key, entry);
         }
         return entry;
@@ -160,5 +152,9 @@ public class DependencyGraph {
     public void display() {
         ShowGraph graphDisplayer = new ShowGraph(this.graph);
         graphDisplayer.display();
+    }
+
+    public void refreshableDisplay() {
+        new ShowGraph(this.graph).start();
     }
 }
