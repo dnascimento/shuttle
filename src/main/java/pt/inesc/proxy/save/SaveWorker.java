@@ -31,10 +31,10 @@ public class SaveWorker extends
         while (true) {
             try {
                 sleep(FLUSH_PERIODICITY);
+                save();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            save();
         }
     }
 
@@ -46,15 +46,18 @@ public class SaveWorker extends
         // TODO: there is inconsistency due to concurrence?
         LinkedList<Request> requestsSave = requests;
         LinkedList<Response> responsesSave = responses;
-        // renew
-        requests = new LinkedList<Request>();
-        responses = new LinkedList<Response>();
 
-        if (requestsSave.size() != 0 || responsesSave.size() != 0) {
-            System.out.println("Save");
+
+        if (requestsSave.size() != 0) {
+            System.out.println("saving requests...");
+            requests = new LinkedList<Request>();
+            saveRequests(requestsSave);
         }
-        saveRequests(requestsSave);
-        saveResponses(responsesSave);
+        if (responsesSave.size() != 0) {
+            System.out.println("saving responses...");
+            responses = new LinkedList<Response>();
+            saveResponses(responsesSave);
+        }
         file.closeChannels();
     }
 

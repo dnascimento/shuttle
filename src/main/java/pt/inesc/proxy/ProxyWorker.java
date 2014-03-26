@@ -34,7 +34,7 @@ import pt.inesc.proxy.save.SaveWorker;
  * thread object then calls notify() to wake it up. When the channel has been drained, the
  * worker * thread returns itself to its parent pool.
  */
-public class WorkerThread extends
+public class ProxyWorker extends
         Thread {
     private static Logger logger = LogManager.getLogger("WorkerThread");
 
@@ -61,7 +61,7 @@ public class WorkerThread extends
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
 
-    public WorkerThread(ThreadPool pool, String remoteHost, int remotePort) {
+    public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
         this.pool = pool;
         new SaveWorker(requests, responses).start();
         backendAddress = new InetSocketAddress(remoteHost, remotePort);
@@ -163,6 +163,7 @@ public class WorkerThread extends
         int originalLimit = buffer.limit();
 
         buffer.limit(endOfFirstLine);
+        // copy buffer to request
         while (buffer.hasRemaining())
             request.put(buffer);
 
@@ -173,20 +174,22 @@ public class WorkerThread extends
         while (buffer.hasRemaining())
             request.put(buffer);
 
+        // request is generated with id, send
         request.rewind();
         backendSocket.write(request);
-
-        // TODO Testar enviar directo cassandra
-        // compact
         addRequest(request, startTS);
 
-        // Answer
         buffer.clear();
+        // Answer
         while (backendSocket.read(buffer) > 0) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
+            } else {
+                // TODO should be a stream and detect the end based on header
+                break;
             }
         }
+        System.out.println("response received");
         long endTS = System.currentTimeMillis();
         buffer.flip(); // make buffer readable
         buffer.rewind();
@@ -287,13 +290,13 @@ public class WorkerThread extends
      * @return the ID (number in queue)
      */
     public void addRequest(ByteBuffer request, long start) {
-        requests.add(new Request(buffer, start));
+        requests.add(new Request(request, start));
     }
 
 
 
-    public void addResponse(ByteBuffer buffer, long start, long end) {
-        responses.add(new Response(buffer, start, end));
+    public void addResponse(ByteBuffer response, long start, long end) {
+        responses.add(new Response(response, start, end));
     }
 
     static String decodeUTF8(List<Byte> lenght) {

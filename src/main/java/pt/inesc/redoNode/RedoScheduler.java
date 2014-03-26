@@ -16,9 +16,14 @@ public class RedoScheduler
 
     public void run() {
         try {
-            long[] requestsToExecute = new long[] { 1, 2, 3 }; // TODO fix
+            long[] requestsToExecute = new long[] { 1395828275566L, -1, 1395828275566L,
+                    -1 }; // TODO
+            // TODO Fix to socket interface
             threadPool.execute(new RedoWorker(requestsToExecute, "localhost", 8080));
         } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
             e.printStackTrace();
         }
     }

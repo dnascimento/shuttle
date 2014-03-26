@@ -31,7 +31,7 @@ public class Proxy {
         DOMConfigurator.configure("log4j.xml");
         new File("./requests/").delete();
         new File("./requests/").mkdir();
-        new Proxy(9000, "", 8080).run();
+        new Proxy(9000, "tecnico.ulisboa.pt", 80).run();
 
     }
 
@@ -99,7 +99,7 @@ public class Proxy {
      * @throws IOException
      */
     private void readDataFromSocket(SelectionKey key) throws IOException {
-        WorkerThread worker = pool.getWorker();
+        ProxyWorker worker = pool.getWorker();
         if (worker == null) {
             return;
         }
