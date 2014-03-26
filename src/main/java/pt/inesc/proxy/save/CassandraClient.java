@@ -19,11 +19,12 @@ public class CassandraClient {
     private static final String REQUEST = "request";
     private static final String RESPONSE = "response";
     private static final String TABLE_NAME = "requests";
+    private static final String NODE = "localhost";
+    private static final String KEYSPACE = "requestStore";
     private final Cluster cluster;
     private final Session session;
 
     public CassandraClient() {
-        String node = "localhost";
         PoolingOptions pools = new PoolingOptions();
         pools.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL,
                                                                CONCURRENCY);
@@ -32,11 +33,11 @@ public class CassandraClient {
         pools.setCoreConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
         pools.setMaxConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
 
-        cluster = new Cluster.Builder().addContactPoints(String.valueOf(node))
+        cluster = new Cluster.Builder().addContactPoints(NODE)
                                        .withPoolingOptions(pools)
                                        .withSocketOptions(new SocketOptions().setTcpNoDelay(true))
                                        .build();
-        session = cluster.connect("mykeyspace");
+        session = cluster.connect(KEYSPACE);
 
         Metadata metadata = cluster.getMetadata();
         System.out.println(String.format("Connected to cluster '%s' on %s.",
@@ -62,6 +63,8 @@ public class CassandraClient {
                                    .value(type, data);
 
         // ResultSetFuture resultSetFuture =
+        // TODO hipotese: monitorize if success or not adding a listener but it slows
+        // down
         session.executeAsync(query);
     }
 

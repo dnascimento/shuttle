@@ -4,12 +4,12 @@ import java.util.LinkedList;
 
 
 public class ThreadPool {
-    LinkedList<WorkerThread> idle = new LinkedList<WorkerThread>();
+    LinkedList<ProxyWorker> idle = new LinkedList<ProxyWorker>();
 
     public ThreadPool(int maxThreads, String remoteHost, int remotePort) {
         for (int i = 0; i < maxThreads; i++) {
             // Fill up the pool with worker threads
-            WorkerThread thread = new WorkerThread(this, remoteHost, remotePort);
+            ProxyWorker thread = new ProxyWorker(this, remoteHost, remotePort);
 
             // Set thread name for debugging. Start it.
             thread.setName("Worker" + (i + 1));
@@ -18,8 +18,8 @@ public class ThreadPool {
         }
     }
 
-    public WorkerThread getWorker() {
-        WorkerThread thread = null;
+    public ProxyWorker getWorker() {
+        ProxyWorker thread = null;
 
         synchronized (idle) {
             if (idle.size() > 0) {
@@ -32,7 +32,7 @@ public class ThreadPool {
     /**
      * Called by the worker thread to return itself to the idle pool.
      */
-    void returnWorker(WorkerThread worker) {
+    void returnWorker(ProxyWorker worker) {
         synchronized (idle) {
             idle.add(worker);
         }

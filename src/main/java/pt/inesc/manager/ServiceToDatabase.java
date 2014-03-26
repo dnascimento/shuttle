@@ -16,7 +16,7 @@ public class ServiceToDatabase extends
     private final DependencyGraph graph;
     private final ServerSocket serverSocket;
 
-    // Only for localtests
+    // Only for local tests
     public ServiceToDatabase(DependencyGraph graph) {
         super();
         this.graph = graph;

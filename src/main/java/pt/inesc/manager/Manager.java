@@ -2,46 +2,35 @@ package pt.inesc.manager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.List;
 
 import pt.inesc.manager.graph.DependencyGraph;
 
 public class Manager {
-    InetSocketAddress databasePortAddress;
+    InetSocketAddress databasePortAddress = new InetSocketAddress("localhost", 9090);
     DependencyGraph graph;
+    RedoManager redoService;
+    ServiceToDatabase serviceToDatabase;
 
-    public static void main(String[] args) throws IOException {
-        InetSocketAddress databasePortAddress = new InetSocketAddress("localhost", 9090);
-        Manager manager = new Manager(databasePortAddress);
-        manager.interf();
-    }
-
-    @SuppressWarnings("resource")
-    private void interf() {
-        System.out.println("Manager running....");
-        System.out.println("Database port: " + databasePortAddress.getPort());
-        graph.refreshableDisplay();
-        System.out.println("Choose option:");
-        // Scanner s = new Scanner(System.in);
-        // while (true) {
-        // String line = s.nextLine();
-        // if (line.length() == 0)
-        // continue;
-        // switch (line.toCharArray()[0]) {
-        // case 'a':
-        // break;
-        // default:
-        // System.out.println("Unknown option");
-        // }
-        // }
-
-    }
-
-    public Manager(InetSocketAddress databasePortAddress) throws IOException {
-        this.databasePortAddress = databasePortAddress;
+    public Manager() throws IOException {
         graph = new DependencyGraph();
-        ServiceToDatabase serviceToDatabase = new ServiceToDatabase(graph,
-                databasePortAddress);
+        serviceToDatabase = new ServiceToDatabase(graph, databasePortAddress);
+        redoService = new RedoManager();
         serviceToDatabase.start();
+    }
+
+    public void showGraph() {
+        graph.refreshableDisplay();
+    }
+
+    public void redoFromRoot(long root) {
+        List<Long> list = graph.getExecutionList(root);
+        try {
+            redoService.executeList(list);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
 
