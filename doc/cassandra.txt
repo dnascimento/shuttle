@@ -1,0 +1,14 @@
+
+CREATE KEYSPACE requestStore WITH replication = {
+  'class': 'SimpleStrategy',
+  'replication_factor': '1'
+};
+
+USE requestStore;
+
+CREATE TABLE requests (
+  id bigint,
+  request blob,
+  response blob,
+  PRIMARY KEY (id)
+);

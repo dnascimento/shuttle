@@ -1,4 +1,4 @@
-package pt.inesc.redoNode;
+package pt.inesc.redoNode.core;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -11,6 +11,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,16 +20,16 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.CassandraClient;
-import pt.inesc.redoNode.cookies.CookieMan;
-import pt.inesc.redoNode.handlers.ChannelPack;
-import pt.inesc.redoNode.handlers.HandlerWrite;
+import pt.inesc.redoNode.core.cookies.CookieMan;
+import pt.inesc.redoNode.core.handlers.ChannelPack;
+import pt.inesc.redoNode.core.handlers.HandlerWrite;
 
 public class RedoWorker extends
         Thread {
     private static Logger logger = LogManager.getLogger("RedoWorker");
 
     private final InetSocketAddress remoteHost;
-    private final long[] executionArray;
+    private final List<Long> executionArray;
     public static CookieMan cookieManager = new CookieMan();
     private static final int BUFFER_SIZE = 512 * 1024;
 
@@ -39,9 +40,9 @@ public class RedoWorker extends
     LinkedList<ChannelPack> availableChannels = new LinkedList<ChannelPack>();
 
 
-    public RedoWorker(long[] executionArray, String remoteHostname, int remotePort) throws IOException {
+    public RedoWorker(List<Long> execList, String remoteHostname, int remotePort) throws IOException {
         super();
-        this.executionArray = executionArray;
+        this.executionArray = execList;
         remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
                 remotePort);
         logger.info("New Worker");
