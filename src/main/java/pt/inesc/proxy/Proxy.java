@@ -15,7 +15,8 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 public class Proxy {
-    private static final int MAX_THREADS = 1;
+    private static final int INIT_NUMBER_OF_THREADS = 1;
+    private static final int MAX_NUMBER_OF_THREADS = 20;
     private final ThreadPool pool;
     private final int localPort;
     private final Logger log = LogManager.getLogger("Proxy");
@@ -23,7 +24,8 @@ public class Proxy {
 
     public Proxy(int localPort, String remoteHost, int remotePort) {
         this.localPort = localPort;
-        pool = new ThreadPool(MAX_THREADS, remoteHost, remotePort);
+        pool = new ThreadPool(INIT_NUMBER_OF_THREADS, MAX_NUMBER_OF_THREADS, remoteHost,
+                remotePort);
         log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
     }
 
@@ -78,7 +80,9 @@ public class Proxy {
                     registerChannel(selector, channel, SelectionKey.OP_READ);
                 }
 
+                // The selector was waked to read?
                 if (key.isReadable()) {
+                    System.out.println("ready to read");
                     readDataFromSocket(key);
                 }
 
@@ -90,17 +94,19 @@ public class Proxy {
 
 
     /**
-     * Sample data handler method for a channel with data ready to read. * @param key A
-     * SelectionKey object associated with a channel determined by the selector to be
-     * ready for reading. If the channel returns an EOF condition, it is closed here,
-     * which automatically invalidates the associated key. The selector will then
-     * de-register the channel on the next select call.
+     * Sample data handler method for a channel with data ready to read.
      * 
+     * @param key A SelectionKey object associated with a channel determined by the
+     *            selector to be ready for reading. If the channel returns an EOF
+     *            condition, it is closed here, which automatically invalidates the
+     *            associated key. The selector will then de-register the channel on the
+     *            next select call.
      * @throws IOException
      */
     private void readDataFromSocket(SelectionKey key) throws IOException {
         ProxyWorker worker = pool.getWorker();
         if (worker == null) {
+            System.out.println("No worker available");
             return;
         }
         // Invoking this wakes up the worker thread, then returns
@@ -108,7 +114,6 @@ public class Proxy {
     }
 
     private void registerChannel(Selector selector, SocketChannel channel, int opRead) throws IOException {
-
         if (channel == null) {
             return;
         }
@@ -116,7 +121,7 @@ public class Proxy {
         // set the new channel non-blooking
         channel.configureBlocking(false);
 
-        // register with the selector
+        // register with the selector to wake when ready to read
         channel.register(selector, opRead);
     }
 }

@@ -65,6 +65,7 @@ public class ProxyWorker extends
     public LinkedList<Response> responses = new LinkedList<Response>();
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
+        System.out.println("New worker");
         this.pool = pool;
         backendAddress = new InetSocketAddress(remoteHost, remotePort);
         connect();
@@ -111,7 +112,6 @@ public class ProxyWorker extends
                 e.printStackTrace();
                 logger.error(e);
             }
-            key = null;
             // Done. Ready for more. Return to pool
             pool.returnWorker(this);
         }
@@ -130,11 +130,10 @@ public class ProxyWorker extends
      */
     synchronized void serviceChannel(SelectionKey key) {
         this.key = key;
-        key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        // TODO test without checking this
+        // key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
         notify(); // Awaken the thread
     }
-
-    // TODO Tornar assync, manter sessao
 
     /**
      * The actual code which drains the channel associated with the given key.
@@ -186,7 +185,11 @@ public class ProxyWorker extends
         while (backendSocket.read(buffer) > 0) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
+            } else {
+                break;
             }
+            // keep how many read and if check the size
+            // if
             // TODO should be a stream and detect the end based on header
         }
         long endTS = System.currentTimeMillis();
