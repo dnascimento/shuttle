@@ -57,6 +57,7 @@ public class CassandraClient {
     }
 
     private void putPackage(String type, long start, ByteBuffer data) {
+        System.out.println("Cassandra: Store " + type + " : " + start);
         data.rewind();
         Insert query = QueryBuilder.insertInto(TABLE_NAME)
                                    .value("id", start)

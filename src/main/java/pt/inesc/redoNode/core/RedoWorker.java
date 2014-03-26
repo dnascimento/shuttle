@@ -113,6 +113,11 @@ public class RedoWorker extends
             }
             System.out.println("got socket");
             ByteBuffer request = cassandra.getRequest(reqID);
+            if (request == null) {
+                // TODO logger
+                System.out.println("Error: request not found " + reqID);
+                continue;
+            }
             // NOTE: request includes cassandra metadata at begin. DO NOT rewind
 
             sentCounter.incrementAndGet();

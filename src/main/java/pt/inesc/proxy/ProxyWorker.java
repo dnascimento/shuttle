@@ -20,7 +20,7 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.Request;
 import pt.inesc.proxy.save.Response;
-import pt.inesc.proxy.save.SaveWorker;
+import pt.inesc.proxy.save.Saver;
 
 
 
@@ -37,6 +37,9 @@ import pt.inesc.proxy.save.SaveWorker;
 public class ProxyWorker extends
         Thread {
     private static Logger logger = LogManager.getLogger("WorkerThread");
+
+    private static final int FLUSH_PERIODICITY = 5;
+    private int decrementToSave = FLUSH_PERIODICITY;
 
     /** time between attempt to flush to disk ms */
     private static final int BUFFER_SIZE = 512 * 1024;
@@ -63,7 +66,6 @@ public class ProxyWorker extends
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
         this.pool = pool;
-        new SaveWorker(requests, responses).start();
         backendAddress = new InetSocketAddress(remoteHost, remotePort);
         connect();
     }
@@ -146,6 +148,7 @@ public class ProxyWorker extends
         SocketChannel frontendChannel = (SocketChannel) key.channel();
         Boolean close = true;
         long startTS = System.currentTimeMillis();
+        System.out.println("New Req:" + startTS);
         ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + startTS).getBytes());
         buffer.clear();
         // Loop while data is available; channel is nonblocking
@@ -160,7 +163,7 @@ public class ProxyWorker extends
                 + messageIdHeader.capacity());
         int endOfFirstLine = indexOf(buffer, separator);
         int originalLimit = buffer.limit();
-
+        System.out.println("end" + endOfFirstLine);
         buffer.limit(endOfFirstLine);
         // copy buffer to request
         while (buffer.hasRemaining())
@@ -202,8 +205,24 @@ public class ProxyWorker extends
             // Resume interest in OP_READ
             key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         }
+        // Handle flush
+        if (--decrementToSave == 0) {
+            flushData();
+            decrementToSave = FLUSH_PERIODICITY;
+        }
+
+
         // Cycle the selector so this key is active again
         key.selector().wakeup();
+    }
+
+    /**
+     * Flush the data to server before continue
+     */
+    private void flushData() {
+        new Saver(requests, responses).save();
+        requests = new LinkedList<Request>();
+        responses = new LinkedList<Response>();
     }
 
     /**
@@ -329,4 +348,26 @@ public class ProxyWorker extends
         newBuffer.put(buffer);
         buffer = newBuffer;
     }
+
+
+    public LinkedList<Request> getAndResetRequestList() {
+        if (requests.size() != 0) {
+            LinkedList<Request> tmp = requests;
+            requests = new LinkedList<Request>();
+            return tmp;
+        }
+        return null;
+    }
+
+    public LinkedList<Response> getAndResetResponseList() {
+        if (responses.size() != 0) {
+            LinkedList<Response> tmp = responses;
+            responses = new LinkedList<Response>();
+            return tmp;
+        }
+        return null;
+    }
+
+
+
 }

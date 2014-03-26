@@ -3,65 +3,41 @@ package pt.inesc.proxy.save;
 import java.util.LinkedList;
 
 
-public class SaveWorker extends
-        Thread {
+public class Saver {
     public enum SaveType {
         Request, Response
     }
 
-    private static final int FLUSH_PERIODICITY = 6000;
-
-    LinkedList<Request> requests = new LinkedList<Request>();
-    LinkedList<Response> responses = new LinkedList<Response>();
     CassandraClient cassandra;
     SaveFile file;
+    LinkedList<Request> requestsSave;
+    LinkedList<Response> responsesSave;
 
-
-
-    public SaveWorker(LinkedList<Request> requests, LinkedList<Response> responses) {
+    public Saver(LinkedList<Request> requestsSave, LinkedList<Response> responsesSave) {
         System.out.println("New save worker");
-        this.requests = requests;
-        this.responses = responses;
         cassandra = new CassandraClient();
         file = new SaveFile(); // DEBUG
+        this.requestsSave = requestsSave;
+        this.responsesSave = responsesSave;
     }
 
-    @Override
-    public void run() {
-        while (true) {
-            try {
-                sleep(FLUSH_PERIODICITY);
-                save();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+    public void save() {
+        System.out.println("bye");
+        try {
+            Thread.sleep(20000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
-    }
-
-
-
-    private void save() {
+        System.out.println("hello");
         file.openChannels();
-        // disconnect
-        // TODO: there is inconsistency due to concurrence?
-        LinkedList<Request> requestsSave = requests;
-        LinkedList<Response> responsesSave = responses;
+        System.out.println("saving requests...");
+        saveRequests(requestsSave);
 
+        System.out.println("saving responses...");
+        saveResponses(responsesSave);
 
-        if (requestsSave.size() != 0) {
-            System.out.println("saving requests...");
-            requests = new LinkedList<Request>();
-            saveRequests(requestsSave);
-        }
-        if (responsesSave.size() != 0) {
-            System.out.println("saving responses...");
-            responses = new LinkedList<Response>();
-            saveResponses(responsesSave);
-        }
         file.closeChannels();
     }
-
-
 
     private void saveRequests(LinkedList<Request> requestsList) {
         while (!requestsList.isEmpty()) {

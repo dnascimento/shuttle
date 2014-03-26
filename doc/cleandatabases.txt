@@ -1,0 +1,14 @@
+voldemort:
+https://github.com/voldemort/voldemort/wiki/Voldemort-Admin-tool
+
+./bin/voldemort-admin-tool.sh --truncate test --url tcp://localhost:6666
+
+
+#connect:
+voldemort-shell.sh test tcp://localhost:6666
+
+cassandra/bin/cqlsh
+use requestStore;
+truncate requests;
+
+

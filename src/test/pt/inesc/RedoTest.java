@@ -12,11 +12,10 @@ public class RedoTest {
     @Test
     public void testRedo() throws IOException {
         List<Long> requestsToExecute = new ArrayList<Long>();
-        requestsToExecute.add(1395828275566L);
-        requestsToExecute.add(-1L);
-        requestsToExecute.add(1395828275566L);
+        requestsToExecute.add(1395853701567L);
         requestsToExecute.add(-1L);
         RedoScheduler redo = new RedoScheduler();
         redo.newRequest(requestsToExecute);
+        System.in.read();
     }
 }
