@@ -155,7 +155,6 @@ public class ProxyWorker extends
             }
         }
         buffer.flip(); // make buffer readable
-        buffer.rewind();
 
         ByteBuffer request = ByteBuffer.allocate(buffer.limit()
                 + messageIdHeader.capacity());
@@ -177,22 +176,18 @@ public class ProxyWorker extends
         // request is generated with id, send
         request.rewind();
         backendSocket.write(request);
+        buffer.clear();
         addRequest(request, startTS);
 
-        buffer.clear();
         // Answer
         while (backendSocket.read(buffer) > 0) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
-            } else {
-                // TODO should be a stream and detect the end based on header
-                break;
             }
+            // TODO should be a stream and detect the end based on header
         }
-        System.out.println("response received");
         long endTS = System.currentTimeMillis();
         buffer.flip(); // make buffer readable
-        buffer.rewind();
         frontendChannel.write(buffer);
 
         // TODO Testar enviar directo cassandra

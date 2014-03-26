@@ -10,6 +10,7 @@ import java.util.PriorityQueue;
 public class DependencyGraph {
     private static final Long SEPARATOR = (long) -1;
     HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
+    ShowGraph graphDisplayer;
 
     /**
      * Retrieves one array with start|end|start|end...
@@ -42,6 +43,10 @@ public class DependencyGraph {
             Dependency depKeyEntry = getEntry(depKey);
             depKeyEntry.addAfter(key);
             keyEntry.countBefore++;
+        }
+        // add edges on graphDisplayer
+        if (graphDisplayer != null) {
+            graphDisplayer.addEdgeAndVertex(key, dependencies);
         }
         if (possibleCicles != null) {
             searchCycle(key, possibleCicles);
@@ -150,11 +155,9 @@ public class DependencyGraph {
     }
 
     public void display() {
-        ShowGraph graphDisplayer = new ShowGraph(this.graph);
-        graphDisplayer.display();
+        graphDisplayer = new ShowGraph(this.graph);
+        graphDisplayer.start();
     }
 
-    public void refreshableDisplay() {
-        new ShowGraph(this.graph).start();
-    }
+
 }

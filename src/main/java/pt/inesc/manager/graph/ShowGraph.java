@@ -6,7 +6,9 @@ import java.awt.Paint;
 import java.awt.Shape;
 import java.awt.geom.Ellipse2D;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JFrame;
 import javax.swing.JScrollPane;
@@ -28,24 +30,18 @@ public class ShowGraph extends
     private static final int HEIGHT = 600;
     private static final int MARGIN = 50;
     private static final long REFRESH_PERIOD = 5000;
+    private final AtomicBoolean refresh = new AtomicBoolean(false);
     Graph<String, String> g;
     BasicVisualizationServer<String, String> vv;
     Layout<String, String> layout;
     JFrame frame;
-    HashMap<Long, Dependency> hashGraph;
 
-    public ShowGraph(Graph<String, String> graph) {
-        g = graph;
+    public ShowGraph() {
+        g = new SparseMultigraph<String, String>();
     }
-
 
     public ShowGraph(HashMap<Long, Dependency> hashGraph) {
-        this.hashGraph = hashGraph;
-        generateGraphFromHash();
-    }
-
-    private void generateGraphFromHash() {
-        g = new SparseMultigraph<String, String>();
+        this();
         for (Entry<Long, Dependency> entry : hashGraph.entrySet()) {
             g.addVertex(entry.getValue().toString());
             for (long depKey : entry.getValue().getAfter()) {
@@ -56,6 +52,7 @@ public class ShowGraph extends
         }
     }
 
+
     /**
      * Add edge from A to B
      * 
@@ -64,6 +61,29 @@ public class ShowGraph extends
      */
     private void addEdge(String nodeA, String nodeB) {
         g.addEdge(nodeA + "->" + nodeB, nodeA, nodeB, EdgeType.DIRECTED);
+        refresh.set(true);
+    }
+
+    public void addEdgeAndVertex(String nodeA, String nodeB) {
+        g.addVertex(nodeA);
+        g.addVertex(nodeB);
+        g.addEdge(nodeA + "->" + nodeB, nodeA, nodeB, EdgeType.DIRECTED);
+    }
+
+    /**
+     * Key executes after dependencies. Each dependencie -> key
+     * 
+     * @param key
+     * @param dependencies
+     */
+    public void addEdgeAndVertex(Long key, List<Long> dependencies) {
+        g.addVertex(key.toString());
+        for (Long depKey : dependencies) {
+            g.addVertex(depKey.toString());
+            addEdge(depKey.toString(), key.toString());
+        }
+
+
     }
 
     @Override
@@ -72,19 +92,20 @@ public class ShowGraph extends
             display();
         }
         while (true) {
-            refresh();
-            try {
-                sleep(REFRESH_PERIOD);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+            if (refresh.getAndSet(false)) {
+                refresh();
+                try {
+                    sleep(REFRESH_PERIOD);
+                } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
         }
     }
 
-    public void refresh() {
-        // generate new g
-        generateGraphFromHash();
+    private void refresh() {
+        // TODO
         layout = new FRLayout<String, String>(g);
         layout.setSize(new Dimension(WIDTH, HEIGHT));
         vv.setGraphLayout(layout);
@@ -93,7 +114,6 @@ public class ShowGraph extends
     }
 
     public void display() {
-        // TODO test new layouts
         layout = new FRLayout<String, String>(g);
         layout.setSize(new Dimension(WIDTH, HEIGHT));
         vv = new VisualizationViewer<String, String>(layout);
@@ -123,4 +143,6 @@ public class ShowGraph extends
         frame.pack();
         frame.setVisible(true);
     }
+
+
 }

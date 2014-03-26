@@ -12,15 +12,22 @@ public class Manager {
     RedoManager redoService;
     ServiceToDatabase serviceToDatabase;
 
+    public static void main(String[] args) throws IOException {
+        Manager manager = new Manager();
+        Interface menu = new Interface(manager);
+        menu.start();
+    }
+
     public Manager() throws IOException {
         graph = new DependencyGraph();
         serviceToDatabase = new ServiceToDatabase(graph, databasePortAddress);
+        // TODO redo manager will be a separated thread due to nodes registry
         redoService = new RedoManager();
         serviceToDatabase.start();
     }
 
     public void showGraph() {
-        graph.refreshableDisplay();
+        graph.display();
     }
 
     public void redoFromRoot(long root) {

@@ -1,17 +1,11 @@
 package pt.inesc.manager;
 
-import java.io.IOException;
 import java.util.Scanner;
 
 
-public class Interface {
+public class Interface extends
+        Thread {
     private final Manager manager;
-
-    public static void main(String[] args) throws IOException {
-        Manager manager = new Manager();
-        Interface menu = new Interface(manager);
-        menu.show();
-    }
 
     public Interface(Manager manager) {
         super();
@@ -20,7 +14,8 @@ public class Interface {
 
 
 
-    public void show() {
+    @Override
+    public void run() {
         System.out.println("INESC Undo Manager");
         manager.showGraph();
         Scanner s = new Scanner(System.in);

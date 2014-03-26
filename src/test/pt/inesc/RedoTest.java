@@ -1,13 +1,21 @@
 package pt.inesc;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.Test;
 
 import pt.inesc.redoNode.RedoScheduler;
 
 public class RedoTest {
     @Test
-    public void testRedo() {
-        long[] requestsToExecute = new long[] { 1395828275566L, -1, 1395828275566L, -1 };
+    public void testRedo() throws IOException {
+        List<Long> requestsToExecute = new ArrayList<Long>();
+        requestsToExecute.add(1395828275566L);
+        requestsToExecute.add(-1L);
+        requestsToExecute.add(1395828275566L);
+        requestsToExecute.add(-1L);
         RedoScheduler redo = new RedoScheduler();
         redo.newRequest(requestsToExecute);
     }
