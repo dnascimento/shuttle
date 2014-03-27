@@ -42,12 +42,11 @@ public class ThreadPool {
         synchronized (idle) {
             if (idle.size() > 0) {
                 thread = idle.removeFirst();
+            } else {
+                thread = newWorker();
+                System.out.println("thread created" + thread.getId());
+                return thread;
             }
-            // } else {
-            // thread = newWorker();
-            // System.out.println("thread created" + thread.getId());
-            // return thread;
-            // }
         }
         return thread;
     }
