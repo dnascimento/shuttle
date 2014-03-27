@@ -51,10 +51,8 @@ public class Proxy {
         // Set the port the server channel will listen to
         serverSocket.bind(new InetSocketAddress(localPort));
 
-
         // Set nonblocking mode for the listening socket
         ssc.configureBlocking(false);
-
 
         ssc.register(selector, SelectionKey.OP_ACCEPT);
 
@@ -62,7 +60,6 @@ public class Proxy {
             // This may block for a long time. Upon returning, the
             // selected set contains keys of the ready channels.
             int n = selector.select();
-
             if (n == 0) {
                 continue;
             }
@@ -71,23 +68,25 @@ public class Proxy {
             Iterator<SelectionKey> it = selector.selectedKeys().iterator();
 
             while (it.hasNext()) {
-                SelectionKey key = it.next();
-
-                // New connection?
-                if (key.isAcceptable()) {
-                    ServerSocketChannel server = (ServerSocketChannel) key.channel();
-                    SocketChannel channel = server.accept();
-                    registerChannel(selector, channel, SelectionKey.OP_READ);
+                try {
+                    SelectionKey key = it.next();
+                    // New connection?
+                    if (key.isAcceptable()) {
+                        ServerSocketChannel server = (ServerSocketChannel) key.channel();
+                        SocketChannel channel = server.accept();
+                        registerChannel(selector, channel, SelectionKey.OP_READ);
+                    }
+                    // The selector was waked to read?
+                    if (key.isReadable()) {
+                        readDataFromSocket(key);
+                    }
+                } catch (Exception e) {
+                    // TODO
+                    e.printStackTrace();
+                } finally {
+                    // Remove the key
+                    it.remove();
                 }
-
-                // The selector was waked to read?
-                if (key.isReadable()) {
-                    System.out.println("ready to read");
-                    readDataFromSocket(key);
-                }
-
-                // Remove the key
-                it.remove();
             }
         }
     }
@@ -106,11 +105,10 @@ public class Proxy {
     private void readDataFromSocket(SelectionKey key) throws IOException {
         ProxyWorker worker = pool.getWorker();
         if (worker == null) {
-            System.out.println("No worker available");
             return;
         }
         // Invoking this wakes up the worker thread, then returns
-        worker.serviceChannel(key);
+        worker.serveNewRequest(key, false);
     }
 
     private void registerChannel(Selector selector, SocketChannel channel, int opRead) throws IOException {

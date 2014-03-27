@@ -15,15 +15,20 @@ public class ThreadPool {
         this.remoteHost = remoteHost;
         this.remotePort = remotePort;
         this.maxThreads = maxThreads;
-
-        for (int i = 0; i < initCapacity; i++) {
-            // Fill up the pool with worker threads
-            ProxyWorker thread = new ProxyWorker(this, remoteHost, remotePort);
-            // Set thread name for debugging. Start it.
-            thread.setName("Worker" + (i + 1));
-            thread.start();
-            idle.add(thread);
+        synchronized (idle) {
+            for (int i = 0; i < initCapacity; i++) {
+                idle.add(newWorker());
+            }
         }
+    }
+
+    private ProxyWorker newWorker() {
+        // Fill up the pool with worker threads
+        ProxyWorker thread = new ProxyWorker(this, remoteHost, remotePort);
+        // Set thread name for debugging. Start it.
+        // thread.setName("Worker" + i);
+        thread.start();
+        return thread;
     }
 
     /**
@@ -36,9 +41,9 @@ public class ThreadPool {
         ProxyWorker thread = null;
         synchronized (idle) {
             if (idle.size() > 0) {
-                thread = idle.remove(0);
+                thread = idle.removeFirst();
             } else {
-                thread = new ProxyWorker(this, remoteHost, remotePort);
+                thread = newWorker();
                 idle.add(thread);
                 System.out.println("thread created");
                 return thread;
@@ -52,7 +57,7 @@ public class ThreadPool {
      */
     void returnWorker(ProxyWorker worker) {
         synchronized (idle) {
-            idle.add(worker);
+            idle.addFirst(worker);
         }
     }
 

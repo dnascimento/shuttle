@@ -46,10 +46,11 @@ public class ProxyWorker extends
     private ByteBuffer buffer = allocateBuffer();
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
-    ByteBuffer connectionClose = ByteBuffer.wrap("Connection: close".getBytes());
-    ByteBuffer connectionHeader = ByteBuffer.wrap("Connection: ".getBytes());
-    ByteBuffer connectionAlive = ByteBuffer.wrap("Connection: keep-alive".getBytes());
-    ByteBuffer contentLenght = ByteBuffer.wrap("Content-Length: ".getBytes());
+
+    ByteBuffer CONNECTION_CLOSE = ByteBuffer.wrap("Connection: close".getBytes());
+    ByteBuffer CONNECTION = ByteBuffer.wrap("Connection: ".getBytes());
+    ByteBuffer KEEP_ALIVE = ByteBuffer.wrap("Connection: keep-alive".getBytes());
+    ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
     ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
 
@@ -59,13 +60,11 @@ public class ProxyWorker extends
     private final InetSocketAddress backendAddress;
     SocketChannel backendSocket = null;
 
-
-
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
-        System.out.println("New worker");
+        logger.info("New worker");
         this.pool = pool;
         backendAddress = new InetSocketAddress(remoteHost, remotePort);
         connect();
@@ -75,19 +74,18 @@ public class ProxyWorker extends
      * Create connection to server
      */
     private void connect() {
-        // System.out.print("Connect to backend");
         try {
             // Open socket to server and hold it
             if (backendSocket != null) {
                 backendSocket.close();
             }
             backendSocket = SocketChannel.open(backendAddress);
-            // backendSocket.socket().setKeepAlive(true);
+            backendSocket.socket().setKeepAlive(true);
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
                 throw new RuntimeException("ERROR: Remote server is DOWN");
             }
-            System.out.println("Connecting to real Server" + e.getMessage());
+            logger.warn("Connecting to real Server", e);
             connect();
         }
     }
@@ -95,28 +93,30 @@ public class ProxyWorker extends
     // Loop forever waiting for work to do
     @Override
     public synchronized void run() {
+        // execution cycle
         while (true) {
             try {
-                // Sleep and release object lock
-                this.wait();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-                // Clear interrupt status
-                interrupted();
-            }
-            try {
+                serveNewRequest(key, true);
                 drainAndSend(key);
-                key.channel().close();
-                key.selector().wakeup();
             } catch (Exception e) {
-                e.printStackTrace();
-                logger.error(e);
+                logger.error("Execution", e);
             }
-            // Done. Ready for more. Return to pool
-            pool.returnWorker(this);
+
+            buffer = ByteBuffer.allocate(BUFFER_SIZE);
+            // Store data
+            try {
+                key.channel().close();
+            } catch (Exception e) {
+                logger.error("Close channel", e);
+            }
+
+            if (--decrementToSave == 0) {
+                // TODO flushData();
+            }
+            connect();
+
         }
     }
-
 
 
 
@@ -128,11 +128,29 @@ public class ProxyWorker extends
      * to remove OP_READ. This will cause the selector * to ignore read-readiness for this
      * channel while the worker thread is servicing it.
      */
-    synchronized void serviceChannel(SelectionKey key) {
-        this.key = key;
-        // TODO test without checking this
-        // key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-        notify(); // Awaken the thread
+    synchronized void serveNewRequest(SelectionKey key, boolean sleep) {
+        if (sleep) {
+            // Ready for more. Return to pool
+            // Sleep and release object lock, wait for wake from serveNewRequest
+            // Notify the selector that I will be available
+            pool.returnWorker(this);
+
+            if (key != null) {
+                key.selector().wakeup();
+            }
+
+            try {
+                this.wait();
+            } catch (InterruptedException e) {
+                logger.error("Sleep thread", e);
+                interrupted();
+            }
+        } else {
+            this.key = key;
+            // Remove the flag of reading ready, it will be read
+            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+            this.notify(); // Awaken the thread
+        }
     }
 
     /**
@@ -145,26 +163,40 @@ public class ProxyWorker extends
      */
     void drainAndSend(SelectionKey key) throws IOException {
         SocketChannel frontendChannel = (SocketChannel) key.channel();
-        Boolean close = true;
         long startTS = System.currentTimeMillis();
         System.out.println("New Req:" + startTS);
         ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + startTS).getBytes());
-        buffer.clear();
+
+        int lastSizeAttemp = 0;
+        int size = -1;
+        ReqType reqType = null;
         // Loop while data is available; channel is nonblocking
-        while (frontendChannel.read(buffer) > 0) {
+        while ((frontendChannel.read(buffer) > 0)
+                || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (buffer.position() != size))) {
+            if (reqType == null) {
+                reqType = getRequestType(buffer);
+            }
             if (buffer.remaining() == 0) {
                 resizeBuffer();
             }
+            if ((reqType == ReqType.PUT || reqType == ReqType.POST) && (size == -1)) {
+                size = extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
+                lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
+            }
         }
-        buffer.flip(); // make buffer readable
+        buffer.flip();
 
         ByteBuffer request = ByteBuffer.allocate(buffer.limit()
                 + messageIdHeader.capacity());
         int endOfFirstLine = indexOf(buffer, separator);
         int originalLimit = buffer.limit();
-        System.out.println("end" + endOfFirstLine);
+        if (endOfFirstLine == -1 && buffer.limit() == 0) {
+            logger.warn("empty buffer");
+            return;
+        }
+
         buffer.limit(endOfFirstLine);
-        // copy buffer to request
+        // copy from buffer to request
         while (buffer.hasRemaining())
             request.put(buffer);
 
@@ -177,46 +209,58 @@ public class ProxyWorker extends
 
         // request is generated with id, send
         request.rewind();
-        backendSocket.write(request);
+        // Write to backend
+        int toWrite = request.limit();
+        int written = 0;
+        while ((written += backendSocket.write(request)) < toWrite)
+            ;
+
         buffer.clear();
         addRequest(request, startTS);
 
-        // Answer
-        while (backendSocket.read(buffer) > 0) {
+        lastSizeAttemp = 0;
+        size = -1;
+        // Read Answer from server
+        while (backendSocket.read(buffer) > 0
+                || (size != -1 && buffer.position() != size)) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
-            } else {
-                break;
             }
-            // keep how many read and if check the size
-            // if
-            // TODO should be a stream and detect the end based on header
+            if (size == -1) {
+                size = extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
+                lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
+            }
         }
+
+        // send anwser to client
         long endTS = System.currentTimeMillis();
         buffer.flip(); // make buffer readable
-        frontendChannel.write(buffer);
+        toWrite = buffer.limit();
+        written = 0;
+        while ((written += frontendChannel.write(buffer)) < toWrite)
+            ;
 
-        // TODO Testar enviar directo cassandra
         addResponse(buffer, startTS, endTS);
-        buffer = ByteBuffer.allocate(BUFFER_SIZE);
+    }
 
-        // Store data
-        if (close) {
-            frontendChannel.close();
-            connect(); // TODO Manter sessao
-        } else {
-            // Resume interest in OP_READ
-            key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+    private ReqType getRequestType(ByteBuffer buffer) {
+        byte letter = buffer.get(0);
+        switch (letter) {
+        case 71:
+            return ReqType.GET;
+        case 68:
+            return ReqType.DELETE;
+        case 80:
+            if (buffer.get(1) == 79) {
+                return ReqType.POST;
+            } else {
+                return ReqType.PUT;
+            }
+        default:
+            break;
         }
-        // Handle flush
-        if (--decrementToSave == 0) {
-            flushData();
-            decrementToSave = FLUSH_PERIODICITY;
-        }
-
-
-        // Cycle the selector so this key is active again
-        key.selector().wakeup();
+        logger.error("Unknown request type");
+        return null;
     }
 
     /**
@@ -226,16 +270,22 @@ public class ProxyWorker extends
         new Saver(requests, responses).save();
         requests = new LinkedList<Request>();
         responses = new LinkedList<Response>();
+        decrementToSave = FLUSH_PERIODICITY;
     }
 
     /**
      * Exctract how long is all message.
      * 
+     * @param lastSizeAttemp
+     * @param end
      * @param buffer2
      * @return
      */
-    private int extractMessageTotalSize(ByteBuffer buffer) {
-        int pos = indexOf(buffer, contentLenght);
+    private int extractMessageTotalSize(int start, int end, ByteBuffer buffer) {
+        int pos = indexOf(start, end, buffer, CONTENT_LENGTH);
+        if (pos == -1) {
+            return -1;
+        }
         int i = 0;
         byte b;
         List<Byte> lenght = new ArrayList<Byte>();
@@ -248,14 +298,19 @@ public class ProxyWorker extends
         return contentLenght;
     }
 
-    public static void printContent(ByteBuffer buffer) {
-        int position = buffer.position();
+
+    private static void printContent(ByteBuffer buffer, int start, int end) {
         List<Byte> content = new ArrayList<Byte>();
-        for (int i = position; i < buffer.limit(); i++) {
+        for (int i = start; i < end; i++) {
             content.add(buffer.get(i));
         }
         System.out.println(decodeUTF8(content));
-        buffer.rewind();
+    }
+
+    public static void printContent(ByteBuffer buffer) {
+        int start = buffer.position();
+        int end = buffer.limit();
+        printContent(buffer, start, end);
     }
 
     public static void println(ByteBuffer buffer) {
@@ -268,35 +323,36 @@ public class ProxyWorker extends
         System.out.println("Position" + buffer.position());
     }
 
+
+    public int indexOf(ByteBuffer buffer, ByteBuffer pattern) {
+        return indexOf(0, buffer.limit(), buffer, pattern);
+    }
+
     /**
      * Returns the index within this buffer of the first occurrence of the specified
      * pattern buffer.
      * 
+     * @param startPosition
      * @param buffer the buffer
      * @param pattern the pattern buffer
      * @return the position within the buffer of the first occurrence of the pattern
      *         buffer
      */
-    public int indexOf(ByteBuffer buffer, ByteBuffer pattern) {
-        pattern.rewind();
-        int patternPos = pattern.position();
-        int patternLen = pattern.remaining();
-        int lastIndex = buffer.limit() - patternLen + 1;
-        Label: for (int i = buffer.position(); i < lastIndex; i++) {
-            for (int j = 0; j < patternLen; j++) {
-                if (buffer.get(i + j) != pattern.get(patternPos + j)) {
-                    continue Label;
+    public int indexOf(int startPosition, int end, ByteBuffer buffer, ByteBuffer pattern) {
+        int patternLen = pattern.limit();
+        int lastIndex = end - patternLen + 1;
+        Label: for (int i = startPosition; i < lastIndex; i++) {
+            if (buffer.get(i) == pattern.get(0)) {
+                for (int j = 1; j < patternLen; j++) {
+                    if (buffer.get(i + j) != pattern.get(j)) {
+                        continue Label;
+                    }
                 }
+                return i;
             }
-            return i;
         }
         return -1;
     }
-
-
-
-
-
 
 
     // ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -329,6 +385,7 @@ public class ProxyWorker extends
 
 
 
+    @SuppressWarnings("unused")
     private WritableByteChannel getDebugChannel() {
         File temp = new File("debug.txt");
         temp.delete();
@@ -337,7 +394,7 @@ public class ProxyWorker extends
         try {
             return new RandomAccessFile(temp, "rw").getChannel();
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            logger.error("Debug channel", e);
         }
         return backendSocket;
     }
@@ -348,7 +405,10 @@ public class ProxyWorker extends
 
     private void resizeBuffer() {
         ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
-        newBuffer.put(buffer);
+        buffer.flip();
+        // copy old buffer
+        while (buffer.hasRemaining())
+            newBuffer.put(buffer);
         buffer = newBuffer;
     }
 

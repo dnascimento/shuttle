@@ -119,7 +119,6 @@ public class RedoWorker extends
                 continue;
             }
             // NOTE: request includes cassandra metadata at begin. DO NOT rewind
-
             sentCounter.incrementAndGet();
             pack.reset(request.limit() - request.position(), sentCounter);
             System.out.println("Channel remain open: " + pack.channel.isOpen());
