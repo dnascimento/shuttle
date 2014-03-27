@@ -33,7 +33,7 @@ public class Proxy {
         DOMConfigurator.configure("log4j.xml");
         new File("./requests/").delete();
         new File("./requests/").mkdir();
-        new Proxy(9000, "", 8080).run();
+        new Proxy(9000, "", 80).run();
 
     }
 
@@ -54,6 +54,7 @@ public class Proxy {
         // Set nonblocking mode for the listening socket
         ssc.configureBlocking(false);
 
+        // On socket accept, the selector is wake
         ssc.register(selector, SelectionKey.OP_ACCEPT);
 
         while (true) {
@@ -74,6 +75,7 @@ public class Proxy {
                     if (key.isAcceptable()) {
                         ServerSocketChannel server = (ServerSocketChannel) key.channel();
                         SocketChannel channel = server.accept();
+                        System.out.println("New socket");
                         registerChannel(selector, channel, SelectionKey.OP_READ);
                     }
                     // The selector was waked to read?
@@ -105,8 +107,12 @@ public class Proxy {
     private void readDataFromSocket(SelectionKey key) throws IOException {
         ProxyWorker worker = pool.getWorker();
         if (worker == null) {
+            System.out.println("No worker available");
             return;
         }
+        // Remove the flag of reading ready, it will be read
+        key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        System.out.println("Readable by " + worker.getId());
         // Invoking this wakes up the worker thread, then returns
         worker.serveNewRequest(key, false);
     }

@@ -39,32 +39,35 @@ public class ProxyWorker extends
     private static Logger logger = LogManager.getLogger("WorkerThread");
 
     private static final int FLUSH_PERIODICITY = 5;
-    private int decrementToSave = FLUSH_PERIODICITY;
-
     /** time between attempt to flush to disk ms */
     private static final int BUFFER_SIZE = 512 * 1024;
-    private ByteBuffer buffer = allocateBuffer();
     private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
+    private static final int BACKEND_SOCKET_TIMEOUT = 200;
+    // private static final ByteBuffer CONNECTION_CLOSE =
+    // ByteBuffer.wrap("Connection: close".getBytes());
+    // private static final ByteBuffer CONNECTION =
+    // ByteBuffer.wrap("Connection: ".getBytes());
+    // private static final ByteBuffer KEEP_ALIVE =
+    // ByteBuffer.wrap("Connection: keep-alive".getBytes());
+    private static final ByteBuffer OK_200 = ByteBuffer.wrap("200".getBytes());
+    private static final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
+    private static final ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13,
+            10 });
+    private static final ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
 
-    ByteBuffer CONNECTION_CLOSE = ByteBuffer.wrap("Connection: close".getBytes());
-    ByteBuffer CONNECTION = ByteBuffer.wrap("Connection: ".getBytes());
-    ByteBuffer KEEP_ALIVE = ByteBuffer.wrap("Connection: keep-alive".getBytes());
-    ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
-    ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
-    ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
-
-
+    private ByteBuffer buffer = allocateBuffer();
     private final ThreadPool pool;
+    private int decrementToSave = FLUSH_PERIODICITY;
     private SelectionKey key;
     private final InetSocketAddress backendAddress;
-    SocketChannel backendSocket = null;
+    private SocketChannel backendSocket = null;
 
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
-        logger.info("New worker");
+        logger.info("New worker: " + this.getId());
         this.pool = pool;
         backendAddress = new InetSocketAddress(remoteHost, remotePort);
         connect();
@@ -81,6 +84,7 @@ public class ProxyWorker extends
             }
             backendSocket = SocketChannel.open(backendAddress);
             backendSocket.socket().setKeepAlive(true);
+
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
                 throw new RuntimeException("ERROR: Remote server is DOWN");
@@ -133,23 +137,32 @@ public class ProxyWorker extends
             // Ready for more. Return to pool
             // Sleep and release object lock, wait for wake from serveNewRequest
             // Notify the selector that I will be available
-            pool.returnWorker(this);
-
             if (key != null) {
+                // if not first time
+                pool.returnWorker(this);
                 key.selector().wakeup();
             }
 
             try {
+                System.out.println("Worker" + Thread.currentThread().getId()
+                        + " will wait");
                 this.wait();
+                System.out.println("Worker" + Thread.currentThread().getId()
+                        + " wait end");
+
             } catch (InterruptedException e) {
                 logger.error("Sleep thread", e);
                 interrupted();
             }
         } else {
             this.key = key;
-            // Remove the flag of reading ready, it will be read
-            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+            // TODO
+            // // Remove the flag of reading ready, it will be read
+            // key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+            System.out.println("Worker" + this.getId() + " notify start");
             this.notify(); // Awaken the thread
+            System.out.println("Worker" + this.getId() + " notify end");
+
         }
     }
 
@@ -182,6 +195,9 @@ public class ProxyWorker extends
             if ((reqType == ReqType.PUT || reqType == ReqType.POST) && (size == -1)) {
                 size = extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
                 lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
+                if (buffer.position() == size) {
+                    break;
+                }
             }
         }
         buffer.flip();
@@ -220,16 +236,28 @@ public class ProxyWorker extends
 
         lastSizeAttemp = 0;
         size = -1;
+        int headerEnd = -1;
         // Read Answer from server
         while (backendSocket.read(buffer) > 0
                 || (size != -1 && buffer.position() != size)) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
             }
-            if (size == -1) {
-                size = extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
+
+            if (headerEnd == -1) {
+                // not found yet, try to find the header
+                headerEnd = indexOf(lastSizeAttemp, buffer.position(), buffer, newLines);
                 lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
+                if (headerEnd == -1)
+                    continue;
             }
+            // header received
+            size = extractMessageTotalSize(0, headerEnd, buffer);
+            if (size == -1 || buffer.position() == size) {
+                break;
+            }
+            System.out.println("Read Answer: " + buffer.position() + " out of " + size);
+
         }
 
         // send anwser to client
@@ -241,6 +269,7 @@ public class ProxyWorker extends
             ;
 
         addResponse(buffer, startTS, endTS);
+        System.out.println("Request done");
     }
 
     private ReqType getRequestType(ByteBuffer buffer) {
