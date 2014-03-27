@@ -115,7 +115,7 @@ public class ProxyWorker extends
             }
 
             if (--decrementToSave == 0) {
-                // TODO flushData();
+                flushData();
             }
             connect();
 

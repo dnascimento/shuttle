@@ -22,13 +22,6 @@ public class Saver {
     }
 
     public void save() {
-        System.out.println("bye");
-        try {
-            Thread.sleep(20000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        System.out.println("hello");
         file.openChannels();
         System.out.println("saving requests...");
         saveRequests(requestsSave);

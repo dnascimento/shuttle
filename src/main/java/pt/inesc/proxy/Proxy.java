@@ -33,7 +33,7 @@ public class Proxy {
         DOMConfigurator.configure("log4j.xml");
         new File("./requests/").delete();
         new File("./requests/").mkdir();
-        new Proxy(9000, "docs.oracle.com", 80).run();
+        new Proxy(9000, "localhost", 8080).run();
 
     }
 
