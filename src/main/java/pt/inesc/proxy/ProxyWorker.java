@@ -52,9 +52,9 @@ public class ProxyWorker extends
     // ByteBuffer.wrap("Connection: keep-alive".getBytes());
     private static final ByteBuffer OK_200 = ByteBuffer.wrap("200".getBytes());
     private static final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
-    private static final ByteBuffer newLines = ByteBuffer.wrap(new byte[] { 13, 10, 13,
-            10 });
-    private static final ByteBuffer separator = ByteBuffer.wrap(new byte[] { 13, 10 });
+    private static final ByteBuffer LAST_CHUNK = ByteBuffer.wrap(new byte[] { 48, 13, 10, 13, 10 });
+    private static final ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
+    private static final ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
 
     private ByteBuffer buffer = allocateBuffer();
     private final ThreadPool pool;
@@ -144,11 +144,9 @@ public class ProxyWorker extends
             }
 
             try {
-                System.out.println("Worker" + Thread.currentThread().getId()
-                        + " will wait");
+                System.out.println("Worker" + Thread.currentThread().getId() + " will wait");
                 this.wait();
-                System.out.println("Worker" + Thread.currentThread().getId()
-                        + " wait end");
+                System.out.println("Worker" + Thread.currentThread().getId() + " wait end");
 
             } catch (InterruptedException e) {
                 logger.error("Sleep thread", e);
@@ -202,9 +200,8 @@ public class ProxyWorker extends
         }
         buffer.flip();
 
-        ByteBuffer request = ByteBuffer.allocate(buffer.limit()
-                + messageIdHeader.capacity());
-        int endOfFirstLine = indexOf(buffer, separator);
+        ByteBuffer request = ByteBuffer.allocate(buffer.limit() + messageIdHeader.capacity());
+        int endOfFirstLine = indexOf(buffer, SEPARATOR);
         int originalLimit = buffer.limit();
         if (endOfFirstLine == -1 && buffer.limit() == 0) {
             logger.warn("empty buffer");
@@ -238,26 +235,30 @@ public class ProxyWorker extends
         size = -1;
         int headerEnd = -1;
         // Read Answer from server
-        while (backendSocket.read(buffer) > 0
-                || (size != -1 && buffer.position() != size)) {
+        while (backendSocket.read(buffer) > 0 || (size != -1 && buffer.position() != size)) {
             if (buffer.remaining() == 0) {
                 resizeBuffer();
             }
-
             if (headerEnd == -1) {
                 // not found yet, try to find the header
-                headerEnd = indexOf(lastSizeAttemp, buffer.position(), buffer, newLines);
+                headerEnd = indexOf(lastSizeAttemp, buffer.position(), buffer, NEW_LINES);
                 lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
                 if (headerEnd == -1)
                     continue;
             }
             // header received
             size = extractMessageTotalSize(0, headerEnd, buffer);
-            if (size == -1 || buffer.position() == size) {
-                break;
+            // System.out.println("Read Answer: " + buffer.position() + " out of " +
+            // size);
+            if (size != -1) {
+                if (buffer.position() == size) {
+                    break;
+                }
+            } else {
+                if (lastChunk(buffer)) {
+                    break;
+                }
             }
-            System.out.println("Read Answer: " + buffer.position() + " out of " + size);
-
         }
 
         // send anwser to client
@@ -270,6 +271,19 @@ public class ProxyWorker extends
 
         addResponse(buffer, startTS, endTS);
         System.out.println("Request done");
+    }
+
+    /*
+     * Search for patter at end of chunk
+     */
+    private boolean lastChunk(ByteBuffer buffer) {
+        int pos = buffer.position() - 1;
+        int end = LAST_CHUNK.capacity() - 1;
+        for (int i = 0; i <= end; i++) {
+            if (buffer.get(pos - i) != LAST_CHUNK.get(end - i))
+                return false;
+        }
+        return true;
     }
 
     private ReqType getRequestType(ByteBuffer buffer) {
@@ -322,7 +336,7 @@ public class ProxyWorker extends
             lenght.add(b);
         }
         int contentLenght = Integer.parseInt(decodeUTF8(lenght));
-        contentLenght += indexOf(buffer, newLines);
+        contentLenght += indexOf(buffer, NEW_LINES);
         contentLenght += 4; // 4 newlines bytes
         return contentLenght;
     }

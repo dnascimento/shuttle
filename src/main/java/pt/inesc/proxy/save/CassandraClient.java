@@ -10,6 +10,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SocketOptions;
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 
@@ -22,12 +23,11 @@ public class CassandraClient {
     private static final String NODE = "localhost";
     private static final String KEYSPACE = "requestStore";
     private final Cluster cluster;
-    private final Session session;
+    private Session session = null;
 
     public CassandraClient() {
         PoolingOptions pools = new PoolingOptions();
-        pools.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL,
-                                                               CONCURRENCY);
+        pools.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, CONCURRENCY);
         pools.setCoreConnectionsPerHost(HostDistance.LOCAL, MAX_CONNECTIONS);
         pools.setMaxConnectionsPerHost(HostDistance.LOCAL, MAX_CONNECTIONS);
         pools.setCoreConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
@@ -37,14 +37,17 @@ public class CassandraClient {
                                        .withPoolingOptions(pools)
                                        .withSocketOptions(new SocketOptions().setTcpNoDelay(true))
                                        .build();
-        session = cluster.connect(KEYSPACE);
+        try {
+            session = cluster.connect(KEYSPACE);
+            Metadata metadata = cluster.getMetadata();
+            System.out.println(String.format("Connected to cluster '%s' on %s.",
+                                             metadata.getClusterName(),
+                                             metadata.getAllHosts()));
 
-        Metadata metadata = cluster.getMetadata();
-        System.out.println(String.format("Connected to cluster '%s' on %s.",
-                                         metadata.getClusterName(),
-                                         metadata.getAllHosts()));
-
-
+        } catch (NoHostAvailableException e) {
+            // TODO logger
+            System.out.println("No Cassandra server available");
+        }
     }
 
     public void putRequest(long start, ByteBuffer data) {
@@ -59,14 +62,15 @@ public class CassandraClient {
     private void putPackage(String type, long start, ByteBuffer data) {
         System.out.println("Cassandra: Store " + type + " : " + start);
         data.rewind();
-        Insert query = QueryBuilder.insertInto(TABLE_NAME)
-                                   .value("id", start)
-                                   .value(type, data);
+        Insert query = QueryBuilder.insertInto(TABLE_NAME).value("id", start).value(type, data);
 
         // ResultSetFuture resultSetFuture =
         // TODO hipotese: monitorize if success or not adding a listener but it slows
         // down
-        session.executeAsync(query);
+        // Tolerance during proxy testing
+        if (session != null) {
+            session.executeAsync(query);
+        }
     }
 
     // /////////////////////////////////////////////////////////////
@@ -88,9 +92,7 @@ public class CassandraClient {
      * @return
      */
     private ByteBuffer getPackage(String type, long id) {
-        String query = new String("select " + type + " from " + TABLE_NAME + " where id="
-                + id + ";");
-
+        String query = new String("select " + type + " from " + TABLE_NAME + " where id=" + id + ";");
         ResultSet result = session.execute(query);
         for (Row row : result.all()) {
             return row.getBytes(type);
