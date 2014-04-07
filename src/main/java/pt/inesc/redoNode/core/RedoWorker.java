@@ -34,7 +34,7 @@ public class RedoWorker extends
     private static final int BUFFER_SIZE = 512 * 1024;
 
     private static final int INIT_NUMBER_OF_THREADS_AND_CHANNELS = 1;
-
+    private final CassandraClient cassandra;
     private final AtomicInteger sentCounter = new AtomicInteger(0);
     AsynchronousChannelGroup group;
     LinkedList<ChannelPack> availableChannels = new LinkedList<ChannelPack>();
@@ -43,14 +43,15 @@ public class RedoWorker extends
     public RedoWorker(List<Long> execList, String remoteHostname, int remotePort) throws IOException {
         super();
         this.executionArray = execList;
-        remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname),
-                remotePort);
+        remoteHost = new InetSocketAddress(InetAddress.getByName(remoteHostname), remotePort);
         logger.info("New Worker");
+        cassandra = new CassandraClient();
+
         // create a variable group of threads to handle each channel
         ExecutorService executor = Executors.newCachedThreadPool();
-        group = AsynchronousChannelGroup.withCachedThreadPool(executor,
-                                                              INIT_NUMBER_OF_THREADS_AND_CHANNELS);
+        group = AsynchronousChannelGroup.withCachedThreadPool(executor, INIT_NUMBER_OF_THREADS_AND_CHANNELS);
         createChannels(INIT_NUMBER_OF_THREADS_AND_CHANNELS);
+
     }
 
     /** Creates n channels to the host: connect and add to available channel list */
@@ -64,7 +65,7 @@ public class RedoWorker extends
     private ChannelPack createPackChannel() {
         AsynchronousSocketChannel socketChannel = createChannel();
         ByteBuffer buffer = allocateBuffer();
-        ChannelPack pack = new ChannelPack(socketChannel, buffer);
+        ChannelPack pack = new ChannelPack(socketChannel, buffer, cassandra);
         availableChannels.add(pack);
         return pack;
     }
@@ -85,7 +86,6 @@ public class RedoWorker extends
     @Override
     public void run() {
         System.out.println("time:" + new Date().getTime());
-        CassandraClient cassandra = new CassandraClient();
         Iterator<ChannelPack> channelsIterator = availableChannels.iterator();
 
         for (long reqID : executionArray) {
@@ -120,7 +120,7 @@ public class RedoWorker extends
             }
             // NOTE: request includes cassandra metadata at begin. DO NOT rewind
             sentCounter.incrementAndGet();
-            pack.reset(request.limit() - request.position(), sentCounter);
+            pack.reset(request.limit() - request.position(), sentCounter, reqID);
             System.out.println("Channel remain open: " + pack.channel.isOpen());
 
             pack.channel.write(request, pack, new HandlerWrite());

@@ -38,7 +38,7 @@ public class ProxyWorker extends
     private static Logger logger = LogManager.getLogger("WorkerThread");
     private int countWait = 0;
 
-    private final int FLUSH_PERIODICITY = 100;
+    private final int FLUSH_PERIODICITY = 1;
     /** time between attempt to flush to disk ms */
     private final int BUFFER_SIZE = 2048;
     private final Charset UTF8_CHARSET = Charset.forName("UTF-8");

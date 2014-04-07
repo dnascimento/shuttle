@@ -51,6 +51,7 @@ public class CassandraClient {
     }
 
     public void putRequest(long start, ByteBuffer data) {
+        System.out.println("Save request");
         putPackage(REQUEST, start, data);
 
     }

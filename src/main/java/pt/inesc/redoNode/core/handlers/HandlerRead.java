@@ -37,18 +37,22 @@ public class HandlerRead
     }
 
     private void processRead(ChannelPack aux) {
-        // TODO get and compare responses
-        // ByteBuffer originalResponse = cassandra.getResponse(reqID);
-        // ByteBuffer buffer = aux.buffer;
-        // buffer.flip(); // make buffer readable
-        // buffer.rewind();
-        // if (originalResponse != null) {
-        // while (originalResponse.get() == buffer.get())
-        // ;
-        // // TODO Fix to compare correctly (cookies)
-        // System.out.println(originalResponse.remaining() == 0
-        // && buffer.remaining() == 0);
+        ByteBuffer originalResponse = aux.cassandra.getResponse(aux.reqId);
+        ByteBuffer buffer = aux.buffer;
+        buffer.flip(); // make buffer readable
+        buffer.rewind();
+        if (originalResponse != null) {
+            while (originalResponse.get() == buffer.get())
+                ;
 
+
+            boolean equals = (originalResponse.remaining() == 0) && (buffer.remaining() == 0);
+            if (!equals) {
+                // TODO show difference
+            }
+            // TODO Fix to compare correctly (cookies)
+            System.out.println("Same response:" + equals);
+        }
         // prepare for next read
         aux.buffer.clear();
     }

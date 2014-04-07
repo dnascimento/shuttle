@@ -16,7 +16,7 @@ public class Saver extends
     public Saver() {
         System.out.println("New save worker");
         cassandra = new CassandraClient();
-        file = new SaveFile(); // DEBUG
+        // file = new SaveFile(); // DEBUG
     }
 
     @Override
@@ -65,9 +65,9 @@ public class Saver extends
         while ((current = moveLists()) != null) {
             sleep(500);
             // file.openChannels();
-            // saveRequests(current.getRequests());
+            saveRequests(current.getRequests());
 
-            // saveResponses(current.getResponses());
+            saveResponses(current.getResponses());
 
             // file.closeChannels();
         }
@@ -78,7 +78,7 @@ public class Saver extends
             Request req = requestsList.removeFirst();
             req.data.rewind();
             cassandra.putRequest(req.start, req.data);
-            file.putRequest(req.start, req.data);
+            // file.putRequest(req.start, req.data);
         }
 
     }
@@ -88,7 +88,7 @@ public class Saver extends
         while (!responsesList.isEmpty()) {
             Response req = responsesList.removeFirst();
             cassandra.putResponse(req.start, req.data);
-            file.putResponse(req.start, req.data);
+            // file.putResponse(req.start, req.data);
             startEndList.add(req.start);
             startEndList.add(req.end);
         }
