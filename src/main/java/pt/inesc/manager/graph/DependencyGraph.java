@@ -3,14 +3,19 @@ package pt.inesc.manager.graph;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
 
 public class DependencyGraph {
     private static final Long SEPARATOR = (long) -1;
+    /**
+     * Each dependency establish the elements which can only run after the key.
+     */
     HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
     ShowGraph graphDisplayer;
+    HashSet<Long> rootCandidates = new HashSet<Long>();
 
     /**
      * Retrieves one array with start|end|start|end...
@@ -24,6 +29,7 @@ public class DependencyGraph {
             dep.start = startEndArray[i];
             dep.end = startEndArray[++i];
         }
+        // TODO actualizar
     }
 
     /**
@@ -31,12 +37,12 @@ public class DependencyGraph {
      * 
      * @param list
      */
-    public void addDependencies(Long key, List<Long> dependencies) {
+    public synchronized void addDependencies(Long key, List<Long> dependencies) {
         Dependency keyEntry = getEntry(key);
         Long[] possibleCicles = null;
         // Remove cycles
         if (keyEntry.hasAfter()) {
-            possibleCicles = keyEntry.getAfter().toArray(new Long[0]);
+            possibleCicles = keyEntry.getArrayAfter();
         }
         // add dependencies
         for (Long depKey : dependencies) {
@@ -54,12 +60,27 @@ public class DependencyGraph {
     }
 
     /**
+     * Get roots:
+     * search for items which do not depend from other items
+     */
+    public synchronized List<Long> getRoots() {
+        LinkedList<Long> roots = new LinkedList<Long>();
+        for (Long l : graph.keySet()) {
+            Dependency d = graph.get(l);
+            if (d.countBefore == 0) {
+                roots.add(l);
+            }
+        }
+        return roots;
+    }
+
+    /**
      * From a root key, extract the list of requests dependent from
      * 
      * @param rootKey (a key with counter = 0
      * @return
      */
-    public List<Long> getExecutionList(long rootKey) {
+    public synchronized List<Long> getExecutionList(long rootKey) {
         Dependency entry = graph.get(rootKey);
         assert (entry != null); // TODO Handle exception: invalid root
         assert (entry.countBefore == 0);

@@ -50,6 +50,7 @@ public class ShowGraph extends
                 addEdge(entry.getValue().toString(), depEntry.toString());
             }
         }
+        refresh.set(true);
     }
 
 
@@ -61,13 +62,13 @@ public class ShowGraph extends
      */
     private void addEdge(String nodeA, String nodeB) {
         g.addEdge(nodeA + "->" + nodeB, nodeA, nodeB, EdgeType.DIRECTED);
-        refresh.set(true);
     }
 
     public void addEdgeAndVertex(String nodeA, String nodeB) {
         g.addVertex(nodeA);
         g.addVertex(nodeB);
         g.addEdge(nodeA + "->" + nodeB, nodeA, nodeB, EdgeType.DIRECTED);
+        refresh.set(true);
     }
 
     /**
@@ -82,8 +83,7 @@ public class ShowGraph extends
             g.addVertex(depKey.toString());
             addEdge(depKey.toString(), key.toString());
         }
-
-
+        refresh.set(true);
     }
 
     @Override
@@ -94,12 +94,13 @@ public class ShowGraph extends
         while (true) {
             if (refresh.getAndSet(false)) {
                 refresh();
-                try {
-                    sleep(REFRESH_PERIOD);
-                } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
+            }
+            try {
+                sleep(REFRESH_PERIOD);
+            } catch (InterruptedException e) {
+                System.out.println("Refresh exception");
+                // TODO Auto-generated catch block
+                e.printStackTrace();
             }
         }
     }

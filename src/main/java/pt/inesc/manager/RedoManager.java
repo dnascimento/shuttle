@@ -41,4 +41,6 @@ public class RedoManager {
         // TODO dos nos registados escolher um livre
         return new InetSocketAddress("localhost", 9050);
     }
+
+
 }

@@ -4,28 +4,30 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.StandardSocketOptions;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
+import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 public class Proxy {
     private static final int INIT_NUMBER_OF_THREADS = 1;
-    private static final int MAX_NUMBER_OF_THREADS = 20;
+    private static final int MAX_NUMBER_OF_THREADS = 1;
     private final ThreadPool pool;
     private final int localPort;
     private final Logger log = LogManager.getLogger("Proxy");
 
 
     public Proxy(int localPort, String remoteHost, int remotePort) {
+        log.setLevel(Level.ERROR);
         this.localPort = localPort;
-        pool = new ThreadPool(INIT_NUMBER_OF_THREADS, MAX_NUMBER_OF_THREADS, remoteHost,
-                remotePort);
+        pool = new ThreadPool(INIT_NUMBER_OF_THREADS, MAX_NUMBER_OF_THREADS, remoteHost, remotePort);
         log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
     }
 
@@ -60,7 +62,7 @@ public class Proxy {
         while (true) {
             // This may block for a long time. Upon returning, the
             // selected set contains keys of the ready channels.
-            int n = selector.select();
+            int n = selector.select(2000);
             if (n == 0) {
                 continue;
             }
@@ -75,7 +77,8 @@ public class Proxy {
                     if (key.isAcceptable()) {
                         ServerSocketChannel server = (ServerSocketChannel) key.channel();
                         SocketChannel channel = server.accept();
-                        System.out.println("New socket");
+                        log.info("New socket");
+                        // notify the selector about op_read
                         registerChannel(selector, channel, SelectionKey.OP_READ);
                     }
                     // The selector was waked to read?
@@ -84,6 +87,7 @@ public class Proxy {
                     }
                 } catch (Exception e) {
                     // TODO
+                    log.error(e);
                     e.printStackTrace();
                 } finally {
                     // Remove the key
@@ -106,15 +110,14 @@ public class Proxy {
      */
     private void readDataFromSocket(SelectionKey key) throws IOException {
         ProxyWorker worker = pool.getWorker();
+        // Remove the flag of reading ready, drop request or take it
         if (worker == null) {
-            System.out.println("No worker available");
+            log.error("No worker available");
             return;
         }
-        // Remove the flag of reading ready, it will be read
-        key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-        System.out.println("Readable by " + worker.getId());
+        log.info("Readable by " + worker.getId());
         // Invoking this wakes up the worker thread, then returns
-        worker.serveNewRequest(key, false);
+        worker.serveNewRequest(key, true, false);
     }
 
     private void registerChannel(Selector selector, SocketChannel channel, int opRead) throws IOException {
@@ -124,7 +127,7 @@ public class Proxy {
 
         // set the new channel non-blooking
         channel.configureBlocking(false);
-
+        channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
         // register with the selector to wake when ready to read
         channel.register(selector, opRead);
     }

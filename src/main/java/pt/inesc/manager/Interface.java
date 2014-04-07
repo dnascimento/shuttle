@@ -1,9 +1,17 @@
 package pt.inesc.manager;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Scanner;
+
+import pt.inesc.proxy.save.CassandraClient;
+import voldemort.client.ClientConfig;
+import voldemort.client.protocol.admin.AdminClient;
+import voldemort.client.protocol.admin.AdminClientConfig;
+import voldemort.cluster.Node;
+
+import com.google.common.collect.Lists;
 
 
 public class Interface extends
@@ -21,55 +29,70 @@ public class Interface extends
     public void run() {
         System.out.println("INESC Undo Manager");
         manager.showGraph();
+        @SuppressWarnings("resource")
         Scanner s = new Scanner(System.in);
         while (true) {
-            try {
-                System.out.println("-------------------------------");
-                System.out.println("a) Do Snapshot");
-                System.out.println("b) Recover from Snapshot");
-                System.out.println("c) Clean Database");
-                System.out.println("d) Redo from root");
-                String line = s.nextLine();
-                if (line.length() == 0)
-                    continue;
-                char[] args = line.toCharArray();
-                switch (args[0]) {
-                // case 'a':
-                // doSnapshot();
-                // break;
-                // case 'b':
-                // recoverSnapshot();
-                // break;
-                case 'c':
-
-                    cleanDatabase();
-
-                    break;
-                case 'd':
-                    System.out.println("Enter the root:");
-                    long root = s.nextLong();
-                    manager.redoFromRoot(root);
-                default:
-                    System.out.println("Invalid Option");
-                    break;
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            System.out.println("-------------------------------");
+            System.out.println("a) Do Snapshot");
+            System.out.println("b) Recover from Snapshot");
+            System.out.println("c) Clean Cassandra");
+            System.out.println("d) Clean Voldemort");
+            System.out.println("e) Redo from root");
+            String line = s.nextLine();
+            if (line.length() == 0)
+                continue;
+            char[] args = line.toCharArray();
+            switch (args[0]) {
+            // case 'a':
+            // doSnapshot();
+            // break;
+            // case 'b':
+            // recoverSnapshot();
+            // break;
+            case 'c':
+                cleanCassandra();
+                break;
+            case 'd':
+                cleanVoldemort();
+                break;
+            case 'e':
+                System.out.println(manager.getRoots());
+                System.out.println("Enter the root:");
+                long root = s.nextLong();
+                manager.redoFromRoot(root);
+            default:
+                System.out.println("Invalid Option");
+                break;
             }
         }
     }
 
-    private void cleanDatabase() throws IOException, InterruptedException {
-        String command = "../voldemort/bin/voldemort-admin-tool.sh --truncate test --url tcp://localhost:6666";
-        Process p = Runtime.getRuntime().exec(command);
-        p.waitFor();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(
-                p.getInputStream()));
-        String line = "";
-        while ((line = reader.readLine()) != null) {
-            System.out.println(line);
+    private void cleanCassandra() {
+        new CassandraClient().truncatePackageTable();
+    }
+
+
+    private void cleanVoldemort() {
+        String voldemortUrl = "tcp://localhost:6666";
+        List<String> voldemortStores;
+
+        voldemortStores = new ArrayList<String>(Arrays.asList("test",
+                                                              "questionStore",
+                                                              "answerStore",
+                                                              "commentStore",
+                                                              "index"));
+
+        AdminClient adminClient = new AdminClient(voldemortUrl, new AdminClientConfig(), new ClientConfig());
+
+        List<Integer> nodeIds = Lists.newArrayList();
+        for (Node node : adminClient.getAdminClientCluster().getNodes()) {
+            nodeIds.add(node.getId());
+        }
+        for (String storeName : voldemortStores) {
+            for (Integer currentNodeId : nodeIds) {
+                System.out.println("Truncating " + storeName + " on node " + currentNodeId);
+                adminClient.storeMntOps.truncate(currentNodeId, storeName);
+            }
         }
     }
 

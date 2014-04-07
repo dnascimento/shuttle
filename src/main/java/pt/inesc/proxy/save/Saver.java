@@ -3,33 +3,74 @@ package pt.inesc.proxy.save;
 import java.util.LinkedList;
 
 
-public class Saver {
+public class Saver extends
+        Thread {
     public enum SaveType {
         Request, Response
     }
 
     CassandraClient cassandra;
     SaveFile file;
-    LinkedList<Request> requestsSave;
-    LinkedList<Response> responsesSave;
+    LinkedList<RequestResponseListPair> stack = new LinkedList<RequestResponseListPair>();
 
-    public Saver(LinkedList<Request> requestsSave, LinkedList<Response> responsesSave) {
+    public Saver() {
         System.out.println("New save worker");
         cassandra = new CassandraClient();
         file = new SaveFile(); // DEBUG
-        this.requestsSave = requestsSave;
-        this.responsesSave = responsesSave;
     }
 
-    public void save() {
-        file.openChannels();
-        System.out.println("saving requests...");
-        saveRequests(requestsSave);
+    @Override
+    public void run() {
+        while (true) {
+            synchronized (this) {
+                try {
+                    this.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            try {
+                saving();
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+    }
 
-        System.out.println("saving responses...");
-        saveResponses(responsesSave);
+    /**
+     * Add current requests to save list and notify the thread
+     * 
+     * @param requestsSave
+     * @param responsesSave
+     */
+    public synchronized void save(RequestResponseListPair pair) {
+        stack.addLast(pair);
+        this.notify();
+    }
 
-        file.closeChannels();
+    private synchronized RequestResponseListPair moveLists() {
+        if (stack.isEmpty())
+            return null;
+        return stack.removeFirst();
+    }
+
+    /**
+     * Process the pendent requests
+     * 
+     * @throws InterruptedException
+     */
+    private void saving() throws InterruptedException {
+        RequestResponseListPair current;
+        while ((current = moveLists()) != null) {
+            sleep(500);
+            // file.openChannels();
+            // saveRequests(current.getRequests());
+
+            // saveResponses(current.getResponses());
+
+            // file.closeChannels();
+        }
     }
 
     private void saveRequests(LinkedList<Request> requestsList) {

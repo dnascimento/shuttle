@@ -24,6 +24,10 @@ public class Dependency
         return !after.isEmpty();
     }
 
+    public Long[] getArrayAfter() {
+        return after.toArray(new Long[0]);
+    }
+
     public HashSet<Long> getAfter() {
         return after;
     }

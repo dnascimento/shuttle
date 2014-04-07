@@ -1,0 +1,5 @@
+http://dario-nascimento.appspot.com/hello
+
+https://openshift.redhat.com/app/console/application/533746154382ece3ea0004fa-cape2
+
+http://cape2-darionascimento.rhcloud.com/hello

@@ -31,6 +31,10 @@ public class Manager {
         graph.display();
     }
 
+    public List<Long> getRoots() {
+        return graph.getRoots();
+    }
+
     public void redoFromRoot(long root) {
         List<Long> list = graph.getExecutionList(root);
         try {

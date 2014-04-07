@@ -107,4 +107,10 @@ public class CassandraClient {
     public Session getSession() {
         return session;
     }
+
+    public void truncatePackageTable() {
+        String query = new String("truncate " + TABLE_NAME + ";");
+        session.execute(query);
+        System.out.println(query + " executed");
+    }
 }

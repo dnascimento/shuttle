@@ -14,9 +14,18 @@
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
+		</repository> 
+		<repository>
+			<id>repo</id>
+			<url>file://${project.basedir}/repo</url>
 		</repository>
 	</repositories>
 	<dependencies>
+	  	<dependency>
+			<groupId>com.voldemort</groupId>
+			<artifactId>voldemort</artifactId>
+			<version>3.0.0</version> 
+		</dependency>
 		<dependency>
 			<groupId>mysql</groupId>
 			<artifactId>mysql-connector-java</artifactId>

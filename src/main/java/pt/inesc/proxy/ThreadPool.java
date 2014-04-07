@@ -8,8 +8,8 @@ public class ThreadPool {
     String remoteHost;
     int remotePort;
     int maxThreads;
+    int nTheads = 0;
 
-    // TODO Implement the max number of threads
 
     public ThreadPool(int initCapacity, int maxThreads, String remoteHost, int remotePort) {
         this.remoteHost = remoteHost;
@@ -27,6 +27,7 @@ public class ThreadPool {
         ProxyWorker thread = new ProxyWorker(this, remoteHost, remotePort);
         // Set thread name for debugging. Start it.
         // thread.setName("Worker" + i);
+        nTheads++;
         thread.start();
         return thread;
     }
@@ -45,7 +46,6 @@ public class ThreadPool {
             } else {
                 thread = newWorker();
                 System.out.println("thread created" + thread.getId());
-                return thread;
             }
         }
         return thread;

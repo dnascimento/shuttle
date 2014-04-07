@@ -13,7 +13,8 @@ public class GraphRefresh {
         ShowGraph graph = new ShowGraph();
         graph.start();
         graph.addEdgeAndVertex("dario", "maike");
-        Thread.sleep(2000);
+        Thread.sleep(5000);
+        System.out.println("update");
         graph.addEdgeAndVertex("andre", "ze");
         System.in.read();
     }

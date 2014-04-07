@@ -2,6 +2,7 @@ package pt.inesc.redoNode;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -26,8 +27,11 @@ public class RedoScheduler {
     public RedoScheduler() throws IOException {
         myServerSocketAddress = new InetSocketAddress("localhost", 9050);
         myServerSocket = new ServerSocket();
-        myServerSocket.bind(myServerSocketAddress);
-
+        try {
+            myServerSocket.bind(myServerSocketAddress);
+        } catch (BindException e) {
+            System.out.println("Redo Scheduler already running...");
+        }
     }
 
     public void newRequest(List<Long> execList) {
