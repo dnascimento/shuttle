@@ -1,5 +1,6 @@
 package pt.inesc.manager.graph;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,13 +9,18 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
 
-public class DependencyGraph {
+public class DependencyGraph
+        implements Serializable {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
     private static final Long SEPARATOR = (long) -1;
     /**
      * Each dependency establish the elements which can only run after the key.
      */
     HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
-    ShowGraph graphDisplayer;
+    transient ShowGraph graphDisplayer;
     HashSet<Long> rootCandidates = new HashSet<Long>();
 
     /**
@@ -178,6 +184,13 @@ public class DependencyGraph {
     public void display() {
         graphDisplayer = new ShowGraph(this.graph);
         graphDisplayer.start();
+    }
+
+
+    public void reset() {
+        graph.clear();
+        rootCandidates.clear();
+        graphDisplayer.reset();
     }
 
 

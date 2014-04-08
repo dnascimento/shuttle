@@ -1,9 +1,15 @@
 package pt.inesc.manager.graph;
 
+import java.io.Serializable;
 import java.util.HashSet;
 
 public class Dependency
-        implements Comparable<Dependency> {
+        implements Comparable<Dependency>, Serializable {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     /** request start timestamp. It is also the ID */
     long start;
 

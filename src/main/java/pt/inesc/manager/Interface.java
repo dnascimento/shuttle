@@ -1,5 +1,6 @@
 package pt.inesc.manager;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +39,8 @@ public class Interface extends
             System.out.println("c) Clean Cassandra");
             System.out.println("d) Clean Voldemort");
             System.out.println("e) Redo from root");
+            System.out.println("f) save graph");
+            System.out.println("g) reset graph");
             String line = s.nextLine();
             if (line.length() == 0)
                 continue;
@@ -57,9 +60,28 @@ public class Interface extends
                 break;
             case 'e':
                 System.out.println(manager.getRoots());
-                System.out.println("Enter the root:");
-                long root = s.nextLong();
-                manager.redoFromRoot(root);
+                System.out.println("Enter the root: (enter to all roots, multi separated by comma)");
+                String rootArgs = s.nextLine();
+                String[] tokens = rootArgs.split(",");
+                long[] roots = new long[tokens.length];
+                int i = 0;
+                for (String t : tokens) {
+                    roots[i++] = Long.parseLong(t);
+                }
+                manager.redoFromRoot(roots);
+                break;
+            case 'f':
+                try {
+                    manager.saveGraph();
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+                break;
+
+            case 'g':
+                manager.resetGraph();
+                break;
             default:
                 System.out.println("Invalid Option");
                 break;

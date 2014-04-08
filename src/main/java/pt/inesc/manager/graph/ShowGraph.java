@@ -86,6 +86,11 @@ public class ShowGraph extends
         refresh.set(true);
     }
 
+    public void reset() {
+        g = new SparseMultigraph<String, String>();
+        refresh.set(true);
+    }
+
     @Override
     public void run() {
         if (vv == null) {
@@ -106,7 +111,6 @@ public class ShowGraph extends
     }
 
     private void refresh() {
-        // TODO
         layout = new FRLayout<String, String>(g);
         layout.setSize(new Dimension(WIDTH, HEIGHT));
         vv.setGraphLayout(layout);

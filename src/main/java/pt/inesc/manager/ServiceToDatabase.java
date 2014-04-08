@@ -13,19 +13,20 @@ import voldemort.undoTracker.proto.OpProto.TrackEntry;
 // Retrieves the requests from database
 public class ServiceToDatabase extends
         Thread {
-    private final DependencyGraph graph;
+    private final Manager manager;
     private final ServerSocket serverSocket;
 
     // Only for local tests
-    public ServiceToDatabase(DependencyGraph graph) {
+    public ServiceToDatabase(DependencyGraph graph) throws IOException {
         super();
-        this.graph = graph;
+        manager = new Manager();
+        manager.setGraph(graph);
         serverSocket = null;
     }
 
-    public ServiceToDatabase(DependencyGraph graph, InetSocketAddress databasePortAddress) throws IOException {
+    public ServiceToDatabase(Manager manager, InetSocketAddress databasePortAddress) throws IOException {
         super();
-        this.graph = graph;
+        this.manager = manager;
         serverSocket = new ServerSocket();
         serverSocket.bind(databasePortAddress);
 
@@ -57,7 +58,7 @@ public class ServiceToDatabase extends
         System.out.println(list);
         System.out.println("--------------");
         for (TrackEntry entry : list.getEntryList()) {
-            graph.addDependencies(entry.getRid(), entry.getDependenciesList());
+            manager.getGraph().addDependencies(entry.getRid(), entry.getDependenciesList());
         }
     }
 }
