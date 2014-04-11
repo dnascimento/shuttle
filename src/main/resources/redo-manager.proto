@@ -1,8 +1,0 @@
-package redoNode;
-
-option java_package = "pt.inesc.shared";
-option java_outer_classname = "RedoPB";
-
-message ExecList{
-	repeated int64 rid = 1;
-}

@@ -23,20 +23,6 @@ public class DependencyGraph
     transient ShowGraph graphDisplayer;
     HashSet<Long> rootCandidates = new HashSet<Long>();
 
-    /**
-     * Retrieves one array with start|end|start|end...
-     * 
-     * @param array with start|end|start|end...
-     */
-    public void updateStartEnd(long[] startEndArray) {
-        assert (startEndArray.length % 2 == 0);
-        for (int i = 0; i < startEndArray.length; i++) {
-            Dependency dep = getEntry(startEndArray[i]);
-            dep.start = startEndArray[i];
-            dep.end = startEndArray[++i];
-        }
-        // TODO actualizar
-    }
 
     /**
      * For each StartID X map the list of StartID Y's which X reads from
@@ -192,6 +178,18 @@ public class DependencyGraph
         rootCandidates.clear();
         graphDisplayer.reset();
     }
+
+    /**
+     * Retrieves one array with start|end|start|end...
+     * 
+     * @param array with start|end|start|end...
+     */
+    public void updateStartEnd(long start, long end) {
+        Dependency dep = getEntry(start);
+        dep.start = start;
+        dep.end = end;
+    }
+
 
 
 }

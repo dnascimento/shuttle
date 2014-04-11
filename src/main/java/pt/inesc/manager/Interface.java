@@ -34,7 +34,7 @@ public class Interface extends
         Scanner s = new Scanner(System.in);
         while (true) {
             System.out.println("-------------------------------");
-            System.out.println("a) Do Snapshot");
+            System.out.println("a) Do Snapshot:");
             System.out.println("b) Recover from Snapshot");
             System.out.println("c) Clean Cassandra");
             System.out.println("d) Clean Voldemort");
@@ -46,12 +46,15 @@ public class Interface extends
                 continue;
             char[] args = line.toCharArray();
             switch (args[0]) {
-            // case 'a':
-            // doSnapshot();
-            // break;
-            // case 'b':
-            // recoverSnapshot();
-            // break;
+            case 'a':
+                System.out.println("Enter snapshot rid:");
+                long rid = s.nextLong();
+                try {
+                    manager.setNewSnapshotRID(rid);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                break;
             case 'c':
                 cleanCassandra();
                 break;

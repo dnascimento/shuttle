@@ -11,7 +11,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import pt.inesc.redoNode.core.RedoWorker;
-import pt.inesc.shared.RedoPB.ExecList;
+import voldemort.undoTracker.proto.FromManagerProto;
+import voldemort.undoTracker.proto.FromManagerProto.ExecList;
 
 
 /**
@@ -59,7 +60,7 @@ public class RedoScheduler {
 
     private void newConnection(Socket socket) throws IOException {
         InputStream stream = socket.getInputStream();
-        ExecList list = ExecList.parseFrom(stream);
+        FromManagerProto.ExecList list = ExecList.parseFrom(stream);
         List<Long> execList = list.getRidList();
         newRequest(execList);
     }

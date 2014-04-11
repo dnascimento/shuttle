@@ -435,8 +435,6 @@ public class ProxyWorker extends
         requests.add(new Request(request, start));
     }
 
-
-
     public void addResponse(ByteBuffer response, long start, long end) {
         responses.add(new Response(response, start, end));
     }
@@ -449,8 +447,6 @@ public class ProxyWorker extends
         }
         return new String(lenghtValue, UTF8_CHARSET);
     }
-
-
 
 
 

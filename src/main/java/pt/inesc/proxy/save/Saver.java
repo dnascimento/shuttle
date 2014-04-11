@@ -1,6 +1,14 @@
 package pt.inesc.proxy.save;
 
+import java.io.IOException;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.Iterator;
 import java.util.LinkedList;
+
+import voldemort.undoTracker.proto.ToManagerProto.MsgToManager;
+import voldemort.undoTracker.proto.ToManagerProto.StartEndEntry;
+import voldemort.undoTracker.proto.ToManagerProto.StartEndMsg;
 
 
 public class Saver extends
@@ -92,12 +100,31 @@ public class Saver extends
             startEndList.add(req.start);
             startEndList.add(req.end);
         }
-        sendStartEndListToManager(startEndList);
+        try {
+            sendStartEndListToManager(startEndList);
+        } catch (UnknownHostException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
-    private void sendStartEndListToManager(LinkedList<Long> startEndList) {
-        // TODO Auto-generated method stub
-
+    private void sendStartEndListToManager(LinkedList<Long> startEndList) throws UnknownHostException, IOException {
+        assert ((startEndList.size() % 2) == 0);
+        StartEndMsg.Builder b = StartEndMsg.newBuilder();
+        Iterator<Long> i = startEndList.iterator();
+        while (i.hasNext()) {
+            StartEndEntry e = StartEndEntry.newBuilder().setStart(i.next()).setEnd(i.next()).build();
+            b.addMsg(e);
+        }
+        StartEndMsg m = b.build();
+        MsgToManager msg = MsgToManager.newBuilder().setStartEndMsg(m).build();
+        // TODO send by socket to manager
+        Socket s = new Socket("localhost", 9800);
+        msg.writeTo(s.getOutputStream());
+        s.close();
     }
 
 

@@ -7,17 +7,20 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.List;
 
 import pt.inesc.manager.graph.DependencyGraph;
 import pt.inesc.redoNode.RedoScheduler;
+import voldemort.undoTracker.proto.FromManagerProto;
 
 public class Manager {
     private static final String GRAPH_STORE = "graph.obj";
-    InetSocketAddress databasePortAddress = new InetSocketAddress("localhost", 9090);
+    InetSocketAddress managerServicePort = new InetSocketAddress("localhost", 9090);
     DependencyGraph graph;
     RedoManager redoService;
-    ServiceToDatabase serviceToDatabase;
+    ServiceHandler serviceToDatabase;
 
     public static void main(String[] args) throws IOException {
         Manager manager = new Manager();
@@ -27,7 +30,7 @@ public class Manager {
 
     public Manager() throws IOException {
         graph = loadGraph();
-        serviceToDatabase = new ServiceToDatabase(this, databasePortAddress);
+        serviceToDatabase = new ServiceHandler(this, managerServicePort);
         // TODO redo manager will be a separated thread due to nodes registry
         redoService = new RedoManager();
         serviceToDatabase.start();
@@ -89,4 +92,10 @@ public class Manager {
     }
 
 
+    public void setNewSnapshotRID(long newRid) throws UnknownHostException, IOException {
+        // TODO converter para assync e registo de mais dbs, receber os acks
+        Socket s = new Socket("localhost", 9500);
+        FromManagerProto.Snapshot.newBuilder().setSeasonId(newRid).build().writeTo(s.getOutputStream());
+        s.close();
+    }
 }

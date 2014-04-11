@@ -5,7 +5,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.List;
 
-import pt.inesc.shared.RedoPB.ExecList;
+import voldemort.undoTracker.proto.FromManagerProto.ExecList;
 
 /**
  * Retrieve the execution lists and invoke redo nodes to perform these lists

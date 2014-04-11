@@ -18,7 +18,10 @@ public class GraphTest {
         graph = new DependencyGraph();
         // List with 4 nodes: A:0-1; B:1-2; C:2-3; com A->B->C->D D->B
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5, 4, 7 };
-        graph.updateStartEnd(startEndArray);
+        int i = 0;
+        while (i < startEndArray.length) {
+            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+        }
         graph.addDependencies((long) 2, toList(1, 4));
         graph.addDependencies((long) 3, toList(2));
         graph.addDependencies((long) 4, toList(3));
@@ -37,7 +40,10 @@ public class GraphTest {
         graph = new DependencyGraph();
         // List with 3 nodes: A:0-1; B:1-2; C:2-3; com A->B->C
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5 };
-        graph.updateStartEnd(startEndArray);
+        int i = 0;
+        while (i < startEndArray.length) {
+            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+        }
         graph.addDependencies((long) 2, toList(1));
         graph.addDependencies((long) 3, toList(2));
         rootArray = new long[] { 1 };
@@ -47,7 +53,10 @@ public class GraphTest {
         graph = new DependencyGraph();
         // 2x List with 3 nodes: A:0-1; B:1-2; C:2-3; com A->B->C
         long[] startEndArray = new long[] { 1, 4, 3, 6, 5, 7, 2, 5, 4, 7, 6, 8 };
-        graph.updateStartEnd(startEndArray);
+        int i = 0;
+        while (i < startEndArray.length) {
+            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+        }
         graph.addDependencies((long) 3, toList(1));
         graph.addDependencies((long) 5, toList(3));
         graph.addDependencies((long) 4, toList(2));
