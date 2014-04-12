@@ -48,6 +48,7 @@ public class Interface extends
             switch (args[0]) {
             case 'a':
                 System.out.println("Enter snapshot rid:");
+                // TODO NOW
                 long rid = s.nextLong();
                 try {
                     manager.setNewSnapshotRID(rid);
