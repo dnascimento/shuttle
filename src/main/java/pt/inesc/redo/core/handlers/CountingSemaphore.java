@@ -1,4 +1,4 @@
-package pt.inesc.redoNode.core.handlers;
+package pt.inesc.redo.core.handlers;
 
 public class CountingSemaphore {
     private int countSends;

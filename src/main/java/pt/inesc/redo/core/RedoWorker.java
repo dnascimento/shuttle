@@ -1,4 +1,4 @@
-package pt.inesc.redoNode.core;
+package pt.inesc.redo.core;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -20,10 +20,10 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.CassandraClient;
-import pt.inesc.redoNode.RedoNode;
-import pt.inesc.redoNode.core.cookies.CookieMan;
-import pt.inesc.redoNode.core.handlers.ChannelPack;
-import pt.inesc.redoNode.core.handlers.HandlerWrite;
+import pt.inesc.redo.RedoNode;
+import pt.inesc.redo.core.cookies.CookieMan;
+import pt.inesc.redo.core.handlers.ChannelPack;
+import pt.inesc.redo.core.handlers.HandlerWrite;
 
 public class RedoWorker extends
         Thread {

@@ -6,7 +6,7 @@ import java.util.List;
 
 import org.junit.Test;
 
-import pt.inesc.redoNode.RedoNode;
+import pt.inesc.redo.RedoNode;
 
 public class RedoTest {
     @Test

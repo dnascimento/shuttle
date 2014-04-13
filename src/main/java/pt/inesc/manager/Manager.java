@@ -116,6 +116,7 @@ public class Manager {
         // TODO usar sync e receber os acks
         ToDataNode msg = FromManagerProto.ToDataNode.newBuilder().setSeasonId(newRid).build();
         group.broadcast(msg, NodeGroup.DATABASE);
+        new NotifyEvent("Snapshot done", newRid).start();
     }
 
     /**

@@ -9,7 +9,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.Proxy;
-import pt.inesc.redoNode.RedoNode;
+import pt.inesc.redo.RedoNode;
 
 import com.google.protobuf.Message;
 

@@ -1,4 +1,4 @@
-package pt.inesc.redoNode;
+package pt.inesc.redo;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +16,7 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 import pt.inesc.manager.Manager;
-import pt.inesc.redoNode.core.RedoWorker;
+import pt.inesc.redo.core.RedoWorker;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.ToManagerProto;

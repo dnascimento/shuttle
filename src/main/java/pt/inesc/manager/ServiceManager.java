@@ -55,7 +55,6 @@ public class ServiceManager extends
     private void receive(Socket socket) throws IOException {
         ToManagerProto.MsgToManager proto = ToManagerProto.MsgToManager.parseFrom(socket.getInputStream());
         if (proto.hasTrackMsg()) {
-            log.info("New msg: TrackMsg");
             TrackMsg m1 = proto.getTrackMsg();
             newList(m1.getEntryList());
         }
@@ -106,9 +105,7 @@ public class ServiceManager extends
     }
 
     public void newList(List<TrackEntry> list) {
-        log.info("------Dep List (size: " + list.size() + ")--------");
-        log.info(list);
-        log.info("--------------");
+        log.info(depListToString(list));
         for (TrackEntry entry : list) {
             manager.getGraph().addDependencies(entry.getRid(), entry.getDependencyList());
         }
@@ -128,9 +125,10 @@ public class ServiceManager extends
      * @return
      */
     private String depListToString(List<TrackEntry> list) {
+        log.info("------Dep List (size: " + list.size() + ")--------");
         StringBuilder sb = new StringBuilder();
         for (TrackEntry entry : list) {
-            sb.append("[");
+            sb.append("\n[");
             sb.append(entry.getRid());
             sb.append("<-");
             for (Long l : entry.getDependencyList()) {
@@ -139,6 +137,7 @@ public class ServiceManager extends
             }
             sb.append("]\n");
         }
+        sb.append("--------------");
         return sb.toString();
     }
 }

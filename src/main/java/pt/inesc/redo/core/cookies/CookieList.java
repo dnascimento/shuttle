@@ -1,4 +1,4 @@
-package pt.inesc.redoNode.core.cookies;
+package pt.inesc.redo.core.cookies;
 
 import java.util.HashMap;
 

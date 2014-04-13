@@ -1,4 +1,4 @@
-package pt.inesc.redoNode.core.handlers;
+package pt.inesc.redo.core.handlers;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
