@@ -1,14 +1,19 @@
 package pt.inesc.proxy.save;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Iterator;
 import java.util.LinkedList;
 
-import voldemort.undoTracker.proto.ToManagerProto.MsgToManager;
-import voldemort.undoTracker.proto.ToManagerProto.StartEndEntry;
-import voldemort.undoTracker.proto.ToManagerProto.StartEndMsg;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import pt.inesc.manager.Manager;
+import undo.proto.ToManagerProto.MsgToManager;
+import undo.proto.ToManagerProto.StartEndEntry;
+import undo.proto.ToManagerProto.StartEndMsg;
 
 
 public class Saver extends
@@ -17,14 +22,13 @@ public class Saver extends
         Request, Response
     }
 
+    private static Logger log = LogManager.getLogger(Saver.class.getName());
+
     CassandraClient cassandra;
-    SaveFile file;
     LinkedList<RequestResponseListPair> stack = new LinkedList<RequestResponseListPair>();
 
     public Saver() {
-        System.out.println("New save worker");
         cassandra = new CassandraClient();
-        // file = new SaveFile(); // DEBUG
     }
 
     @Override
@@ -33,15 +37,10 @@ public class Saver extends
             synchronized (this) {
                 try {
                     this.wait();
+                    saving();
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    log.error(e);
                 }
-            }
-            try {
-                saving();
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
             }
         }
     }
@@ -65,28 +64,19 @@ public class Saver extends
 
     /**
      * Process the pendent requests
-     * 
-     * @throws InterruptedException
      */
-    private void saving() throws InterruptedException {
+    private void saving() {
         RequestResponseListPair current;
         while ((current = moveLists()) != null) {
-            sleep(500);
-            // file.openChannels();
             saveRequests(current.getRequests());
-
             saveResponses(current.getResponses());
-
-            // file.closeChannels();
         }
     }
 
     private void saveRequests(LinkedList<Request> requestsList) {
         while (!requestsList.isEmpty()) {
             Request req = requestsList.removeFirst();
-            req.data.rewind();
-            cassandra.putRequest(req.start, req.data);
-            // file.putRequest(req.start, req.data);
+            cassandra.putRequest(req);
         }
 
     }
@@ -96,18 +86,13 @@ public class Saver extends
         while (!responsesList.isEmpty()) {
             Response req = responsesList.removeFirst();
             cassandra.putResponse(req.start, req.data);
-            // file.putResponse(req.start, req.data);
             startEndList.add(req.start);
             startEndList.add(req.end);
         }
         try {
             sendStartEndListToManager(startEndList);
-        } catch (UnknownHostException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+        } catch (Exception e) {
+            log.error(e);
         }
     }
 
@@ -121,12 +106,14 @@ public class Saver extends
         }
         StartEndMsg m = b.build();
         MsgToManager msg = MsgToManager.newBuilder().setStartEndMsg(m).build();
-        // TODO send by socket to manager
-        Socket s = new Socket("localhost", 9800);
-        msg.writeTo(s.getOutputStream());
-        s.close();
+        Socket s;
+        try {
+            s = new Socket();
+            s.connect(Manager.MANAGER_ADDR);
+            msg.writeTo(s.getOutputStream());
+            s.close();
+        } catch (ConnectException e) {
+            log.debug("Saver: Manager is off");
+        }
     }
-
-
-
 }

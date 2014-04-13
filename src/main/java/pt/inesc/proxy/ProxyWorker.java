@@ -35,20 +35,14 @@ import pt.inesc.proxy.save.Saver;
  */
 public class ProxyWorker extends
         Thread {
-    private static Logger logger = LogManager.getLogger("WorkerThread");
+    private static Logger logger = LogManager.getLogger(ProxyWorker.class.getName());
     private int countWait = 0;
 
     private final int FLUSH_PERIODICITY = 1;
     /** time between attempt to flush to disk ms */
     private final int BUFFER_SIZE = 2048;
-    private final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+    private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
-    // private static final ByteBuffer CONNECTION_CLOSE =
-    // ByteBuffer.wrap("Connection: close".getBytes());
-    // private static final ByteBuffer CONNECTION =
-    // ByteBuffer.wrap("Connection: ".getBytes());
-    // private static final ByteBuffer KEEP_ALIVE =
-    // ByteBuffer.wrap("Connection: keep-alive".getBytes());
     private final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
     private final ByteBuffer LAST_CHUNK = ByteBuffer.wrap(new byte[] { 48, 13, 10, 13, 10 });
     private final ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
@@ -65,6 +59,7 @@ public class ProxyWorker extends
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
     private final Saver saver;
+    private final ByteBuffer headerBase = createBaseHeader();
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
         logger.info("New worker: " + this.getId());
@@ -85,7 +80,6 @@ public class ProxyWorker extends
             if (backendSocket != null) {
                 backendSocket.close();
             }
-            System.out.println("NEW CONNECT");
             backendSocket = SocketChannel.open(backendAddress);
             backendSocket.socket().setKeepAlive(true);
 
@@ -224,8 +218,7 @@ public class ProxyWorker extends
 
         startTS = System.currentTimeMillis();
         logger.info(Thread.currentThread().getId() + ": New Req:" + startTS);
-        // TODO replace, the wrap has always the same size, just different 8 bytes
-        ByteBuffer messageIdHeader = ByteBuffer.wrap(("\nId: " + startTS).getBytes());
+        ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
         ByteBuffer request = ByteBuffer.allocate(buffer.limit() + messageIdHeader.capacity());
 
 
@@ -368,15 +361,15 @@ public class ProxyWorker extends
     }
 
 
-    private void printContent(ByteBuffer buffer, int start, int end) {
+    private static void printContent(ByteBuffer buffer, int start, int end) {
         List<Byte> content = new ArrayList<Byte>();
         for (int i = start; i < end; i++) {
             content.add(buffer.get(i));
         }
-        logger.info(decodeUTF8(content));
+        System.out.println(decodeUTF8(content));
     }
 
-    public void printContent(ByteBuffer buffer) {
+    public static void printContent(ByteBuffer buffer) {
         int start = buffer.position();
         int end = buffer.limit();
         printContent(buffer, start, end);
@@ -439,7 +432,7 @@ public class ProxyWorker extends
         responses.add(new Response(response, start, end));
     }
 
-    public String decodeUTF8(List<Byte> lenght) {
+    public static String decodeUTF8(List<Byte> lenght) {
         byte[] lenghtValue = new byte[lenght.size()];
         int i = 0;
         for (byte b : lenght) {
@@ -494,6 +487,34 @@ public class ProxyWorker extends
             return tmp;
         }
         return null;
+    }
+
+    private ByteBuffer generateHeaderFromBase(long startTS) {
+        synchronized (Proxy.lockBranchRestrain) {
+            byte[] ts = new Long(startTS + Proxy.timeTravel).toString().getBytes();
+            headerBase.position(5);
+            headerBase.put(ts);
+            headerBase.position(22);
+            headerBase.put(Proxy.branch);
+            headerBase.position(31);
+            if (Proxy.restrain) {
+                headerBase.put((byte) 't');
+            } else {
+                headerBase.put((byte) 'f');
+            }
+        }
+        headerBase.position(0);
+        return headerBase;
+    }
+
+    private ByteBuffer createBaseHeader() {
+        ByteBuffer header = ByteBuffer.allocate(32);
+        header.put("\nID: ".getBytes());
+        header.put("0000000000000".getBytes());
+        header.put("\nB: ".getBytes());
+        header.put(Proxy.branch);
+        header.put("\nR: f".getBytes());
+        return header;
     }
 
 

@@ -4,11 +4,24 @@ import java.nio.ByteBuffer;
 
 public class Request {
     public ByteBuffer data;
-    public long start;
+    public long rid;
 
-    public Request(ByteBuffer data, long start) {
+
+
+    public Request(ByteBuffer data, long rid) {
         super();
         this.data = data;
-        this.start = start;
+        this.rid = rid;
     }
+
+
+
+
+    public Request() {
+
+    }
+
+
+
+
 }

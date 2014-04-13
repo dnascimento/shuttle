@@ -14,6 +14,8 @@ import javax.swing.JFrame;
 import javax.swing.JScrollPane;
 
 import org.apache.commons.collections15.Transformer;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 import edu.uci.ics.jung.algorithms.layout.FRLayout;
 import edu.uci.ics.jung.algorithms.layout.Layout;
@@ -26,6 +28,8 @@ import edu.uci.ics.jung.visualization.renderers.Renderer.VertexLabel.Position;
 
 public class ShowGraph extends
         Thread {
+    private static final Logger log = LogManager.getLogger(ShowGraph.class.getName());
+
     private static final int WIDTH = 600;
     private static final int HEIGHT = 600;
     private static final int MARGIN = 50;
@@ -103,9 +107,7 @@ public class ShowGraph extends
             try {
                 sleep(REFRESH_PERIOD);
             } catch (InterruptedException e) {
-                System.out.println("Refresh exception");
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+                log.error("Refresh exception", e);
             }
         }
     }

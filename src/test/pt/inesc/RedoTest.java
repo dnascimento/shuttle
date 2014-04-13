@@ -6,16 +6,17 @@ import java.util.List;
 
 import org.junit.Test;
 
-import pt.inesc.redoNode.RedoScheduler;
+import pt.inesc.redoNode.RedoNode;
 
 public class RedoTest {
     @Test
     public void testRedo() throws IOException {
         List<Long> requestsToExecute = new ArrayList<Long>();
-        requestsToExecute.add(1395853701567L);
+        requestsToExecute.add(1397380631774L);
         requestsToExecute.add(-1L);
-        RedoScheduler redo = new RedoScheduler();
-        redo.newRequest(requestsToExecute);
+        RedoNode redo = new RedoNode();
+        redo.newRequest(requestsToExecute, (short) 69);
         System.in.read();
     }
+
 }

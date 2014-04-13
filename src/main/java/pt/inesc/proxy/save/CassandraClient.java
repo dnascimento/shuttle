@@ -2,6 +2,9 @@ package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.Metadata;
@@ -15,13 +18,21 @@ import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 
 public class CassandraClient {
+    private static final Logger log = LogManager.getLogger(CassandraClient.class.getName());
+
     private static final int CONCURRENCY = 20;
     private static final int MAX_CONNECTIONS = 10;
-    private static final String REQUEST = "request";
-    private static final String RESPONSE = "response";
     private static final String TABLE_NAME = "requests";
     private static final String NODE = "localhost";
     private static final String KEYSPACE = "requestStore";
+    private static final String COL_ID = "id";
+    private static final String COL_REQUEST = "request";
+    private static final String COL_RESPONSE = "response";
+    private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + " from " + TABLE_NAME
+            + " where id=");
+    private static final Object QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME
+            + " where id=");
+
     private final Cluster cluster;
     private Session session = null;
 
@@ -45,61 +56,68 @@ public class CassandraClient {
                                              metadata.getAllHosts()));
 
         } catch (NoHostAvailableException e) {
-            // TODO logger
-            System.out.println("No Cassandra server available");
+            log.error("No Cassandra server available");
         }
     }
 
-    public void putRequest(long start, ByteBuffer data) {
-        System.out.println("Save request");
-        putPackage(REQUEST, start, data);
+    /**
+     * This PUT is Synchronous
+     * 
+     * @param pack
+     */
+    public void putRequest(Request pack) {
+        pack.data.rewind();
+        Insert query = QueryBuilder.insertInto(TABLE_NAME).value(COL_ID, pack.rid).value(COL_REQUEST, pack.data);
 
-    }
-
-    public void putResponse(long start, ByteBuffer data) {
-        putPackage(RESPONSE, start, data);
-    }
-
-    private void putPackage(String type, long start, ByteBuffer data) {
-        System.out.println("Cassandra: Store " + type + " : " + start);
-        data.rewind();
-        Insert query = QueryBuilder.insertInto(TABLE_NAME).value("id", start).value(type, data);
-
-        // ResultSetFuture resultSetFuture =
-        // TODO hipotese: monitorize if success or not adding a listener but it slows
-        // down
-        // Tolerance during proxy testing
         if (session != null) {
-            session.executeAsync(query);
+            session.execute(query);
         }
     }
+
+    /**
+     * Put response is Synchronous
+     * 
+     * @param rid
+     * @param data
+     */
+    public void putResponse(long rid, ByteBuffer data) {
+        data.rewind();
+        Insert query = QueryBuilder.insertInto(TABLE_NAME).value(COL_ID, rid).value(COL_RESPONSE, data);
+
+        if (session != null) {
+            session.execute(query);
+        }
+    }
+
+
 
     // /////////////////////////////////////////////////////////////
 
     public ByteBuffer getRequest(long id) {
-        return getPackage(REQUEST, id);
+        StringBuilder sb = new StringBuilder();
+        sb.append(QUERY_REQUEST);
+        sb.append(id);
+        sb.append(";");
+        ResultSet result = session.execute(sb.toString());
+        for (Row row : result.all()) {
+            return row.getBytes(COL_REQUEST);
+        }
+        return null;
     }
 
 
     public ByteBuffer getResponse(long id) {
-        return getPackage(RESPONSE, id);
-    }
-
-    /**
-     * Return the bytebuffer with the content of request
-     * 
-     * @param type
-     * @param id
-     * @return
-     */
-    private ByteBuffer getPackage(String type, long id) {
-        String query = new String("select " + type + " from " + TABLE_NAME + " where id=" + id + ";");
-        ResultSet result = session.execute(query);
+        StringBuilder sb = new StringBuilder();
+        sb.append(QUERY_RESPONSE);
+        sb.append(id);
+        sb.append(";");
+        ResultSet result = session.execute(sb.toString());
         for (Row row : result.all()) {
-            return row.getBytes(type);
+            return row.getBytes(COL_RESPONSE);
         }
         return null;
     }
+
 
     public void close() {
         cluster.close();
@@ -112,6 +130,6 @@ public class CassandraClient {
     public void truncatePackageTable() {
         String query = new String("truncate " + TABLE_NAME + ";");
         session.execute(query);
-        System.out.println(query + " executed");
+        log.info(query + " executed");
     }
 }

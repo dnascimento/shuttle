@@ -8,7 +8,7 @@ import org.apache.log4j.Logger;
 public class CookieMan {
     // ID, values
     CookieIDtoList map = new CookieIDtoList();
-    private static Logger logger = LogManager.getLogger("CookieMan");
+    private static Logger logger = LogManager.getLogger(CookieMan.class.getName());
 
 
 

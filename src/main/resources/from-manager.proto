@@ -1,18 +1,28 @@
 package voldemort;
 
-option java_package = "voldemort.undoTracker.proto";
+option java_package = "undo.proto";
 option java_outer_classname = "FromManagerProto";
 option optimize_for = SPEED;
 
 
 //To data node
-message Snapshot{
-	required int64 seasonId = 1;
+message ToDataNode{
+	optional int64 seasonId = 1;
+	optional bool resetDependencies = 2;
+	optional int32 unlockNewBranch = 3;
 }
 
 //To redo node
 message ExecList{
 	repeated int64 rid = 1;
+	required int32 branch = 2;
+	required bool start = 3;
 }
 
+
 //To proxy
+message ProxyMsg{
+	optional int32 branch = 1;
+	optional bool restrain = 2;
+	optional int64 timeTravel = 3;
+}

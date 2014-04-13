@@ -33,21 +33,21 @@
 	<appender name="error-out" class="org.apache.log4j.FileAppender">
 		<!-- Start a new log on each run -->
 		<param name="Append" value="false" />
-		<param name="File" value="app.log" />
+		<!-- <param name="File" value="app.log" /> -->
 		<layout class="org.apache.log4j.PatternLayout">
 			<param name="ConversionPattern" value="%-5p [%t][%F:%L]: %m%n" />
 		</layout>
 	</appender>
 	<logger name="log4logger">
 		<level value="info" />
-		 <appender-ref ref="file" /> 
+	<!--  	 <appender-ref ref="file" />--> 
 		<appender-ref ref="stdout" />
 		<appender-ref ref="stderr" />
 	</logger>
 
 	<root>
 		<priority value="info" />
-		 <appender-ref ref="file" /> 
+		<!--  <appender-ref ref="file" />  -->
 		<appender-ref ref="stdout" />
 		<appender-ref ref="stderr" />
 	</root>

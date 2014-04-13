@@ -55,8 +55,8 @@ public class DependencyGraph
      * Get roots:
      * search for items which do not depend from other items
      */
-    public synchronized List<Long> getRoots() {
-        LinkedList<Long> roots = new LinkedList<Long>();
+    public synchronized ArrayList<Long> getRoots() {
+        ArrayList<Long> roots = new ArrayList<Long>();
         for (Long l : graph.keySet()) {
             Dependency d = graph.get(l);
             if (d.countBefore == 0) {

@@ -1,6 +1,5 @@
 package pt.inesc.proxy;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -17,25 +16,33 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 public class Proxy {
+    public static final int MY_PORT = 11100;
+    public static final int FRONTEND_PORT = 9000;
+    public static final int BACKEND_PORT = 8080;
+    public static final String BACKEND_HOST = "localhost";
+
     private static final int INIT_NUMBER_OF_THREADS = 1;
     private static final int MAX_NUMBER_OF_THREADS = 1;
     private final ThreadPool pool;
     private final int localPort;
-    private final Logger log = LogManager.getLogger("Proxy");
+    private static final Logger log = LogManager.getLogger(Proxy.class.getName());
 
+    public static Object lockBranchRestrain = new Object();
+    public static byte[] branch = shortToByteArray(0);
+    public static boolean restrain = false;
+    public static long timeTravel = 0;
 
-    public Proxy(int localPort, String remoteHost, int remotePort) {
+    public Proxy(int localPort, String remoteHost, int remotePort) throws IOException {
         log.setLevel(Level.ERROR);
         this.localPort = localPort;
         pool = new ThreadPool(INIT_NUMBER_OF_THREADS, MAX_NUMBER_OF_THREADS, remoteHost, remotePort);
         log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
+        new ServiceProxy(this).start();
     }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         DOMConfigurator.configure("log4j.xml");
-        new File("./requests/").delete();
-        new File("./requests/").mkdir();
-        new Proxy(9000, "localhost", 8080).run();
+        new Proxy(FRONTEND_PORT, BACKEND_HOST, BACKEND_PORT).run();
 
     }
 
@@ -86,9 +93,7 @@ public class Proxy {
                         readDataFromSocket(key);
                     }
                 } catch (Exception e) {
-                    // TODO
                     log.error(e);
-                    e.printStackTrace();
                 } finally {
                     // Remove the key
                     it.remove();
@@ -130,5 +135,46 @@ public class Proxy {
         channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
         // register with the selector to wake when ready to read
         channel.register(selector, opRead);
+    }
+
+    public void setBranchAndRestrain(short branch, boolean restrain) {
+        log.info("new branch: " + branch + " restrain: " + restrain);
+        byte[] b = null;
+        if (branch != -1) {
+            b = shortToByteArray(branch);
+        }
+        synchronized (Proxy.lockBranchRestrain) {
+            if (b != null)
+                Proxy.branch = b;
+            Proxy.restrain = restrain;
+        }
+    }
+
+    /**
+     * Convert a short to byte array including the leading zeros and using 1 byte per char
+     * encode
+     * 
+     * @param s
+     * @return
+     */
+    private static byte[] shortToByteArray(int s) {
+        byte[] r = new byte[5];
+        int base = 10000;
+        int tmp;
+        for (short i = 0; i < 5; i++) {
+            tmp = (s / base);
+            r[i] = (byte) (tmp + '0');
+            s -= tmp * base;
+            base /= 10;
+        }
+        return r;
+    }
+
+
+    public void timeTravel(long timeTravel) {
+        log.info("traveling: " + timeTravel);
+        synchronized (Proxy.lockBranchRestrain) {
+            Proxy.timeTravel = timeTravel;
+        }
     }
 }

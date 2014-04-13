@@ -2,8 +2,13 @@ package pt.inesc.proxy;
 
 import java.util.LinkedList;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
 
 public class ThreadPool {
+    private static final Logger log = LogManager.getLogger(ThreadPool.class.getName());
+
     LinkedList<ProxyWorker> idle = new LinkedList<ProxyWorker>();
     String remoteHost;
     int remotePort;
@@ -45,7 +50,7 @@ public class ThreadPool {
                 thread = idle.removeFirst();
             } else {
                 thread = newWorker();
-                System.out.println("thread created" + thread.getId());
+                log.info("thread created" + thread.getId());
             }
         }
         return thread;

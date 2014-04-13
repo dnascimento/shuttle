@@ -4,19 +4,19 @@ import java.io.IOException;
 
 import org.junit.Test;
 
-import pt.inesc.manager.ServiceHandler;
+import pt.inesc.manager.ServiceManager;
 import pt.inesc.manager.graph.DependencyGraph;
-import voldemort.undoTracker.proto.ToManagerProto.TrackEntry;
-import voldemort.undoTracker.proto.ToManagerProto.TrackMsg;
+import undo.proto.ToManagerProto.TrackEntry;
+import undo.proto.ToManagerProto.TrackMsg;
 
 public class ServiceToDatabaseTest {
-    ServiceHandler service;
+    ServiceManager service;
     DependencyGraph graph;
 
     @org.junit.Before
     public void init() throws IOException {
         graph = new DependencyGraph();
-        service = new ServiceHandler(graph);
+        service = new ServiceManager(graph);
     }
 
     @Test

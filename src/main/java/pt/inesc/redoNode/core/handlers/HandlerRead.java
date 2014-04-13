@@ -3,8 +3,12 @@ package pt.inesc.redoNode.core.handlers;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
 public class HandlerRead
         implements CompletionHandler<Integer, ChannelPack> {
+    private static final Logger log = LogManager.getLogger(HandlerRead.class.getName());
 
 
     public void completed(Integer bytesRead, ChannelPack aux) {
@@ -15,12 +19,10 @@ public class HandlerRead
         } else {
             processRead(aux);
             int remain = aux.sentCounter.decrementAndGet();
-            System.out.println("Saw: " + remain);
             if (remain == 0) {
                 // wake thread
                 synchronized (aux.sentCounter) {
                     aux.sentCounter.notify();
-                    System.out.println("wake");
                 }
             }
         }
@@ -28,8 +30,7 @@ public class HandlerRead
 
 
     public void failed(Throwable exc, ChannelPack channel) {
-        System.out.println("Read fail");
-        exc.printStackTrace();
+        log.error("Read fail", exc);
         // //TODO se isto for frequente mais vale fechar e abrir sempre
         // //Reconnect and re-write
         // java.io.IOException
@@ -51,7 +52,7 @@ public class HandlerRead
                 // TODO show difference
             }
             // TODO Fix to compare correctly (cookies)
-            System.out.println("Same response:" + equals);
+            log.info("Same response:" + equals);
         }
         // prepare for next read
         aux.buffer.clear();

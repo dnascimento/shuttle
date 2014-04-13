@@ -1,6 +1,6 @@
 package voldemort;
 
-option java_package = "voldemort.undoTracker.proto";
+option java_package = "undo.proto";
 option java_outer_classname = "ToManagerProto";
 option optimize_for = SPEED;
 
@@ -8,6 +8,8 @@ message MsgToManager{
 	optional TrackMsg trackMsg = 1;
 	optional StartEndMsg startEndMsg = 2;
 	optional TrackMsg trackMsgFromClient = 3;
+	optional NodeRegistryMsg nodeRegistry = 4;
+	optional AckMsg ack = 5;
 }
 
 //From data-nodes and client nodes
@@ -38,3 +40,23 @@ message RUD{
 	optional int32 branch = 2;
 	optional bool restrain = 3;
 }
+
+//From Redo Nodes
+message AckMsg{
+	required int32 port = 1;
+	required string hostname = 2;
+}
+
+
+//From ALL
+message NodeRegistryMsg{
+	enum NodeGroup{
+		PROXY = 1;
+		DB_NODE = 2;
+		REDO_NODE = 3;
+	}
+	required NodeGroup group = 1;
+	required int32 port = 2;
+	required string hostname = 3;
+}
+
