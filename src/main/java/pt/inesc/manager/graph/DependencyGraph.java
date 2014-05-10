@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.manager.graph;
 
 import java.io.Serializable;
@@ -70,9 +76,10 @@ public class DependencyGraph
      * From a root key, extract the list of requests dependent from
      * 
      * @param rootKey (a key with counter = 0
+     * @param baseCommit
      * @return
      */
-    public synchronized List<Long> getExecutionList(long rootKey) {
+    public synchronized List<Long> getExecutionList(long rootKey, long baseCommit) {
         Dependency entry = graph.get(rootKey);
         assert (entry != null); // TODO Handle exception: invalid root
         assert (entry.countBefore == 0);
@@ -85,7 +92,9 @@ public class DependencyGraph
             expandEntry(entry, parallelRequests, readyHeap);
             Collections.sort(parallelRequests);
             for (Dependency dep : parallelRequests) {
-                executionList.add(dep.getKey());
+                if (dep.start >= baseCommit) {
+                    executionList.add(dep.getKey());
+                }
             }
             executionList.add(SEPARATOR);
         }

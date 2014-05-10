@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.proxy.save;
 
 import java.io.IOException;
@@ -14,6 +20,7 @@ import pt.inesc.manager.Manager;
 import undo.proto.ToManagerProto.MsgToManager;
 import undo.proto.ToManagerProto.StartEndEntry;
 import undo.proto.ToManagerProto.StartEndMsg;
+
 
 
 public class Saver extends
@@ -110,7 +117,7 @@ public class Saver extends
         try {
             s = new Socket();
             s.connect(Manager.MANAGER_ADDR);
-            msg.writeTo(s.getOutputStream());
+            msg.writeDelimitedTo(s.getOutputStream());
             s.close();
         } catch (ConnectException e) {
             log.debug("Saver: Manager is off");

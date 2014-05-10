@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.manager;
 
 import java.io.IOException;
@@ -8,8 +14,8 @@ import java.util.List;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import pt.inesc.manager.graph.DependencyGraph;
-import pt.inesc.manager.groupCom.GroupCom.NodeGroup;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.NodeRegistryMsg;
 import undo.proto.ToManagerProto.StartEndEntry;
@@ -28,7 +34,7 @@ public class ServiceManager extends
     public ServiceManager(DependencyGraph graph) throws IOException {
         super();
         manager = new Manager();
-        manager.setGraph(graph);
+        manager.graph = graph;
         serverSocket = null;
     }
 
@@ -43,17 +49,27 @@ public class ServiceManager extends
     public void run() {
         log.info("Manager Service is listening...");
         while (true) {
+            Socket s = null;
             try {
-                Socket newSocket = serverSocket.accept();
-                receive(newSocket);
+                s = serverSocket.accept();
+                receive(s);
             } catch (IOException e) {
                 log.error(e);
+            }
+            if (s != null) {
+                try {
+                    s.close();
+                } catch (IOException e) {
+                    log.error(e);
+                }
             }
         }
     }
 
     private void receive(Socket socket) throws IOException {
-        ToManagerProto.MsgToManager proto = ToManagerProto.MsgToManager.parseFrom(socket.getInputStream());
+        ToManagerProto.MsgToManager proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
+        if (proto == null)
+            return;
         if (proto.hasTrackMsg()) {
             TrackMsg m1 = proto.getTrackMsg();
             newList(m1.getEntryList());
@@ -107,14 +123,15 @@ public class ServiceManager extends
     public void newList(List<TrackEntry> list) {
         log.info(depListToString(list));
         for (TrackEntry entry : list) {
-            manager.getGraph().addDependencies(entry.getRid(), entry.getDependencyList());
+            manager.addDependencies(entry.getRid(), entry.getDependencyList());
         }
     }
 
+
     private void clientDependencies(List<TrackEntry> list) {
-        log.info("------ Client Side dependency--------");
-        log.info(depListToString(list));
-        log.info("--------------");
+        log.debug("------ Client Side dependency--------");
+        log.debug(depListToString(list));
+        log.debug("--------------");
         // TODO insert into graph and compare
     }
 
@@ -125,7 +142,7 @@ public class ServiceManager extends
      * @return
      */
     private String depListToString(List<TrackEntry> list) {
-        log.info("------Dep List (size: " + list.size() + ")--------");
+        log.debug("------Dep List (size: " + list.size() + ")--------");
         StringBuilder sb = new StringBuilder();
         for (TrackEntry entry : list) {
             sb.append("\n[");

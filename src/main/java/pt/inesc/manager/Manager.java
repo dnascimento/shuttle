@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.manager;
 
 import java.io.FileInputStream;
@@ -6,41 +12,38 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
+import pt.inesc.manager.branchTree.BranchNode;
+import pt.inesc.manager.branchTree.BranchTree;
+import pt.inesc.manager.communication.GroupCom;
+import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import pt.inesc.manager.graph.DependencyGraph;
-import pt.inesc.manager.groupCom.GroupCom;
-import pt.inesc.manager.groupCom.GroupCom.NodeGroup;
+import pt.inesc.manager.utils.CleanVoldemort;
+import pt.inesc.manager.utils.NotifyEvent;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.FromManagerProto.ProxyMsg;
 import undo.proto.FromManagerProto.ToDataNode;
-import voldemort.client.ClientConfig;
-import voldemort.client.protocol.admin.AdminClient;
-import voldemort.client.protocol.admin.AdminClientConfig;
-import voldemort.cluster.Node;
-
-import com.google.common.collect.Lists;
 
 public class Manager {
-    private final Logger log = LogManager.getLogger(Manager.class.getName());
+    private static final Logger log = LogManager.getLogger(Manager.class.getName());
 
     public static final InetSocketAddress MANAGER_ADDR = new InetSocketAddress("localhost", 11000);
-    public short lastBranch = 0;
     public GroupCom group = new GroupCom();
 
     public Object ackWaiter = new Object();
     private static final String GRAPH_FILE = "graph.obj";
-    private static DependencyGraph graph;
+    DependencyGraph graph;
     private static ServiceManager service;
-
+    public final BranchTree branches = new BranchTree();
 
     public static void main(String[] args) throws IOException {
         DOMConfigurator.configure("log4j.xml");
@@ -55,15 +58,76 @@ public class Manager {
         service.start();
     }
 
-    public void resetGraph() {
-        graph.reset();
+
+    /* ------------------- Operations ----------------- */
+    public void redo(long parentCommit, short parentBranch) throws Exception {
+        // get requests to send
+        List<Long> roots = graph.getRoots();
+        if (roots.size() == 0) {
+            log.error("No roots available");
+            return;
+        }
+
+        short newBranch = branches.fork(parentCommit, parentBranch);
+        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
+        // notify the database nodes about the path of the redo branch
+        group.sendNewRedoBranch(path);
+        // enable restrain in the proxy
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
+
+
+        redoRequests(parentCommit, newBranch, roots);
+
+
+        // disable retrain and change to new branch
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(),
+                      NodeGroup.PROXY,
+                      false);
+
     }
 
-    public void loadGraph() throws IOException, ClassNotFoundException {
-        FileInputStream fin = new FileInputStream(GRAPH_FILE);
-        ObjectInputStream ois = new ObjectInputStream(fin);
-        graph = (DependencyGraph) ois.readObject();
-        ois.close();
+    private void redoRequests(long parentCommit, short redoBranch, List<Long> roots) throws Exception {
+        log.info(roots);
+        for (Long root : roots) {
+            List<Long> list = graph.getExecutionList(root, parentCommit);
+            try {
+                ExecList msg = FromManagerProto.ExecList.newBuilder()
+                                                        .addAllRid(list)
+                                                        .setBranch(redoBranch)
+                                                        .setStart(false)
+                                                        .build();
+                group.broadcast(msg, NodeGroup.REDO, false);
+            } catch (IOException e) {
+                log.error(e);
+            }
+        }
+        ExecList startMsg = FromManagerProto.ExecList.newBuilder().setBranch(redoBranch).setStart(true).build();
+        group.broadcast(startMsg, NodeGroup.REDO, false);
+        // wait for ack
+        synchronized (ackWaiter) {
+            ackWaiter.wait();
+        }
+    }
+
+    public void newCommit(long commit) throws Exception {
+        branches.addCommit(commit);
+        ToDataNode msg = FromManagerProto.ToDataNode.newBuilder().setNewCommit(commit).build();
+        group.broadcast(msg, NodeGroup.DATABASE, false);
+        String dateString = new SimpleDateFormat("H:m:S").format(new Date(commit));
+        new NotifyEvent("Commit done: " + dateString, commit).start();
+    }
+
+    public void deleteBranch(Short branch) {
+        // TODO Auto-generated method stub
+
+    }
+
+
+    /* -------------------- Graph -------------------- */
+    public void showGraph() {
+        graph.display();
+
     }
 
     public void saveGraph() throws IOException {
@@ -73,123 +137,48 @@ public class Manager {
         oos.close();
     }
 
-    public void showGraph() {
-        graph.display();
+    public void loadGraph() throws IOException, ClassNotFoundException {
+        FileInputStream fin = new FileInputStream(GRAPH_FILE);
+        ObjectInputStream ois = new ObjectInputStream(fin);
+        graph = (DependencyGraph) ois.readObject();
+        ois.close();
+
     }
 
-    public List<Long> getRoots() {
-        return graph.getRoots();
+    public void resetGraph() {
+        graph.reset();
     }
 
-    public void redoFromRoot(List<Long> roots, short branch) throws IOException, InterruptedException {
-        for (Long root : roots) {
-            List<Long> list = graph.getExecutionList(root);
-            try {
-                ExecList msg = FromManagerProto.ExecList.newBuilder()
-                                                        .addAllRid(list)
-                                                        .setBranch(branch)
-                                                        .setStart(false)
-                                                        .build();
-                group.broadcast(msg, NodeGroup.REDO);
-            } catch (IOException e) {
-                log.error(e);
-            }
-        }
-        ExecList startMsg = FromManagerProto.ExecList.newBuilder().setBranch(branch).setStart(true).build();
-        group.broadcast(startMsg, NodeGroup.REDO);
-        // wait for ack
-        synchronized (ackWaiter) {
-            ackWaiter.wait();
-        }
-    }
-
-    public DependencyGraph getGraph() {
-        return graph;
-    }
-
-    public void setGraph(DependencyGraph g) {
-        graph = g;
+    public void addDependencies(long rid, List<Long> dependencyList) {
+        graph.addDependencies(rid, dependencyList);
     }
 
 
-    public void setNewSnapshotInstant(long newRid) throws UnknownHostException, IOException {
-        // TODO usar sync e receber os acks
-        ToDataNode msg = FromManagerProto.ToDataNode.newBuilder().setSeasonId(newRid).build();
-        group.broadcast(msg, NodeGroup.DATABASE);
-        new NotifyEvent("Snapshot done", newRid).start();
-    }
 
-    /**
-     * If branch == -1, keep the same
-     * 
-     * @param branch
-     * @param restrain
-     * @throws IOException
-     */
-    public void setProxyBranchAndRestrain(short branch, boolean restrain) throws IOException {
-        ProxyMsg msg = FromManagerProto.ProxyMsg.newBuilder().setBranch(branch).setRestrain(restrain).build();
-        group.unicast(msg, NodeGroup.PROXY);
-    }
-
+    /* ------------ Advanced ------------------- */
     public void proxyTimeTravel(long time) throws IOException {
         ProxyMsg msg = FromManagerProto.ProxyMsg.newBuilder().setTimeTravel(time).build();
-        group.unicast(msg, NodeGroup.PROXY);
+        group.unicast(msg, NodeGroup.PROXY, false);
     }
 
 
-    /**
-     * Performs the REDO
-     * 
-     * @param branch: Branch to store the redo
-     * @throws IOException
-     * @throws InterruptedException
-     */
-    public void redoProcedure(short branch) throws IOException, InterruptedException {
-        // enable restrain
-        setProxyBranchAndRestrain((short) -1, true);
-        // get requests to send
-        List<Long> roots = graph.getRoots();
-        if (roots.size() == 0) {
-            log.error("No roots available");
-            return;
-        }
-        // send to redo
-        redoFromRoot(roots, branch);
-        // disable retrain
-        setProxyBranchAndRestrain(branch, false);
-        setNewBranchInDatabaseNodes(branch);
+    /* -------------------- Cleans -------------------- */
+
+    public void resetDatabaseAccessLists() throws IOException {
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setResetDependencies(true).build(),
+                        NodeGroup.DATABASE,
+                        false);
     }
 
-    void resetDataNodesDependenices() throws IOException {
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setResetDependencies(true).build(), NodeGroup.DATABASE);
+    public void cleanVoldemort() {
+        CleanVoldemort.clean(group.getDatabaseNodes());
     }
 
-    void setNewBranchInDatabaseNodes(short branch) throws IOException {
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setUnlockNewBranch(branch).build(), NodeGroup.DATABASE);
-    }
 
-    void cleanVoldemort() {
-        // TODO multiple nodes
-        String voldemortUrl = "tcp://localhost:6666";
-        List<String> voldemortStores;
 
-        voldemortStores = new ArrayList<String>(Arrays.asList("test",
-                                                              "questionStore",
-                                                              "answerStore",
-                                                              "commentStore",
-                                                              "index"));
 
-        AdminClient adminClient = new AdminClient(voldemortUrl, new AdminClientConfig(), new ClientConfig());
 
-        List<Integer> nodeIds = Lists.newArrayList();
-        for (Node node : adminClient.getAdminClientCluster().getNodes()) {
-            nodeIds.add(node.getId());
-        }
-        for (String storeName : voldemortStores) {
-            for (Integer currentNodeId : nodeIds) {
-                log.info("Truncating " + storeName + " on node " + currentNodeId);
-                adminClient.storeMntOps.truncate(currentNodeId, storeName);
-            }
-        }
-    }
+
+
+
 }

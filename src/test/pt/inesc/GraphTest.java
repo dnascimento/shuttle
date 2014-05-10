@@ -1,3 +1,10 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
+
 package pt.inesc;
 
 import java.io.IOException;
@@ -77,7 +84,7 @@ public class GraphTest {
         StringBuilder sb = new StringBuilder();
         sb.append("Exec list: \n");
         for (long root : rootArray) {
-            List<Long> list = graph.getExecutionList(root);
+            List<Long> list = graph.getExecutionList(root, 0L);
             for (Long l : list) {
                 sb.append(l);
                 sb.append(" ");

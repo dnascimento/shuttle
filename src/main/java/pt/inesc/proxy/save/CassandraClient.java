@@ -1,9 +1,22 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+
+import voldemort.undoTracker.KeyAccess;
+import voldemort.utils.ByteArray;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
@@ -16,6 +29,7 @@ import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
+import com.google.common.io.BaseEncoding;
 
 public class CassandraClient {
     private static final Logger log = LogManager.getLogger(CassandraClient.class.getName());
@@ -28,10 +42,14 @@ public class CassandraClient {
     private static final String COL_ID = "id";
     private static final String COL_REQUEST = "request";
     private static final String COL_RESPONSE = "response";
+    private static final String COL_KEYS = "keys";
     private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + " from " + TABLE_NAME
             + " where id=");
-    private static final Object QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME
+    private static final String QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME
             + " where id=");
+
+    private static final String QUERY_KEYS = new String("select " + COL_KEYS + " from " + TABLE_NAME + " where id=");
+
 
     private final Cluster cluster;
     private Session session = null;
@@ -114,6 +132,50 @@ public class CassandraClient {
         ResultSet result = session.execute(sb.toString());
         for (Row row : result.all()) {
             return row.getBytes(COL_RESPONSE);
+        }
+        return null;
+    }
+
+    public void addKeys(Set<KeyAccess> accessedKeys, long id) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("update ");
+        sb.append(TABLE_NAME);
+        sb.append(" set ");
+        sb.append(COL_KEYS);
+        sb.append(" = [");
+        Iterator<KeyAccess> i = accessedKeys.iterator();
+        while (i.hasNext()) {
+            KeyAccess s = i.next();
+            sb.append("'");
+            sb.append(BaseEncoding.base64().encode(s.key.get()));
+            sb.append(",");
+            sb.append(s.store);
+            sb.append("'");
+            if (i.hasNext())
+                sb.append(",");
+        }
+        sb.append("] where id=");
+        sb.append(id);
+        sb.append(";");
+        System.out.println(sb.toString());
+        session.execute(sb.toString());
+    }
+
+    public Set<KeyAccess> getKeys(long id) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(QUERY_KEYS);
+        sb.append(id);
+        sb.append(";");
+        ResultSet result = session.execute(sb.toString());
+        for (Row row : result.all()) {
+            List<String> l = row.getList(COL_KEYS, String.class);
+            Set<KeyAccess> r = new HashSet<KeyAccess>();
+            for (String s : l) {
+                String[] splitted = s.split(",");
+                KeyAccess access = new KeyAccess(new ByteArray(BaseEncoding.base64().decode(splitted[0])), splitted[1]);
+                r.add(access);
+            }
+            return r;
         }
         return null;
     }

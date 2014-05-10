@@ -1,10 +1,16 @@
-package pt.inesc.manager;
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
+package pt.inesc.manager.utils;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 /**
- * Simple thread alarm to notify the snapshot
+ * Simple thread alarm to notify the commit
  * 
  * @author darionascimento
  */
@@ -28,7 +34,7 @@ public class NotifyEvent extends
         } catch (InterruptedException e) {
             log.error(e);
         }
-        log.info("ALERT->" + msg);
+        log.warn("ALERT->" + msg);
     }
 
 

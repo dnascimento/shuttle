@@ -7,9 +7,11 @@ option optimize_for = SPEED;
 
 //To data node
 message ToDataNode{
-	optional int64 seasonId = 1;
+	optional int64 newCommit = 1;
 	optional bool resetDependencies = 2;
-	optional int32 unlockNewBranch = 3;
+	optional bool redoOver = 3;
+	repeated int32 pathBranch = 4;
+	repeated int64 pathCommit = 5;
 }
 
 //To redo node

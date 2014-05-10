@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.proxy;
 
 import java.io.File;
@@ -23,6 +29,7 @@ import pt.inesc.proxy.save.Request;
 import pt.inesc.proxy.save.RequestResponseListPair;
 import pt.inesc.proxy.save.Response;
 import pt.inesc.proxy.save.Saver;
+
 
 /**
  * A worker thread class which can drain channels and echo-back the input. Each instance
@@ -104,6 +111,7 @@ public class ProxyWorker extends
                 drainAndSend(key);
             } catch (Exception e) {
                 logger.error("Execution", e);
+                connect();
             }
 
             buffer = ByteBuffer.allocate(BUFFER_SIZE);
@@ -508,12 +516,13 @@ public class ProxyWorker extends
     }
 
     private ByteBuffer createBaseHeader() {
-        ByteBuffer header = ByteBuffer.allocate(32);
+        ByteBuffer header = ByteBuffer.allocate(40);
         header.put("\nID: ".getBytes());
         header.put("0000000000000".getBytes());
         header.put("\nB: ".getBytes());
-        header.put(Proxy.branch);
+        header.put(Proxy.branch); // 5bytes
         header.put("\nR: f".getBytes());
+        header.put("\nRedo: f".getBytes());
         return header;
     }
 

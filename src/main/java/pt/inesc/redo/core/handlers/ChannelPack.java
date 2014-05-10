@@ -1,10 +1,16 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.redo.core.handlers;
-
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import pt.inesc.proxy.save.CassandraClient;
+
 
 public class ChannelPack {
     public AsynchronousSocketChannel channel;

@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.proxy;
 
 import java.io.IOException;
@@ -8,6 +14,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Iterator;
 
 import org.apache.log4j.Level;
@@ -172,7 +180,8 @@ public class Proxy {
 
 
     public void timeTravel(long timeTravel) {
-        log.info("traveling: " + timeTravel);
+        String dateString = new SimpleDateFormat("H:m:S").format(new Date(timeTravel));
+        log.info("traveling: " + dateString);
         synchronized (Proxy.lockBranchRestrain) {
             Proxy.timeTravel = timeTravel;
         }

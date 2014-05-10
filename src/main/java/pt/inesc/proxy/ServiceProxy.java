@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.proxy;
 
 import java.io.IOException;
@@ -13,6 +19,7 @@ import undo.proto.FromManagerProto.ProxyMsg;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.NodeRegistryMsg;
 import undo.proto.ToManagerProto.NodeRegistryMsg.NodeGroup;
+
 
 public class ServiceProxy extends
         Thread {
@@ -30,13 +37,20 @@ public class ServiceProxy extends
     @Override
     public void run() {
         log.info("Proxy Service listening...");
-        // TODO Converter para asnyc
         while (true) {
+            Socket s = null;
             try {
-                Socket newSocket = serverSocket.accept();
-                receive(newSocket);
+                s = serverSocket.accept();
+                receive(s);
             } catch (IOException e) {
                 log.error(e);
+            }
+            if (s != null) {
+                try {
+                    s.close();
+                } catch (IOException e) {
+                    log.error(e);
+                }
             }
         }
     }
@@ -52,7 +66,7 @@ public class ServiceProxy extends
                                                               .setGroup(NodeGroup.PROXY)
                                                               .build();
 
-            ToManagerProto.MsgToManager.newBuilder().setNodeRegistry(c).build().writeTo(s.getOutputStream());
+            ToManagerProto.MsgToManager.newBuilder().setNodeRegistry(c).build().writeDelimitedTo(s.getOutputStream());
             s.close();
         } catch (IOException e) {
             log.error("Manager not available");
@@ -61,7 +75,7 @@ public class ServiceProxy extends
 
     private void receive(Socket socket) throws IOException {
         log.debug("New service command");
-        ProxyMsg msg = FromManagerProto.ProxyMsg.parseFrom(socket.getInputStream());
+        ProxyMsg msg = FromManagerProto.ProxyMsg.parseDelimitedFrom(socket.getInputStream());
         if (msg.hasTimeTravel()) {
             // time travel
             proxy.timeTravel(msg.getTimeTravel());

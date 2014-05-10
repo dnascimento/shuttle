@@ -9,9 +9,11 @@ USE requestStore;
 CREATE TABLE requests (
   id bigint,
   request blob,
+  keys list<text>,
   response blob,
   PRIMARY KEY (id)
 );
+
 
 ALTER TABLE requests
   WITH compression = { 'sstable_compression' : 'LZ4Compressor' }

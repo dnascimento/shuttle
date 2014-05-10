@@ -39,12 +39,14 @@ message RUD{
 	optional int64 rid = 1;
 	optional int32 branch = 2;
 	optional bool restrain = 3;
+	optional bool redo = 4;
 }
 
 //From Redo Nodes
 message AckMsg{
-	required int32 port = 1;
-	required string hostname = 2;
+	optional int32 port = 1;
+	optional string hostname = 2;
+	repeated string exception = 3;
 }
 
 

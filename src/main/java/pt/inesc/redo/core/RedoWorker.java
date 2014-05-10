@@ -1,3 +1,9 @@
+/*
+ * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
+ * 
+ * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
+ * Copyright (c) 2014 - All rights reserved
+ */
 package pt.inesc.redo.core;
 
 import java.io.IOException;
@@ -25,6 +31,7 @@ import pt.inesc.redo.core.cookies.CookieMan;
 import pt.inesc.redo.core.handlers.ChannelPack;
 import pt.inesc.redo.core.handlers.HandlerWrite;
 
+
 public class RedoWorker extends
         Thread {
     private static Logger logger = LogManager.getLogger(RedoWorker.class.getName());
@@ -41,7 +48,7 @@ public class RedoWorker extends
     LinkedList<ChannelPack> availableChannels = new LinkedList<ChannelPack>();
     private final ByteBuffer ID_MARK = ByteBuffer.wrap("ID: ".getBytes());
     private final byte[] branch;
-
+    private final List<String> errors = new LinkedList<String>();
 
     public RedoWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws IOException {
         super();
@@ -79,6 +86,7 @@ public class RedoWorker extends
                         continue;
                     }
                 } catch (InterruptedException e) {
+                    errors.add(e.toString());
                     logger.error(e);
                 }
             }
@@ -92,6 +100,7 @@ public class RedoWorker extends
             logger.debug("got socket");
             ByteBuffer request = cassandra.getRequest(reqID);
             if (request == null) {
+                errors.add("Request not found " + reqID);
                 logger.error("Request not found " + reqID);
                 continue;
             }
@@ -102,12 +111,13 @@ public class RedoWorker extends
             try {
                 writePackage(pack, request, reqID);
             } catch (Exception e) {
+                errors.add("Erro in req: " + reqID + " " + e);
                 logger.error("Erro", e);
             }
         }
 
         logger.info("Redo end");
-        RedoNode.sendAck();
+        RedoNode.addErrors(errors);
     }
 
     private void writePackage(ChannelPack pack, ByteBuffer data, long rid) throws InterruptedException,
@@ -116,7 +126,6 @@ public class RedoWorker extends
         setNewHeader(data, rid);
         pack.reset(data.limit() - data.position(), sentCounter, rid);
         pack.channel.write(data, pack, new HandlerWrite());
-
     }
 
 
@@ -129,6 +138,8 @@ public class RedoWorker extends
         data.position(startOfId + 17);
         data.put(branch);
         // restrain is always false
+        data.position(startOfId + 34);
+        data.put((byte) 't');
         data.position(initPosition);
     }
 
