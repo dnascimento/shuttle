@@ -114,10 +114,9 @@ public class ServiceManager extends
 
 
     private void updateStartEnd(List<StartEndEntry> entryList) {
-        // TODO
-        // for (StartEndEntry entry : entryList) {
-        // manager.getGraph().updateStartEnd(entry.getStart(), entry.getEnd());
-        // }
+        for (StartEndEntry entry : entryList) {
+            manager.graph.updateStartEnd(entry.getStart(), entry.getEnd());
+        }
     }
 
     public void newList(List<TrackEntry> list) {

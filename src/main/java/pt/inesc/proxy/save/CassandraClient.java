@@ -7,6 +7,7 @@
 package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -49,6 +50,11 @@ public class CassandraClient {
             + " where id=");
 
     private static final String QUERY_KEYS = new String("select " + COL_KEYS + " from " + TABLE_NAME + " where id=");
+
+    private static final String QUERY_LIST_REQUESTS = new String("select " + COL_ID + " from " + TABLE_NAME + ";");
+
+    private static final String DELETE_REQUEST = "Update " + TABLE_NAME + " set " + COL_REQUEST + " = NULL where "
+            + COL_ID + " = ";
 
 
     private final Cluster cluster;
@@ -193,5 +199,23 @@ public class CassandraClient {
         String query = new String("truncate " + TABLE_NAME + ";");
         session.execute(query);
         log.info(query + " executed");
+    }
+
+    public List<Long> getRequestList() {
+        ResultSet result = session.execute(QUERY_LIST_REQUESTS);
+        List<Long> l = new ArrayList<Long>();
+        for (Row row : result.all()) {
+            l.add(row.getLong(COL_ID));
+            return l;
+        }
+        return l;
+    }
+
+    public void deleteRequest(long reqId) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(DELETE_REQUEST);
+        sb.append(reqId);
+        sb.append(";");
+        session.execute(sb.toString());
     }
 }

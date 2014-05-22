@@ -44,8 +44,8 @@ public class Dependency
         return after;
     }
 
-    public void addAfter(Long key) {
-        after.add(key);
+    public boolean addAfter(Long key) {
+        return after.add(key);
 
     }
 

@@ -8,12 +8,11 @@ package pt.inesc.manager.graph;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.PriorityQueue;
+import java.util.Map.Entry;
 
 public class DependencyGraph
         implements Serializable {
@@ -25,7 +24,7 @@ public class DependencyGraph
     /**
      * Each dependency establish the elements which can only run after the key.
      */
-    HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
+    public HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
     transient ShowGraph graphDisplayer;
     HashSet<Long> rootCandidates = new HashSet<Long>();
 
@@ -45,8 +44,10 @@ public class DependencyGraph
         // add dependencies
         for (Long depKey : dependencies) {
             Dependency depKeyEntry = getEntry(depKey);
-            depKeyEntry.addAfter(key);
-            keyEntry.countBefore++;
+            boolean isNew = depKeyEntry.addAfter(key);
+            if (isNew) {
+                keyEntry.countBefore++;
+            }
         }
         // add edges on graphDisplayer
         if (graphDisplayer != null) {
@@ -83,23 +84,34 @@ public class DependencyGraph
         Dependency entry = graph.get(rootKey);
         assert (entry != null); // TODO Handle exception: invalid root
         assert (entry.countBefore == 0);
-        LinkedList<Long> executionList = new LinkedList<Long>();
-        PriorityQueue<Dependency> readyHeap = new PriorityQueue<Dependency>();
-        readyHeap.add(entry);
-        while (!readyHeap.isEmpty()) {
-            entry = readyHeap.remove();
-            ArrayList<Dependency> parallelRequests = new ArrayList<Dependency>();
-            expandEntry(entry, parallelRequests, readyHeap);
-            Collections.sort(parallelRequests);
-            for (Dependency dep : parallelRequests) {
+        LinkedList<DependencyArray> executionList = new LinkedList<DependencyArray>();
+        Dependency rootReq = graph.get(rootKey);
+        DependencyArray current = new DependencyArray(rootReq);
+
+        while (!current.isEmpty()) {
+            executionList.add(current);
+            DependencyArray next = new DependencyArray();
+            expandEntries(current, next);
+            current = next;
+        }
+        int totalSize = 0;
+        for (DependencyArray a : executionList) {
+            totalSize += a.size();
+        }
+
+        ArrayList<Long> execArray = new ArrayList<Long>(totalSize);
+        for (DependencyArray d : executionList) {
+            d.sort();
+            for (Dependency dep : d) {
                 if (dep.start >= baseCommit) {
-                    executionList.add(dep.getKey());
+                    execArray.add(dep.getKey());
                 }
             }
-            executionList.add(SEPARATOR);
+            execArray.add(SEPARATOR);
         }
-        return executionList;
+        return execArray;
     }
+
 
     /**
      * Load every request which have been executed concurrently with entry
@@ -107,23 +119,41 @@ public class DependencyGraph
      * @param entry
      * @param groupOfparallelRequest
      * @param readyHeap
+     * @return
      */
-    public void expandEntry(
-            Dependency entry,
-                ArrayList<Dependency> groupOfparallelRequest,
-                PriorityQueue<Dependency> readyHeap) {
-        groupOfparallelRequest.add(entry);
+    public void expandEntries(DependencyArray current, DependencyArray next) {
 
+        for (Dependency entry : current) {
+            long previousEnd = entry.end;
+            for (long key : entry.getAfter()) {
+                Dependency req = graph.get(key);
+                req.countBefore--;
+                if (req.countBefore == 0) {
+                    if (req.start < previousEnd) {
+                        current.add(req);
+                        // executed with current request
+                        expandEntry(req, current, next);
+                        previousEnd = Math.max(previousEnd, req.end);
+                    } else {
+                        next.add(req);
+                    }
+                }
+            }
+        }
+    }
+
+    public void expandEntry(Dependency entry, DependencyArray current, DependencyArray next) {
         long previousEnd = entry.end;
-        for (long key : entry.getAfter()) {
-            Dependency req = graph.get(key);
-            req.countBefore--;
-            if (req.countBefore == 0) {
-                if (req.start < previousEnd) {
-                    expandEntry(req, groupOfparallelRequest, readyHeap); // recursion
-                    previousEnd = req.end;
+        for (Long childKey : entry.getAfter()) {
+            Dependency child = graph.get(childKey);
+            child.countBefore--;
+            if (child.countBefore == 0) {
+                if (child.start < previousEnd) {
+                    current.add(child);
+                    expandEntry(child, current, next);
+                    previousEnd = Math.max(previousEnd, child.end);
                 } else {
-                    readyHeap.add(req);
+                    next.add(child);
                 }
             }
         }
@@ -199,6 +229,22 @@ public class DependencyGraph
         dep.end = end;
     }
 
-
+    public String showDepGraph() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Key:start:end;before; dependencies");
+        for (Entry<Long, Dependency> e : graph.entrySet()) {
+            sb.append(e.getKey());
+            sb.append(":");
+            sb.append(e.getValue().start);
+            sb.append(":");
+            sb.append(e.getValue().end);
+            sb.append(";");
+            sb.append(e.getValue().countBefore);
+            sb.append("->");
+            sb.append(e.getValue().getAfter());
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
 
 }

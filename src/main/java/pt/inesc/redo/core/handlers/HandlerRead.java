@@ -6,6 +6,7 @@
  */
 package pt.inesc.redo.core.handlers;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.CompletionHandler;
 
@@ -49,16 +50,11 @@ public class HandlerRead
         buffer.flip(); // make buffer readable
         buffer.rewind();
         if (originalResponse != null) {
-            while (originalResponse.get() == buffer.get())
-                ;
-
-
-            boolean equals = (originalResponse.remaining() == 0) && (buffer.remaining() == 0);
-            if (!equals) {
-                // TODO show difference
+            try {
+                log.info(ResponseComparator.compare(originalResponse, buffer));
+            } catch (IOException e) {
+                log.error(e);
             }
-            // TODO Fix to compare correctly (cookies)
-            log.info("Same response:" + equals);
         }
         // prepare for next read
         aux.buffer.clear();

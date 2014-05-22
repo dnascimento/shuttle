@@ -8,9 +8,11 @@ package pt.inesc.manager;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Scanner;
 
+import pt.inesc.manager.requests.RequestsModifier;
 import pt.inesc.proxy.save.CassandraClient;
 
 
@@ -39,6 +41,7 @@ public class Interface extends
                 System.out.println("d) Branches");
                 System.out.println("e) Graph");
                 System.out.println("f) Advanced");
+                System.out.println("g) Requests");
                 do {
                     line = s.nextLine();
                 } while (line.length() == 0);
@@ -62,6 +65,8 @@ public class Interface extends
                 case 'f':
                     advanced(s);
                     break;
+                case 'g':
+                    requests(s);
                 default:
                     System.out.println("Invalid Option");
                     break;
@@ -76,6 +81,9 @@ public class Interface extends
 
     private void advanced(Scanner s) throws Exception {
         System.out.println("a) Timetravel proxy");
+        System.out.println("b) Show graph roots");
+        System.out.println("c) Show execution list");
+        System.out.println("d) Show dependency map");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -89,6 +97,19 @@ public class Interface extends
             String dateString = new SimpleDateFormat("H:m:S").format(new Date(instant));
             System.out.println("Traveling to: " + dateString);
             break;
+        case 'b':
+            System.out.println(manager.graph.getRoots());
+            break;
+        case 'c':
+            System.out.println("Enter base commit: (0 is the base)");
+            long commit = s.nextLong();
+            ArrayList<Long> roots = manager.graph.getRoots();
+            for (Long root : roots) {
+                System.out.println(manager.graph.getExecutionList(root, commit));
+            }
+            break;
+        case 'd':
+            System.out.println(manager.graph.showDepGraph());
         default:
             return;
         }
@@ -148,28 +169,38 @@ public class Interface extends
 
 
     private void clean(Scanner s) throws IOException {
-        System.out.println("a) Cassandra");
-        System.out.println("b) Voldemort");
-        System.out.println("c) Database access lists");
-        System.out.println("d) Manager graph");
+        System.out.println("a) ALL");
+        System.out.println("b) Cassandra");
+        System.out.println("c) Voldemort");
+        System.out.println("d) Database access lists");
+        System.out.println("e) Manager graph");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
         char[] args = line.toCharArray();
+        boolean all = false;
         switch (args[0]) {
         case 'a':
-            new CassandraClient().truncatePackageTable();
-            break;
+            all = true;
+            if (!all)
+                break;
         case 'b':
-            manager.cleanVoldemort();
-            break;
+            new CassandraClient().truncatePackageTable();
+            if (!all)
+                break;
         case 'c':
+            manager.cleanVoldemort();
+            if (!all)
+                break;
+        case 'd':
             manager.resetDatabaseAccessLists();
             System.out.println("Cleaned");
-            break;
-        case 'd':
+            if (!all)
+                break;
+        case 'e':
             manager.resetGraph();
-            break;
+            if (!all)
+                break;
         default:
             return;
         }
@@ -201,4 +232,42 @@ public class Interface extends
 
         manager.redo(commit, branch);
     }
+
+    private void requests(Scanner s) throws Exception {
+        System.out.println("a) list");
+        System.out.println("b) print");
+        System.out.println("c) edit");
+        System.out.println("d) delete");
+        String line = s.nextLine();
+        if (line.length() == 0)
+            return;
+
+        RequestsModifier rm = new RequestsModifier();
+        long reqId;
+        char[] args = line.toCharArray();
+        switch (args[0]) {
+        case 'a':
+            System.out.println(rm.listRequests());
+            break;
+        case 'b':
+            System.out.println("Enter request id:");
+            reqId = Long.parseLong(s.nextLine());
+            System.out.println(rm.showRequest(reqId));
+            break;
+        case 'c':
+            System.out.println("Edit request id:");
+            reqId = Long.parseLong(s.nextLine());
+            rm.editRequest(reqId);
+            break;
+        case 'd':
+            System.out.println("Enter request id:");
+            reqId = Long.parseLong(s.nextLine());
+            rm.deleteRequest(reqId);
+            break;
+        default:
+            return;
+        }
+
+    }
+
 }

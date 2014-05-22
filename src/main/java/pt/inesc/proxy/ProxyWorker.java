@@ -6,9 +6,12 @@
  */
 package pt.inesc.proxy;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -16,15 +19,14 @@ import java.nio.ByteOrder;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.BufferTools;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.proxy.save.RequestResponseListPair;
 import pt.inesc.proxy.save.Response;
@@ -48,12 +50,6 @@ public class ProxyWorker extends
     private final int FLUSH_PERIODICITY = 1;
     /** time between attempt to flush to disk ms */
     private final int BUFFER_SIZE = 2048;
-    private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
-
-    private final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
-    private final ByteBuffer LAST_CHUNK = ByteBuffer.wrap(new byte[] { 48, 13, 10, 13, 10 });
-    private final ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
-    private final ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
 
     private ByteBuffer buffer = allocateBuffer();
     private final ThreadPool pool;
@@ -63,10 +59,13 @@ public class ProxyWorker extends
     private SocketChannel backendSocket = null;
     private SocketChannel frontendChannel = null;
     private long startTS;
+    private boolean ignore;
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
     private final Saver saver;
     private final ByteBuffer headerBase = createBaseHeader();
+    private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
+    private static final ArrayList<String> listOfIgnorePatterns = loadIgnoreList();
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
         logger.info("New worker: " + this.getId());
@@ -203,8 +202,8 @@ public class ProxyWorker extends
                 resizeBuffer();
             }
             if ((reqType == ReqType.PUT || reqType == ReqType.POST) && (size == -1)) {
-                size = extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
-                lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
+                size = BufferTools.extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
+                lastSizeAttemp = buffer.position() - BufferTools.CONTENT_LENGTH.capacity();
                 if (buffer.position() == size) {
                     break;
                 }
@@ -216,7 +215,7 @@ public class ProxyWorker extends
 
 
     public void sendToServer(ByteBuffer buffer) throws IOException {
-        int endOfFirstLine = indexOf(buffer, SEPARATOR);
+        int endOfFirstLine = BufferTools.indexOf(buffer, BufferTools.SEPARATOR);
         int originalLimit = buffer.limit();
         if (endOfFirstLine == -1 && originalLimit == 0) {
             logger.info("empty buffer - keep alive connection will be closed");
@@ -251,7 +250,9 @@ public class ProxyWorker extends
             ;
 
         buffer.clear();
-        addRequest(request, startTS);
+        boolean ignore = matchIgnoreList(request, endOfFirstLine);
+        if (!ignore)
+            addRequest(request, startTS);
         readFromBackend();
     }
 
@@ -266,19 +267,19 @@ public class ProxyWorker extends
             }
             if (headerEnd == -1) {
                 // not found yet, try to find the header
-                headerEnd = indexOf(lastSizeAttemp, buffer.position(), buffer, NEW_LINES);
-                lastSizeAttemp = buffer.position() - CONTENT_LENGTH.capacity();
+                headerEnd = BufferTools.indexOf(lastSizeAttemp, buffer.position(), buffer, BufferTools.NEW_LINES);
+                lastSizeAttemp = buffer.position() - BufferTools.CONTENT_LENGTH.capacity();
                 if (headerEnd == -1)
                     continue;
                 // header received
-                size = extractMessageTotalSize(0, headerEnd, buffer);
+                size = BufferTools.extractMessageTotalSize(0, headerEnd, buffer);
             }
             if (size != -1) {
                 if (buffer.position() == size) {
                     break;
                 }
             } else {
-                if (lastChunk(buffer)) {
+                if (BufferTools.lastChunk(buffer)) {
                     break;
                 }
             }
@@ -295,22 +296,13 @@ public class ProxyWorker extends
         while ((written += frontendChannel.write(buffer)) < toWrite)
             ;
 
-        addResponse(buffer, startTS, endTS);
+        if (!ignore)
+            addResponse(buffer, startTS, endTS);
+
         logger.info("Request done");
     }
 
-    /*
-     * Search for patter at end of chunk
-     */
-    private boolean lastChunk(ByteBuffer buffer) {
-        int pos = buffer.position() - 1;
-        int end = LAST_CHUNK.capacity() - 1;
-        for (int i = 0; i <= end; i++) {
-            if (buffer.get(pos - i) != LAST_CHUNK.get(end - i))
-                return false;
-        }
-        return true;
-    }
+
 
     private ReqType getRequestType(ByteBuffer buffer) {
         byte letter = buffer.get(0);
@@ -343,86 +335,9 @@ public class ProxyWorker extends
         decrementToSave = FLUSH_PERIODICITY;
     }
 
-    /**
-     * Exctract how long is all message.
-     * 
-     * @param lastSizeAttemp
-     * @param end
-     * @param buffer2
-     * @return
-     */
-    private int extractMessageTotalSize(int start, int end, ByteBuffer buffer) {
-        int pos = indexOf(start, end, buffer, CONTENT_LENGTH);
-        if (pos == -1) {
-            return -1;
-        }
-        int i = 0;
-        byte b;
-        List<Byte> lenght = new ArrayList<Byte>();
-        while ((b = buffer.get(pos + 16 + i++)) != (byte) 13) {
-            lenght.add(b);
-        }
-        int contentLenght = Integer.parseInt(decodeUTF8(lenght));
-        contentLenght += indexOf(buffer, NEW_LINES);
-        contentLenght += 4; // 4 newlines bytes
-        return contentLenght;
-    }
 
 
-    private static void printContent(ByteBuffer buffer, int start, int end) {
-        List<Byte> content = new ArrayList<Byte>();
-        for (int i = start; i < end; i++) {
-            content.add(buffer.get(i));
-        }
-        System.out.println(decodeUTF8(content));
-    }
 
-    public static void printContent(ByteBuffer buffer) {
-        int start = buffer.position();
-        int end = buffer.limit();
-        printContent(buffer, start, end);
-    }
-
-    public void println(ByteBuffer buffer) {
-        int position = buffer.position();
-
-        for (int i = position; i < buffer.limit(); i++) {
-            System.out.print(Integer.toHexString(buffer.get(i)));
-        }
-        logger.info("Limit: " + buffer.limit());
-        logger.info("Position" + buffer.position());
-    }
-
-
-    public int indexOf(ByteBuffer buffer, ByteBuffer pattern) {
-        return indexOf(0, buffer.limit(), buffer, pattern);
-    }
-
-    /**
-     * Returns the index within this buffer of the first occurrence of the specified
-     * pattern buffer.
-     * 
-     * @param startPosition
-     * @param buffer the buffer
-     * @param pattern the pattern buffer
-     * @return the position within the buffer of the first occurrence of the pattern
-     *         buffer
-     */
-    public int indexOf(int startPosition, int end, ByteBuffer buffer, ByteBuffer pattern) {
-        int patternLen = pattern.limit();
-        int lastIndex = end - patternLen + 1;
-        Label: for (int i = startPosition; i < lastIndex; i++) {
-            if (buffer.get(i) == pattern.get(0)) {
-                for (int j = 1; j < patternLen; j++) {
-                    if (buffer.get(i + j) != pattern.get(j)) {
-                        continue Label;
-                    }
-                }
-                return i;
-            }
-        }
-        return -1;
-    }
 
 
     // ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -438,15 +353,6 @@ public class ProxyWorker extends
 
     public void addResponse(ByteBuffer response, long start, long end) {
         responses.add(new Response(response, start, end));
-    }
-
-    public static String decodeUTF8(List<Byte> lenght) {
-        byte[] lenghtValue = new byte[lenght.size()];
-        int i = 0;
-        for (byte b : lenght) {
-            lenghtValue[i++] = b;
-        }
-        return new String(lenghtValue, UTF8_CHARSET);
     }
 
 
@@ -527,5 +433,42 @@ public class ProxyWorker extends
     }
 
 
+    private static ArrayList<String> loadIgnoreList() {
+        try {
+            File file = new File(IGNORE_LIST_FILE);
+            ArrayList<String> listOfIgnorePatterns = new ArrayList<String>();
+            if (!file.exists()) {
+                return listOfIgnorePatterns;
+            }
+            BufferedReader ri;
+            ri = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
 
+            String line;
+            while ((line = ri.readLine()) != null) {
+                listOfIgnorePatterns.add(line);
+            }
+            ri.close();
+            return listOfIgnorePatterns;
+        } catch (IOException e) {
+            return listOfIgnorePatterns;
+        }
+    }
+
+    /**
+     * Check if the url matches one of provided regexs
+     * 
+     * @param header
+     * @param endOfFirstLine
+     * @return
+     */
+    private boolean matchIgnoreList(ByteBuffer header, int endOfFirstLine) {
+        String url = BufferTools.printContent(header, 0, endOfFirstLine);
+        url = url.replaceAll(" HTTP\\/\\d.\\d", "");
+        for (String regex : listOfIgnorePatterns) {
+            if (url.matches(regex)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
