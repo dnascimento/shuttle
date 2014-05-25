@@ -8,8 +8,10 @@ package pt.inesc.manager.graph;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -27,7 +29,13 @@ public class DependencyGraph
     public HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
     transient ShowGraph graphDisplayer;
     HashSet<Long> rootCandidates = new HashSet<Long>();
+    private final HashMap<Long, Long> tmpStartEnd = new HashMap<Long, Long>();
 
+
+    public void addDependencies(long key, Long... dependencies) {
+        List<Long> list = new ArrayList<Long>(Arrays.asList(dependencies));
+        addDependencies(key, list);
+    }
 
     /**
      * For each StartID X map the list of StartID Y's which X reads from
@@ -36,6 +44,12 @@ public class DependencyGraph
      */
     public synchronized void addDependencies(Long key, List<Long> dependencies) {
         Dependency keyEntry = getEntry(key);
+        if (keyEntry.end == 0) {
+            Long endTmp = tmpStartEnd.remove(keyEntry.start);
+            if (endTmp != null) {
+                keyEntry.end = endTmp;
+            }
+        }
         Long[] possibleCicles = null;
         // Remove cycles
         if (keyEntry.hasAfter()) {
@@ -71,6 +85,13 @@ public class DependencyGraph
             }
         }
         return roots;
+    }
+
+
+    public synchronized void restoreCounters() {
+        for (Dependency d : graph.values()) {
+            d.countBeforeTmp = d.countBefore;
+        }
     }
 
     /**
@@ -122,32 +143,32 @@ public class DependencyGraph
      * @return
      */
     public void expandEntries(DependencyArray current, DependencyArray next) {
-
+        DependencyArray currentExpanded = new DependencyArray();
         for (Dependency entry : current) {
             long previousEnd = entry.end;
             for (long key : entry.getAfter()) {
                 Dependency req = graph.get(key);
-                req.countBefore--;
-                if (req.countBefore == 0) {
+                req.countBeforeTmp--;
+                if (req.countBeforeTmp == 0) {
                     if (req.start < previousEnd) {
-                        current.add(req);
+                        currentExpanded.add(req);
                         // executed with current request
-                        expandEntry(req, current, next);
-                        previousEnd = Math.max(previousEnd, req.end);
+                        expandEntry(req, currentExpanded, next);
                     } else {
                         next.add(req);
                     }
                 }
             }
         }
+        current.add(currentExpanded);
     }
 
     public void expandEntry(Dependency entry, DependencyArray current, DependencyArray next) {
         long previousEnd = entry.end;
         for (Long childKey : entry.getAfter()) {
             Dependency child = graph.get(childKey);
-            child.countBefore--;
-            if (child.countBefore == 0) {
+            child.countBeforeTmp--;
+            if (child.countBeforeTmp == 0) {
                 if (child.start < previousEnd) {
                     current.add(child);
                     expandEntry(child, current, next);
@@ -168,10 +189,12 @@ public class DependencyGraph
      */
     private void searchCycle(Long root, Long[] possibleCiclesNexts) {
         Dependency rootEntry = graph.get(root);
-        for (Long next : rootEntry.getAfter()) {
+        Iterator<Long> it = rootEntry.getAfter().iterator();
+        while (it.hasNext()) {
+            Long next = it.next();
             Dependency nextNode = graph.get(next);
             if (searchCycleAux(nextNode, root)) {
-                rootEntry.removeAfter(next);
+                it.remove();
                 nextNode.countBefore--;
             }
         }
@@ -182,7 +205,7 @@ public class DependencyGraph
             if (next == rootStart) {
                 // found cycle
                 if (nextNode.start > rootStart) {
-                    nextNode.removeAfter(rootStart);
+                    nextNode.getAfter().remove(rootStart);
                     getEntry(rootStart).countBefore--;
                     return false;
                 } else {
@@ -196,6 +219,7 @@ public class DependencyGraph
         }
         return false;
     }
+
 
     public Dependency getEntry(long key) {
         Dependency entry = graph.get(key);
@@ -212,7 +236,7 @@ public class DependencyGraph
     }
 
 
-    public void reset() {
+    public synchronized void reset() {
         graph.clear();
         rootCandidates.clear();
         graphDisplayer.reset();
@@ -223,10 +247,15 @@ public class DependencyGraph
      * 
      * @param array with start|end|start|end...
      */
-    public void updateStartEnd(long start, long end) {
-        Dependency dep = getEntry(start);
-        dep.start = start;
-        dep.end = end;
+    public synchronized void updateStartEnd(long start, long end) {
+
+        Dependency dep = graph.get(start);
+        if (dep == null) {
+            tmpStartEnd.put(start, end);
+        } else {
+            dep.start = start;
+            dep.end = end;
+        }
     }
 
     public String showDepGraph() {
@@ -247,4 +276,12 @@ public class DependencyGraph
         return sb.toString();
     }
 
+    public List<List<Long>> getExecutionList(long baseCommit) {
+        restoreCounters();
+        List<List<Long>> result = new LinkedList<List<Long>>();
+        for (Long rootKey : getRoots()) {
+            result.add(getExecutionList(rootKey, baseCommit));
+        }
+        return result;
+    }
 }

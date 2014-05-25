@@ -30,6 +30,9 @@ public class RequestsModifier {
         CassandraClient client = new CassandraClient();
         ByteBuffer buffer = client.getRequest(reqId);
         client.close();
+        if (buffer == null) {
+            return "Request not found";
+        }
         return BufferTools.printContent(buffer, buffer.position(), buffer.limit());
     }
 

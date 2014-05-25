@@ -7,8 +7,9 @@
 
 package pt.inesc;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import static org.junit.Assert.assertEquals;
+
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.Test;
@@ -29,19 +30,13 @@ public class GraphTest {
         while (i < startEndArray.length) {
             graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
         }
-        graph.addDependencies((long) 2, toList(1, 4));
-        graph.addDependencies((long) 3, toList(2));
-        graph.addDependencies((long) 4, toList(3));
+        graph.addDependencies(2L, 1L, 4L);
+        graph.addDependencies(3L, 2L);
+        graph.addDependencies(4L, 3L);
         rootArray = new long[] { 1 };
     }
 
-    private List<Long> toList(int... args) {
-        List<Long> list = new ArrayList<Long>();
-        for (int a : args) {
-            list.add((long) a);
-        }
-        return list;
-    }
+
 
     public void abcIndependentLine() {
         graph = new DependencyGraph();
@@ -51,8 +46,8 @@ public class GraphTest {
         while (i < startEndArray.length) {
             graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
         }
-        graph.addDependencies((long) 2, toList(1));
-        graph.addDependencies((long) 3, toList(2));
+        graph.addDependencies(2L, 1L);
+        graph.addDependencies(3L, 2L);
         rootArray = new long[] { 1 };
     }
 
@@ -64,10 +59,10 @@ public class GraphTest {
         while (i < startEndArray.length) {
             graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
         }
-        graph.addDependencies((long) 3, toList(1));
-        graph.addDependencies((long) 5, toList(3));
-        graph.addDependencies((long) 4, toList(2));
-        graph.addDependencies((long) 6, toList(4));
+        graph.addDependencies(3L, 1L);
+        graph.addDependencies(5L, 3L);
+        graph.addDependencies(4L, 2L);
+        graph.addDependencies(6L, 4L);
         rootArray = new long[] { 1, 2 };
     }
 
@@ -80,56 +75,45 @@ public class GraphTest {
     }
 
     @Test
-    public void executionList() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Exec list: \n");
-        for (long root : rootArray) {
-            List<Long> list = graph.getExecutionList(root, 0L);
-            for (Long l : list) {
-                sb.append(l);
-                sb.append(" ");
-            }
-            sb.append("\n");
-        }
-        System.out.println(sb.toString());
-        display();
-    }
+    public void startBeforeEnd() {
+        graph = new DependencyGraph();
+        graph.addDependencies(1L);
+        graph.addDependencies(3L, 1L);
+        graph.addDependencies(7L, 1L);
+        graph.updateStartEnd(1L, 2L);
+        graph.updateStartEnd(3L, 10L);
+        graph.updateStartEnd(7L, 9L);
+        graph.restoreCounters();
+        assertEquals(Arrays.asList(1L, -1L, 3L, 7L, -1L), graph.getExecutionList(1L, 0));
 
-    private void display() {
-        graph.display();
-        System.out.println("Press enter to exit");
-        try {
-            System.in.read();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        // the request 1 executes until 5, so request 3 executes in parallel.
+        graph.updateStartEnd(1L, 5L);
+        graph.restoreCounters();
+        assertEquals(Arrays.asList(1L, 3L, -1L, 7L, -1L), graph.getExecutionList(1L, 0));
+
+        // new requests: 4-17 and 9-20
+        graph.addDependencies(4L, 3L);
+        graph.addDependencies(9L, 3L);
+        graph.updateStartEnd(4L, 17L);
+        graph.updateStartEnd(9L, 19L);
+        graph.restoreCounters();
+        assertEquals(Arrays.asList(1L, 3L, 4L, 9L, -1L, 7L, -1L), graph.getExecutionList(1L, 0));
+
+        graph.addDependencies(9L, 7L);
+        graph.restoreCounters();
+        assertEquals(Arrays.asList(1L, 3L, 4L, -1L, 7L, -1L, 9L, -1L), graph.getExecutionList(1L, 0));
+
+        // add new root
+        graph.addDependencies(20L);
+        List<List<Long>> execList = graph.getExecutionList(0);
+        assertEquals(Arrays.asList(1L, 3L, 4L, -1L, 7L, -1L, 9L, -1L), execList.get(0));
+        assertEquals(Arrays.asList(20L, -1L), execList.get(1));
+
+        // add link between 2 roots
+        graph.addDependencies(7L, 20L);
+        execList = graph.getExecutionList(0);
+        assertEquals(Arrays.asList(1L, 3L, 4L, -1L), execList.get(0));
+        assertEquals(Arrays.asList(20L, -1L, 7L, -1L, 9L, -1L), execList.get(1));
+
     }
-    // @Test
-    // public void simpleGraph() {
-    // HashMap<String, String> hashGraph = new HashMap<String, String>();
-    // hashGraph.put("a", "b");
-    // hashGraph.put("b", "c");
-    // hashGraph.put("c", "d");
-    // hashGraph.put("d", "a");
-    // // Training
-    // Graph<String, String> g = new SparseMultigraph<String, String>();
-    // for (Entry<String, String> entry : hashGraph.entrySet()) {
-    // g.addVertex(entry.getKey());
-    // g.addVertex(entry.getValue());
-    // g.addEdge(entry.getKey() + entry.getValue(),
-    // entry.getKey(),
-    // entry.getValue(),
-    // EdgeType.DIRECTED);
-    // }
-    //
-    // ShowGraph show = new ShowGraph(g);
-    // show.display();
-    // System.out.println("Press enter to exit");
-    // try {
-    // System.in.read();
-    // } catch (IOException e) {
-    // e.printStackTrace();
-    // }
-    // }
-    //
 }

@@ -22,6 +22,9 @@ public class Dependency
     /** request end timestamp */
     long end;
 
+
+    int countBeforeTmp;
+
     /** How many requests must execute before this */
     int countBefore;
 
@@ -67,7 +70,5 @@ public class Dependency
         return start;
     }
 
-    public void removeAfter(Long key) {
-        after.remove(key);
-    }
+
 }

@@ -7,23 +7,39 @@
 
 package pt.inesc;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import org.apache.log4j.xml.DOMConfigurator;
 import org.junit.Test;
 
 import pt.inesc.redo.RedoNode;
 
 public class RedoTest {
+
+
+
     @Test
-    public void testRedo() throws IOException {
+    public void testRedo() throws Exception {
+        DOMConfigurator.configure("log4j.xml");
         List<Long> requestsToExecute = new ArrayList<Long>();
-        requestsToExecute.add(1397380631774L);
+        requestsToExecute.addAll(Arrays.asList(1401053845727L,
+                                               1401017917859L,
+                                               1401017949825L,
+                                               1401017951353L,
+                                               -1L,
+                                               1401017950803L,
+                                               1401017917859L,
+                                               1401017949825L,
+                                               1401017951353L));
         requestsToExecute.add(-1L);
         RedoNode redo = new RedoNode();
-        redo.newRequest(requestsToExecute, (short) 69);
+        redo.newRequest(requestsToExecute, (short) 1);
+        redo.startOrder();
         System.in.read();
+        redo.newRequest(requestsToExecute, (short) 2);
+        redo.startOrder();
     }
 
 }

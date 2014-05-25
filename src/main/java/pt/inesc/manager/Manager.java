@@ -43,7 +43,7 @@ public class Manager {
     private static final String GRAPH_FILE = "graph.obj";
     DependencyGraph graph;
     private static ServiceManager service;
-    public final BranchTree branches = new BranchTree();
+    public BranchTree branches = new BranchTree();
 
     public static void main(String[] args) throws IOException {
         DOMConfigurator.configure("log4j.xml");
@@ -81,14 +81,16 @@ public class Manager {
 
         // disable retrain and change to new branch
         group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
+        System.out.println("Set new branch: " + newBranch);
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(),
                       NodeGroup.PROXY,
                       false);
-
+        System.out.println("Redo is over");
     }
 
     private void redoRequests(long parentCommit, short redoBranch, List<Long> roots) throws Exception {
         log.info(roots);
+        graph.restoreCounters();
         for (Long root : roots) {
             List<Long> list = graph.getExecutionList(root, parentCommit);
             try {
@@ -172,6 +174,10 @@ public class Manager {
 
     public void cleanVoldemort() {
         CleanVoldemort.clean(group.getDatabaseNodes());
+    }
+
+    public void resetBranch() {
+        branches = new BranchTree();
     }
 
 

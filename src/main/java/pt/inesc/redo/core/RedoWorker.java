@@ -6,20 +6,13 @@
  */
 package pt.inesc.redo.core;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
@@ -30,86 +23,73 @@ import pt.inesc.redo.RedoNode;
 import pt.inesc.redo.core.cookies.CookieMan;
 import pt.inesc.redo.core.handlers.ChannelPack;
 import pt.inesc.redo.core.handlers.HandlerWrite;
+import pt.inesc.redo.core.unlock.VoldemortUnlocker;
+import voldemort.undoTracker.KeyAccess;
+import voldemort.undoTracker.RUD;
 
 
 public class RedoWorker extends
         Thread {
     private static Logger logger = LogManager.getLogger(RedoWorker.class.getName());
 
-    private final InetSocketAddress remoteHost;
     private final List<Long> executionArray;
     public static CookieMan cookieManager = new CookieMan();
-    private static final int BUFFER_SIZE = 512 * 1024;
 
-    private static final int INIT_NUMBER_OF_THREADS_AND_CHANNELS = 1;
     private final CassandraClient cassandra;
     private final AtomicInteger sentCounter = new AtomicInteger(0);
-    AsynchronousChannelGroup group;
-    LinkedList<ChannelPack> availableChannels = new LinkedList<ChannelPack>();
     private final ByteBuffer ID_MARK = ByteBuffer.wrap("ID: ".getBytes());
-    private final byte[] branch;
+    private final byte[] branchBytes;
+    private final short branch;
     private final List<String> errors = new LinkedList<String>();
+    private final RedoChannelPool pool;
+    private final VoldemortUnlocker unlocker;
 
-    public RedoWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws IOException {
+    public RedoWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
         super();
         this.executionArray = execList;
-        this.remoteHost = remoteHost;
         logger.info("New Worker");
         cassandra = new CassandraClient();
-        this.branch = shortToByteArray(branch);
+        this.branchBytes = shortToByteArray(branch);
+        this.branch = branch;
 
         // create a variable group of threads to handle each channel
-        ExecutorService executor = Executors.newCachedThreadPool();
-        group = AsynchronousChannelGroup.withCachedThreadPool(executor, INIT_NUMBER_OF_THREADS_AND_CHANNELS);
-        createChannels(INIT_NUMBER_OF_THREADS_AND_CHANNELS);
-
+        pool = new RedoChannelPool(remoteHost, cassandra);
+        unlocker = new VoldemortUnlocker();
     }
 
 
     @Override
     public void run() {
-        System.out.println("time:" + new Date().getTime());
-        Iterator<ChannelPack> channelsIterator = availableChannels.iterator();
+        logger.info("time:" + new Date().getTime());
 
         for (long reqID : executionArray) {
-            System.out.println("Redo Request:" + reqID);
-            if (reqID == -1) {
-                try {
+            try {
+                logger.info("Redo Request:" + reqID);
+                if (reqID == -1) {
                     synchronized (sentCounter) {
                         if (sentCounter.get() != 0) {
                             sentCounter.wait();
+                            logger.info("continue");
                         }
-                        System.out.println("continue");
-                        refreshSockets();
-                        // all channel were used, refresh
-                        channelsIterator = availableChannels.iterator();
-                        continue;
                     }
-                } catch (InterruptedException e) {
-                    errors.add(e.toString());
-                    logger.error(e);
-                }
-            }
-            ChannelPack pack;
-            if (!channelsIterator.hasNext()) {
-                logger.debug("I need sockets");
-                pack = createPackChannel();
-            } else {
-                pack = channelsIterator.next();
-            }
-            logger.debug("got socket");
-            ByteBuffer request = cassandra.getRequest(reqID);
-            if (request == null) {
-                errors.add("Request not found " + reqID);
-                logger.error("Request not found " + reqID);
-                continue;
-            }
-            // IMPORTANT: request includes cassandra metadata at begin. DO NOT rewind
-            sentCounter.incrementAndGet();
+                } else {
+                    ChannelPack channel = pool.getChannel();
+                    ByteBuffer request = cassandra.getRequest(reqID);
+                    if (request == null) {
+                        pool.returnChannel(channel);
+                        // the request was delete, unlock the original keys
+                        Set<KeyAccess> keys = cassandra.getKeys(reqID);
+                        if (keys != null && !keys.isEmpty()) {
+                            unlocker.unlockKeys(keys, new RUD(reqID, branch, false));
+                        }
+                        throw new Exception("Request not found " + reqID);
+                    }
+                    // IMPORTANT: request includes cassandra metadata at begin. DO NOT
+                    // rewind
+                    sentCounter.incrementAndGet();
 
-            logger.debug("Channel remain open: " + pack.channel.isOpen());
-            try {
-                writePackage(pack, request, reqID);
+                    writePackage(channel, request, reqID);
+                }
             } catch (Exception e) {
                 errors.add("Erro in req: " + reqID + " " + e);
                 logger.error("Erro", e);
@@ -136,7 +116,7 @@ public class RedoWorker extends
         data.position(startOfId);
         data.put(ts);
         data.position(startOfId + 17);
-        data.put(branch);
+        data.put(branchBytes);
         // restrain is always false
         data.position(startOfId + 34);
         data.put((byte) 't');
@@ -170,26 +150,6 @@ public class RedoWorker extends
     }
 
 
-    /**
-     * Closes the current sockets and open new sockets ready to process the next requests
-     */
-    private void refreshSockets() {
-        // TODO avoid it by keeping the connection alive
-        for (ChannelPack ch : availableChannels) {
-            try {
-                ch.channel.close();
-            } catch (IOException e) {
-                logger.error(e);
-            }
-            ch.channel = createChannel();
-        }
-    }
-
-
-
-    private ByteBuffer allocateBuffer() {
-        return ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
-    }
 
 
     /**
@@ -212,32 +172,4 @@ public class RedoWorker extends
         return r;
     }
 
-
-    /** Creates n channels to the host: connect and add to available channel list */
-    private void createChannels(int nChannels) {
-        for (int i = 0; i < nChannels; i++) {
-            createPackChannel();
-        }
-    }
-
-
-    private ChannelPack createPackChannel() {
-        AsynchronousSocketChannel socketChannel = createChannel();
-        ByteBuffer buffer = allocateBuffer();
-        ChannelPack pack = new ChannelPack(socketChannel, buffer, cassandra);
-        availableChannels.add(pack);
-        return pack;
-    }
-
-    private AsynchronousSocketChannel createChannel() {
-        try {
-            AsynchronousSocketChannel socketChannel = AsynchronousSocketChannel.open(group);
-            socketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-            socketChannel.connect(remoteHost).get();
-            return socketChannel;
-        } catch (Exception e) {
-            logger.error(e);
-        }
-        return null;
-    }
 }

@@ -43,22 +43,23 @@ public class RedoNode extends
     public static final int MY_PORT = 11500;
     public static final InetSocketAddress TARGET_LOAD_BALANCER_ADDR = new InetSocketAddress("localhost", 8080);
     private final static Logger log = LogManager.getLogger(RedoNode.class.getName());
-    protected ExecutorService threadPool = Executors.newFixedThreadPool(1);
+    private final static int N_WORKERS = 1;
+    protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
     private List<String> errors = new LinkedList<String>();
     private ArrayList<RedoWorker> workers = new ArrayList<RedoWorker>();
     ServerSocket myServerSocket;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         DOMConfigurator.configure("log4j.xml");
         new RedoNode().start();
     }
 
-    public RedoNode() throws IOException {
+    public RedoNode() throws Exception {
         try {
             myServerSocket = new ServerSocket(MY_PORT);
             registryToManger();
         } catch (BindException e) {
-            log.error("Redo Node already running in same port...");
+            throw new Exception("Redo Node already running in same port...");
         }
     }
 
@@ -72,8 +73,9 @@ public class RedoNode extends
             try {
                 newSocket = myServerSocket.accept();
                 newConnection(newSocket);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 log.error(e);
+                e.printStackTrace();
             }
         }
 
@@ -106,21 +108,24 @@ public class RedoNode extends
             threadPool.execute(worker);
         }
 
+        threadPool.shutdown();
         try {
             threadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             errors.add("REDO FAIL: " + e.toString());
         }
+        System.out.println("Al threads are done");
         sendAck();
         errors = new LinkedList<String>();
         workers = new ArrayList<RedoWorker>();
+        threadPool = Executors.newFixedThreadPool(N_WORKERS);
     }
 
-    public void newRequest(List<Long> execList, short branch) throws IOException {
+    public void newRequest(List<Long> execList, short branch) throws Exception {
         workers.add(new RedoWorker(execList, TARGET_LOAD_BALANCER_ADDR, branch));
     }
 
-    private void newConnection(Socket socket) throws IOException {
+    private void newConnection(Socket socket) throws Exception {
         InputStream stream = socket.getInputStream();
         FromManagerProto.ExecList list = ExecList.parseDelimitedFrom(stream);
         List<Long> execList = list.getRidList();

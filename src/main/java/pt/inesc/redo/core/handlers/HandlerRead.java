@@ -41,7 +41,6 @@ public class HandlerRead
         // //TODO se isto for frequente mais vale fechar e abrir sempre
         // //Reconnect and re-write
         // java.io.IOException
-
     }
 
     private void processRead(ChannelPack aux) {
@@ -57,7 +56,7 @@ public class HandlerRead
             }
         }
         // prepare for next read
-        aux.buffer.clear();
+        aux.renew();
     }
 
     private void resizeBuffer(ByteBuffer buffer) {

@@ -20,8 +20,8 @@ public class DependencyArray
     }
 
 
-    public void add(Dependency child) {
-        array.add(child);
+    public void add(DependencyArray currentExpanded) {
+        array.addAll(currentExpanded.array);
     }
 
     public Iterator<Dependency> iterator() {
@@ -40,6 +40,11 @@ public class DependencyArray
 
     public void sort() {
         Collections.sort(array);
+    }
+
+
+    public void add(Dependency req) {
+        array.add(req);
     }
 
 }

@@ -8,7 +8,6 @@ package pt.inesc.manager;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Scanner;
 
@@ -103,10 +102,7 @@ public class Interface extends
         case 'c':
             System.out.println("Enter base commit: (0 is the base)");
             long commit = s.nextLong();
-            ArrayList<Long> roots = manager.graph.getRoots();
-            for (Long root : roots) {
-                System.out.println(manager.graph.getExecutionList(root, commit));
-            }
+            System.out.println(manager.graph.getExecutionList(commit));
             break;
         case 'd':
             System.out.println(manager.graph.showDepGraph());
@@ -174,6 +170,7 @@ public class Interface extends
         System.out.println("c) Voldemort");
         System.out.println("d) Database access lists");
         System.out.println("e) Manager graph");
+        System.out.println("f) Reset branches");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -201,6 +198,10 @@ public class Interface extends
             manager.resetGraph();
             if (!all)
                 break;
+        case 'f':
+            manager.resetBranch();
+            if (!all)
+                break;
         default:
             return;
         }
@@ -211,7 +212,7 @@ public class Interface extends
         short branch = 0;
         long commit = 0;
         while (true) {
-            System.out.println("Select base branch and commit (enter 's' to visualize the tree):");
+            System.out.println("Select base branch and commit (press enter to visualize the tree):");
             String line = s.nextLine();
             if (line.isEmpty()) {
                 if (showed) {
