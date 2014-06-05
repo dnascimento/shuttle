@@ -15,6 +15,7 @@ public class BufferTools {
     public final static ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     public final static ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
     public final static ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
+    private final static byte[] STATUS_304 = "304".getBytes();
 
     /**
      * Returns the index within this buffer of the first occurrence of the specified
@@ -120,5 +121,15 @@ public class BufferTools {
     }
 
 
+    /**
+     * Check if 304 message
+     * 
+     * @param buffer
+     * @param headerEnd
+     * @return
+     */
+    public static boolean is304(ByteBuffer buffer, int headerEnd) {
+        return (buffer.get(9) == STATUS_304[0] && buffer.get(10) == STATUS_304[1] && buffer.get(11) == STATUS_304[2]);
 
+    }
 }

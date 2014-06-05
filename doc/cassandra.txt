@@ -16,4 +16,4 @@ CREATE TABLE requests (
 
 
 ALTER TABLE requests
-  WITH compression = { 'sstable_compression' : 'LZ4Compressor' }
+  WITH compression = { 'sstable_compression' : 'LZ4Compressor' };

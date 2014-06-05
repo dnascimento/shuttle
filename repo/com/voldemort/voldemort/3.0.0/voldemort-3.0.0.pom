@@ -115,17 +115,6 @@
               <version>1.4.0</version>
           </dependency>
           <dependency>
-              <groupId>org.codehaus.jackson</groupId>
-              <artifactId>jackson-mapper-asl</artifactId>
-              <version>1.4.0</version>
-              <exclusions>
-                  <exclusion>
-                      <groupId>*</groupId>
-                      <artifactId>*</artifactId>
-                  </exclusion>
-              </exclusions>
-          </dependency>
-          <dependency>
               <groupId>org.jdom</groupId>
               <artifactId>jdom</artifactId>
               <version>1.1</version>

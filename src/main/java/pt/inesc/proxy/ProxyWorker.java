@@ -268,6 +268,9 @@ public class ProxyWorker extends
             if (headerEnd == -1) {
                 // not found yet, try to find the header
                 headerEnd = BufferTools.indexOf(lastSizeAttemp, buffer.position(), buffer, BufferTools.NEW_LINES);
+                if (BufferTools.is304(buffer, headerEnd)) {
+                    break;
+                }
                 lastSizeAttemp = buffer.position() - BufferTools.CONTENT_LENGTH.capacity();
                 if (headerEnd == -1)
                     continue;

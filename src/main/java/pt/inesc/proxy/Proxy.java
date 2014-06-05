@@ -27,7 +27,7 @@ public class Proxy {
     public static final int MY_PORT = 11100;
     public static final int FRONTEND_PORT = 9000;
     public static final int BACKEND_PORT = 8080;
-    public static final String BACKEND_HOST = "localhost";
+    public static final String BACKEND_HOST = "192.168.1.100";
 
     private static final int INIT_NUMBER_OF_THREADS = 1;
     private static final int MAX_NUMBER_OF_THREADS = 1;
