@@ -50,7 +50,9 @@ public class HandlerRead
         buffer.rewind();
         if (originalResponse != null) {
             try {
-                log.info(ResponseComparator.compare(originalResponse, buffer));
+                String diff = ResponseComparator.compare(originalResponse, buffer);
+                if (diff.length() > 0)
+                    log.error(diff);
             } catch (IOException e) {
                 log.error(e);
             }

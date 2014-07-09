@@ -42,6 +42,7 @@ public class RedoWorker extends
     private final short branch;
     private final List<String> errors = new LinkedList<String>();
     private final RedoChannelPool pool;
+    private long totalRequests = 0;
     private final VoldemortUnlocker unlocker;
 
     public RedoWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
@@ -73,6 +74,7 @@ public class RedoWorker extends
                         }
                     }
                 } else {
+                    totalRequests++;
                     ChannelPack channel = pool.getChannel();
                     ByteBuffer request = cassandra.getRequest(reqID);
                     if (request == null) {
@@ -97,11 +99,10 @@ public class RedoWorker extends
         }
 
         logger.info("Redo end");
-        RedoNode.addErrors(errors);
+        RedoNode.addErrors(errors, totalRequests);
     }
 
-    private void writePackage(ChannelPack pack, ByteBuffer data, long rid) throws InterruptedException,
-            ExecutionException {
+    private void writePackage(ChannelPack pack, ByteBuffer data, long rid) throws InterruptedException, ExecutionException {
         // ProxyWorker.printContent(data);
         setNewHeader(data, rid);
         pack.reset(data.limit() - data.position(), sentCounter, rid);

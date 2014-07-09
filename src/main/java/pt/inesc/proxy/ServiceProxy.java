@@ -74,7 +74,7 @@ public class ServiceProxy extends
     }
 
     private void receive(Socket socket) throws IOException {
-        log.debug("New service command");
+        log.info("New service command");
         ProxyMsg msg = FromManagerProto.ProxyMsg.parseDelimitedFrom(socket.getInputStream());
         if (msg.hasTimeTravel()) {
             // time travel

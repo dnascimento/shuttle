@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -47,6 +48,7 @@ public class RedoNode extends
     protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
     private List<String> errors = new LinkedList<String>();
     private ArrayList<RedoWorker> workers = new ArrayList<RedoWorker>();
+    private static long totalRequests = 0;
     ServerSocket myServerSocket;
 
     public static void main(String[] args) throws Exception {
@@ -104,6 +106,7 @@ public class RedoNode extends
     }
 
     public void startOrder() {
+        Date startDate = new Date();
         for (RedoWorker worker : workers) {
             threadPool.execute(worker);
         }
@@ -114,7 +117,12 @@ public class RedoNode extends
         } catch (InterruptedException e) {
             errors.add("REDO FAIL: " + e.toString());
         }
-        System.out.println("Al threads are done");
+
+        long duration = new Date().getTime() - startDate.getTime();
+        log.info("All threads are done");
+        log.info("Duration = " + duration);
+        log.info("Total requests = " + totalRequests);
+        log.info("Request rate = " + (((double) totalRequests) / duration * 1000) + " req/sec");
         sendAck();
         errors = new LinkedList<String>();
         workers = new ArrayList<RedoWorker>();
@@ -137,8 +145,9 @@ public class RedoNode extends
         }
     }
 
-    public synchronized static void addErrors(List<String> errors) {
+    public synchronized static void addErrors(List<String> errors, long totalRequests) {
         errors.addAll(errors);
+        RedoNode.totalRequests += totalRequests;
     }
 
     private void sendAck() {

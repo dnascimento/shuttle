@@ -124,6 +124,7 @@ public class ServiceManager extends
         for (TrackEntry entry : list) {
             manager.addDependencies(entry.getRid(), entry.getDependencyList());
         }
+        log.info("dep list is processed");
     }
 
 

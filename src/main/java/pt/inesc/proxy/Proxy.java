@@ -25,9 +25,9 @@ import org.apache.log4j.xml.DOMConfigurator;
 
 public class Proxy {
     public static final int MY_PORT = 11100;
-    public static final int FRONTEND_PORT = 9000;
-    public static final int BACKEND_PORT = 8080;
-    public static final String BACKEND_HOST = "192.168.1.100";
+    public static int FRONTEND_PORT = 9000;
+    public static int BACKEND_PORT = 8080;
+    public static String BACKEND_HOST = "localhost";
 
     private static final int INIT_NUMBER_OF_THREADS = 1;
     private static final int MAX_NUMBER_OF_THREADS = 1;
@@ -50,6 +50,17 @@ public class Proxy {
 
     public static void main(String[] args) throws IOException, InterruptedException {
         DOMConfigurator.configure("log4j.xml");
+        if (args.length > 0) {
+            if (args.length < 3) {
+                log.error("usage: <frontend-port> <backend-port> <backend-address>");
+                return;
+            }
+            FRONTEND_PORT = Integer.parseInt(args[0]);
+            BACKEND_PORT = Integer.parseInt(args[1]);
+            BACKEND_HOST = args[2];
+        }
+
+
         new Proxy(FRONTEND_PORT, BACKEND_HOST, BACKEND_PORT).run();
 
     }

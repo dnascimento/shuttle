@@ -239,7 +239,8 @@ public class DependencyGraph
     public synchronized void reset() {
         graph.clear();
         rootCandidates.clear();
-        graphDisplayer.reset();
+        if (graphDisplayer != null)
+            graphDisplayer.reset();
     }
 
     /**

@@ -44,7 +44,7 @@ import pt.inesc.proxy.save.Saver;
  */
 public class ProxyWorker extends
         Thread {
-    private static Logger logger = LogManager.getLogger(ProxyWorker.class.getName());
+    private static Logger log = LogManager.getLogger(ProxyWorker.class.getName());
     private int countWait = 0;
 
     private final int FLUSH_PERIODICITY = 1;
@@ -68,8 +68,8 @@ public class ProxyWorker extends
     private static final ArrayList<String> listOfIgnorePatterns = loadIgnoreList();
 
     public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
-        logger.info("New worker: " + this.getId());
-        logger.setLevel(Level.ERROR);
+        log.info("New worker: " + this.getId());
+        log.setLevel(Level.ERROR);
         saver = new Saver();
         saver.start();
         this.pool = pool;
@@ -91,9 +91,10 @@ public class ProxyWorker extends
 
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
+                log.error("ERROR: Remote server is DOWN");
                 throw new RuntimeException("ERROR: Remote server is DOWN");
             }
-            logger.warn("Connecting to real Server", e);
+            log.warn("Connecting to real Server", e);
             connect();
         }
     }
@@ -109,7 +110,7 @@ public class ProxyWorker extends
                 firstTime = false;
                 drainAndSend(key);
             } catch (Exception e) {
-                logger.error("Execution", e);
+                log.error("Execution", e);
                 connect();
             }
 
@@ -143,21 +144,22 @@ public class ProxyWorker extends
      * channel while the worker thread is servicing it.
      */
     synchronized void serveNewRequest(SelectionKey key, boolean notification, boolean firstTime) {
+        log.info("New request");
         if (notification) {
             this.key = key;
             // // Remove the flag of reading ready, it will be read
             key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-            logger.info("Worker" + this.getId() + " notify start");
-            logger.info("How many wait are waiting before notify? " + countWait);
+            log.info("Worker" + this.getId() + " notify start");
+            log.info("How many wait are waiting before notify? " + countWait);
             this.notify(); // Awaken the thread
-            logger.info("Worker" + this.getId() + " notify end");
+            log.info("Worker" + this.getId() + " notify end");
         } else {
             // Ready for more. Return to pool
             // Sleep and release object lock, wait for wake from serveNewRequest
             // Notify the selector that I will be available
             if (key != null && !firstTime) {
                 pool.returnWorker(this);
-                logger.info("selector wake");
+                log.info("selector wake");
                 key.selector().wakeup();
             }
             if (key != null && firstTime) {
@@ -165,15 +167,15 @@ public class ProxyWorker extends
             }
 
             try {
-                logger.info("Worker" + Thread.currentThread().getId() + " will wait");
-                logger.info("How many wait before " + Thread.currentThread().getId() + "sleep? " + countWait);
+                log.info("Worker" + Thread.currentThread().getId() + " will wait");
+                log.info("How many wait before " + Thread.currentThread().getId() + "sleep? " + countWait);
                 countWait++;
                 this.wait();
                 countWait--;
-                logger.info("Worker" + Thread.currentThread().getId() + " wait end");
+                log.info("Worker" + Thread.currentThread().getId() + " wait end");
 
             } catch (InterruptedException e) {
-                logger.error("Sleep thread", e);
+                log.error("Sleep thread", e);
                 interrupted();
             }
         }
@@ -193,8 +195,7 @@ public class ProxyWorker extends
         int size = -1;
         ReqType reqType = null;
         // Loop while data is available; channel is nonblocking
-        while ((frontendChannel.read(buffer) > 0)
-                || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (buffer.position() != size))) {
+        while ((frontendChannel.read(buffer) > 0) || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (buffer.position() != size))) {
             if (reqType == null) {
                 reqType = getRequestType(buffer);
             }
@@ -218,13 +219,13 @@ public class ProxyWorker extends
         int endOfFirstLine = BufferTools.indexOf(buffer, BufferTools.SEPARATOR);
         int originalLimit = buffer.limit();
         if (endOfFirstLine == -1 && originalLimit == 0) {
-            logger.info("empty buffer - keep alive connection will be closed");
+            log.info("empty buffer - keep alive connection will be closed");
             key.channel().close();
             return;
         }
 
         startTS = System.currentTimeMillis();
-        logger.info(Thread.currentThread().getId() + ": New Req:" + startTS);
+        log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
         ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
         ByteBuffer request = ByteBuffer.allocate(buffer.limit() + messageIdHeader.capacity());
 
@@ -302,7 +303,7 @@ public class ProxyWorker extends
         if (!ignore)
             addResponse(buffer, startTS, endTS);
 
-        logger.info("Request done");
+        log.info("Request done");
     }
 
 
@@ -323,7 +324,7 @@ public class ProxyWorker extends
         default:
             break;
         }
-        logger.error("Unknown request type");
+        log.error("Unknown request type");
         return null;
     }
 
@@ -369,7 +370,7 @@ public class ProxyWorker extends
         try {
             return new RandomAccessFile(temp, "rw").getChannel();
         } catch (FileNotFoundException e) {
-            logger.error("Debug channel", e);
+            log.error("Debug channel", e);
         }
         return backendSocket;
     }

@@ -44,17 +44,15 @@ public class CassandraClient {
     private static final String COL_REQUEST = "request";
     private static final String COL_RESPONSE = "response";
     private static final String COL_KEYS = "keys";
-    private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + " from " + TABLE_NAME
-            + " where id=");
-    private static final String QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME
-            + " where id=");
+    private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + " from " + TABLE_NAME + " where id=");
+    private static final String QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME + " where id=");
 
     private static final String QUERY_KEYS = new String("select " + COL_KEYS + " from " + TABLE_NAME + " where id=");
 
     private static final String QUERY_LIST_REQUESTS = new String("select " + COL_ID + " from " + TABLE_NAME + ";");
 
-    private static final String DELETE_REQUEST = "Update " + TABLE_NAME + " set " + COL_REQUEST + " = NULL, "
-            + COL_RESPONSE + " = NULL where " + COL_ID + " = ";
+    private static final String DELETE_REQUEST = "Update " + TABLE_NAME + " set " + COL_REQUEST + " = NULL, " + COL_RESPONSE
+            + " = NULL where " + COL_ID + " = ";
 
 
     private final Cluster cluster;
@@ -75,9 +73,7 @@ public class CassandraClient {
         try {
             session = cluster.connect(KEYSPACE);
             Metadata metadata = cluster.getMetadata();
-            System.out.println(String.format("Connected to cluster '%s' on %s.",
-                                             metadata.getClusterName(),
-                                             metadata.getAllHosts()));
+            log.info(String.format("Connected to cluster '%s' on %s.", metadata.getClusterName(), metadata.getAllHosts()));
 
         } catch (NoHostAvailableException e) {
             log.error("No Cassandra server available");
@@ -163,7 +159,7 @@ public class CassandraClient {
         sb.append("] where id=");
         sb.append(id);
         sb.append(";");
-        System.out.println(sb.toString());
+        log.info(sb.toString());
         session.execute(sb.toString());
     }
 

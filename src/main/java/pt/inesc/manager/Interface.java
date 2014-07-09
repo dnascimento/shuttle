@@ -28,7 +28,6 @@ public class Interface extends
     @Override
     public void run() {
         System.out.println("Shuttle - Undo Manager");
-        manager.showGraph();
         Scanner s = new Scanner(System.in);
         String line;
         while (true) {
@@ -41,6 +40,7 @@ public class Interface extends
                 System.out.println("e) Graph");
                 System.out.println("f) Advanced");
                 System.out.println("g) Requests");
+                System.out.println("h) Show graph");
                 do {
                     line = s.nextLine();
                 } while (line.length() == 0);
@@ -66,6 +66,10 @@ public class Interface extends
                     break;
                 case 'g':
                     requests(s);
+                    break;
+                case 'h':
+                    manager.showGraph();
+                    break;
                 default:
                     System.out.println("Invalid Option");
                     break;
@@ -83,6 +87,8 @@ public class Interface extends
         System.out.println("b) Show graph roots");
         System.out.println("c) Show execution list");
         System.out.println("d) Show dependency map");
+        System.out.println("e) Create new branch");
+        System.out.println("f) Change to branch");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -106,6 +112,16 @@ public class Interface extends
             break;
         case 'd':
             System.out.println(manager.graph.showDepGraph());
+            break;
+        case 'e':
+            Pair<Short, Long> pair = collectBranchAndCommit(s);
+            if (pair == null)
+                return;
+            manager.newBranch(pair.v2, pair.v1);
+        case 'f':
+            System.out.println("Enter the branch number:");
+            short branch = s.nextShort();
+            manager.changeToBranch(branch);
         default:
             return;
         }
@@ -208,15 +224,22 @@ public class Interface extends
     }
 
     private void redo(Scanner s) throws Exception {
+        Pair<Short, Long> pair = collectBranchAndCommit(s);
+        if (pair == null)
+            return;
+        manager.redo(pair.v2, pair.v1);
+    }
+
+    private Pair<Short, Long> collectBranchAndCommit(Scanner s) throws Exception {
         boolean showed = false;
-        short branch = 0;
-        long commit = 0;
+        Short branch = 0;
+        Long commit = 0L;
         while (true) {
             System.out.println("Select base branch and commit (press enter to visualize the tree):");
             String line = s.nextLine();
             if (line.isEmpty()) {
                 if (showed) {
-                    return;
+                    return null;
                 } else {
                     System.out.println(manager.branches.show());
                     showed = true;
@@ -230,8 +253,7 @@ public class Interface extends
             commit = Long.parseLong(args[1]);
             break;
         }
-
-        manager.redo(commit, branch);
+        return new Pair<Short, Long>(branch, commit);
     }
 
     private void requests(Scanner s) throws Exception {
@@ -271,4 +293,14 @@ public class Interface extends
 
     }
 
+    class Pair<T1, T2> {
+        public T1 v1;
+        public T2 v2;
+
+        public Pair(T1 v1, T2 v2) {
+            super();
+            this.v1 = v1;
+            this.v2 = v2;
+        }
+    }
 }

@@ -17,6 +17,7 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -67,6 +68,7 @@ public class Manager {
             log.error("No roots available");
             return;
         }
+        log.info("Redo based on branch: " + parentBranch + " and commit: " + parentCommit);
 
         short newBranch = branches.fork(parentCommit, parentBranch);
         LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
@@ -81,11 +83,9 @@ public class Manager {
 
         // disable retrain and change to new branch
         group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
-        System.out.println("Set new branch: " + newBranch);
-        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(),
-                      NodeGroup.PROXY,
-                      false);
-        System.out.println("Redo is over");
+        log.warn("Set new branch: " + newBranch);
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
+        log.info("Redo is over");
     }
 
     private void redoRequests(long parentCommit, short redoBranch, List<Long> roots) throws Exception {
@@ -94,11 +94,7 @@ public class Manager {
         for (Long root : roots) {
             List<Long> list = graph.getExecutionList(root, parentCommit);
             try {
-                ExecList msg = FromManagerProto.ExecList.newBuilder()
-                                                        .addAllRid(list)
-                                                        .setBranch(redoBranch)
-                                                        .setStart(false)
-                                                        .build();
+                ExecList msg = FromManagerProto.ExecList.newBuilder().addAllRid(list).setBranch(redoBranch).setStart(false).build();
                 group.broadcast(msg, NodeGroup.REDO, false);
             } catch (IOException e) {
                 log.error(e);
@@ -122,7 +118,24 @@ public class Manager {
 
     public void deleteBranch(Short branch) {
         // TODO Auto-generated method stub
+        throw new NotImplementedException();
+    }
 
+    public void changeToBranch(Short branchId) throws IOException {
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(branchId).setRestrain(false).build(), NodeGroup.PROXY, false);
+    }
+
+    public void newBranch(long parentCommit, short parentBranch) throws Exception {
+        log.info("Create branch based on branch: " + parentBranch + " and commit: " + parentCommit);
+
+        short newBranch = branches.fork(parentCommit, parentBranch);
+        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
+        // notify the database nodes about the path of the redo branch
+        group.sendNewRedoBranch(path);
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
+        log.warn("Set new branch: " + newBranch);
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
+        log.info("Branch is created");
     }
 
 
@@ -167,9 +180,7 @@ public class Manager {
     /* -------------------- Cleans -------------------- */
 
     public void resetDatabaseAccessLists() throws IOException {
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setResetDependencies(true).build(),
-                        NodeGroup.DATABASE,
-                        false);
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setResetDependencies(true).build(), NodeGroup.DATABASE, false);
     }
 
     public void cleanVoldemort() {
