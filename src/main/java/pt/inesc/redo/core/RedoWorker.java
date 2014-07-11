@@ -11,7 +11,6 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,6 +25,9 @@ import pt.inesc.redo.core.handlers.HandlerWrite;
 import pt.inesc.redo.core.unlock.VoldemortUnlocker;
 import voldemort.undoTracker.KeyAccess;
 import voldemort.undoTracker.RUD;
+import voldemort.utils.ByteArray;
+
+import com.google.common.collect.ArrayListMultimap;
 
 
 public class RedoWorker extends
@@ -80,7 +82,7 @@ public class RedoWorker extends
                     if (request == null) {
                         pool.returnChannel(channel);
                         // the request was delete, unlock the original keys
-                        Set<KeyAccess> keys = cassandra.getKeys(reqID);
+                        ArrayListMultimap<ByteArray, KeyAccess> keys = cassandra.getKeys(reqID);
                         if (keys != null && !keys.isEmpty()) {
                             unlocker.unlockKeys(keys, new RUD(reqID, branch, false));
                         }

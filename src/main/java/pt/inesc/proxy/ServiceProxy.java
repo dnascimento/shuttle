@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.Manager;
@@ -24,7 +23,7 @@ import undo.proto.ToManagerProto.NodeRegistryMsg.NodeGroup;
 public class ServiceProxy extends
         Thread {
     private final ServerSocket serverSocket;
-    private final Logger log = LogManager.getLogger(ServiceProxy.class.getName());
+    private final Logger log = Logger.getLogger(ServiceProxy.class.getName());
     private final Proxy proxy;
 
 
@@ -76,6 +75,13 @@ public class ServiceProxy extends
     private void receive(Socket socket) throws IOException {
         log.info("New service command");
         ProxyMsg msg = FromManagerProto.ProxyMsg.parseDelimitedFrom(socket.getInputStream());
+        if (msg.hasCommit()) {
+            short branch = (short) msg.getBranch();
+            long commit = msg.getCommit();
+            proxy.reset(branch, commit);
+            return;
+        }
+
         if (msg.hasTimeTravel()) {
             // time travel
             proxy.timeTravel(msg.getTimeTravel());

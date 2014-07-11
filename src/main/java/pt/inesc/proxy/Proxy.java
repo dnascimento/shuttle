@@ -19,7 +19,6 @@ import java.util.Date;
 import java.util.Iterator;
 
 import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
@@ -33,7 +32,7 @@ public class Proxy {
     private static final int MAX_NUMBER_OF_THREADS = 1;
     private final ThreadPool pool;
     private final int localPort;
-    private static final Logger log = LogManager.getLogger(Proxy.class.getName());
+    private static final Logger log = Logger.getLogger(Proxy.class.getName());
 
     public static Object lockBranchRestrain = new Object();
     public static byte[] branch = shortToByteArray(0);
@@ -190,11 +189,20 @@ public class Proxy {
     }
 
 
-    public void timeTravel(long timeTravel) {
-        String dateString = new SimpleDateFormat("H:m:S").format(new Date(timeTravel));
+    public void timeTravel(long timeDelta) {
+        String dateString = new SimpleDateFormat("H:m:S").format(new Date(timeDelta));
         log.info("traveling: " + dateString);
         synchronized (Proxy.lockBranchRestrain) {
-            Proxy.timeTravel = timeTravel;
+            timeTravel = timeDelta;
         }
+    }
+
+    public void reset(short newBranch, long newCommit) {
+        log.info("Proxy RESET to branch: " + newBranch);
+        synchronized (Proxy.lockBranchRestrain) {
+            branch = shortToByteArray(newBranch);
+            timeTravel = 0;
+        }
+
     }
 }

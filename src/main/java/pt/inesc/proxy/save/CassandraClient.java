@@ -8,10 +8,7 @@ package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -30,6 +27,7 @@ import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.io.BaseEncoding;
 
 public class CassandraClient {
@@ -138,50 +136,33 @@ public class CassandraClient {
         return null;
     }
 
-    public void addKeys(Set<KeyAccess> accessedKeys, long id) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("update ");
-        sb.append(TABLE_NAME);
-        sb.append(" set ");
-        sb.append(COL_KEYS);
-        sb.append(" = [");
-        Iterator<KeyAccess> i = accessedKeys.iterator();
-        while (i.hasNext()) {
-            KeyAccess s = i.next();
-            sb.append("'");
-            sb.append(BaseEncoding.base64().encode(s.key.get()));
-            sb.append(",");
-            sb.append(s.store);
-            sb.append("'");
-            if (i.hasNext())
-                sb.append(",");
-        }
-        sb.append("] where id=");
-        sb.append(id);
-        sb.append(";");
-        log.info(sb.toString());
-        session.execute(sb.toString());
-    }
 
-    public Set<KeyAccess> getKeys(long id) {
+    public ArrayListMultimap<ByteArray, KeyAccess> getKeys(long id) {
+        if (session == null)
+            return null;
         StringBuilder sb = new StringBuilder();
         sb.append(QUERY_KEYS);
         sb.append(id);
         sb.append(";");
         ResultSet result = session.execute(sb.toString());
-        for (Row row : result.all()) {
-            List<String> l = row.getList(COL_KEYS, String.class);
-            Set<KeyAccess> r = new HashSet<KeyAccess>();
-            for (String s : l) {
-                String[] splitted = s.split(",");
-                KeyAccess access = new KeyAccess(new ByteArray(BaseEncoding.base64().decode(splitted[0])), splitted[1]);
-                r.add(access);
-            }
+        ArrayListMultimap<ByteArray, KeyAccess> r = ArrayListMultimap.create();
+        Row row = result.one();
+        if (row == null) {
+            log.error("No registry of accessed keys for rid: " + id);
             return r;
         }
-        return null;
-    }
 
+        List<String> l = row.getList(COL_KEYS, String.class);
+        for (String s : l) {
+            // key-store:times.store:times,key-store:times.store:times
+            String[] splitted = s.split("-");
+            Integer times = Integer.parseInt(splitted[0]);
+            ByteArray key = new ByteArray(BaseEncoding.base64().decode(splitted[1]));
+            KeyAccess access = new KeyAccess(splitted[2], null, times);
+            r.put(key, access);
+        }
+        return r;
+    }
 
     public void close() {
         cluster.close();

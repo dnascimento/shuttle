@@ -17,7 +17,7 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -93,6 +93,8 @@ public class Manager {
         graph.restoreCounters();
         for (Long root : roots) {
             List<Long> list = graph.getExecutionList(root, parentCommit);
+            if (list == null)
+                continue;
             try {
                 ExecList msg = FromManagerProto.ExecList.newBuilder().addAllRid(list).setBranch(redoBranch).setStart(false).build();
                 group.broadcast(msg, NodeGroup.REDO, false);
@@ -118,7 +120,7 @@ public class Manager {
 
     public void deleteBranch(Short branch) {
         // TODO Auto-generated method stub
-        throw new NotImplementedException();
+        throw new NotImplementedException("delete branch");
     }
 
     public void changeToBranch(Short branchId) throws IOException {
@@ -187,8 +189,9 @@ public class Manager {
         CleanVoldemort.clean(group.getDatabaseNodes());
     }
 
-    public void resetBranch() {
+    public void resetBranch() throws IOException {
         branches = new BranchTree();
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(0).setCommit(0).build(), NodeGroup.PROXY, false);
     }
 
 

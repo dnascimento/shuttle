@@ -98,7 +98,7 @@ public class DependencyGraph
      * From a root key, extract the list of requests dependent from
      * 
      * @param rootKey (a key with counter = 0
-     * @param baseCommit
+     * @param baseCommit only requests after the commit are allowed
      * @return
      */
     public synchronized List<Long> getExecutionList(long rootKey, long baseCommit) {
@@ -130,7 +130,13 @@ public class DependencyGraph
             }
             execArray.add(SEPARATOR);
         }
-        return execArray;
+
+        for (Long i : execArray) {
+            if (i != SEPARATOR) {
+                return execArray;
+            }
+        }
+        return null;
     }
 
 
@@ -281,7 +287,9 @@ public class DependencyGraph
         restoreCounters();
         List<List<Long>> result = new LinkedList<List<Long>>();
         for (Long rootKey : getRoots()) {
-            result.add(getExecutionList(rootKey, baseCommit));
+            List<Long> execArray = getExecutionList(rootKey, baseCommit);
+            if (execArray != null)
+                result.add(execArray);
         }
         return result;
     }

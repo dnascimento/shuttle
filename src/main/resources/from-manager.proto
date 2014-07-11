@@ -27,4 +27,5 @@ message ProxyMsg{
 	optional int32 branch = 1;
 	optional bool restrain = 2;
 	optional int64 timeTravel = 3;
+	optional int64 commit = 4;
 }
