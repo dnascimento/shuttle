@@ -1,13 +1,18 @@
 package pt.inesc.redo.core.unlock;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 import voldemort.client.ClientConfig;
 import voldemort.client.SocketStoreClientFactory;
 import voldemort.client.StoreClient;
 import voldemort.client.StoreClientFactory;
 import voldemort.client.protocol.RequestFormatType;
+import voldemort.undoTracker.DBUndoStub;
 import voldemort.undoTracker.KeyAccess;
 import voldemort.undoTracker.RUD;
 import voldemort.utils.ByteArray;
@@ -15,6 +20,8 @@ import voldemort.utils.ByteArray;
 import com.google.common.collect.ArrayListMultimap;
 
 public class VoldemortUnlocker {
+
+    private static final Logger log = LogManager.getLogger(VoldemortUnlocker.class.getName());
 
     ConcurrentHashMap<String, StoreClient<ByteArray, Object>> cache;
 
@@ -47,15 +54,23 @@ public class VoldemortUnlocker {
     public void unlockKeys(ArrayListMultimap<ByteArray, KeyAccess> unlockedKeys, RUD rud) {
         ArrayListMultimap<String, ByteArray> perStore = invertToPerStore(unlockedKeys);
         StoreClient<ByteArray, Object> client;
-
+        StringBuilder sb = new StringBuilder();
+        log.warn("Unlocking...");
         for (String store : perStore.keySet()) {
+            sb.append("\n Store:" + store);
             List<ByteArray> accesses = perStore.get(store);
             client = get(store);
-            client.unlockKeys(accesses, rud);
+            Map<ByteArray, Boolean> result = client.unlockKeys(accesses, rud);
+            for (ByteArray key : accesses) {
+                result.get(key);
+                sb.append(" : " + DBUndoStub.hexStringToAscii(key));
+                if (result.get(key) == null || result.get(key) == false) {
+                    log.error("ERROR: Fail to unlock the key: " + DBUndoStub.hexStringToAscii(key));
+                }
+            }
         }
+        log.warn(sb.toString());
     }
-
-
 
     /**
      * Group per store

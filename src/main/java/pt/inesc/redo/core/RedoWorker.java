@@ -85,7 +85,6 @@ public class RedoWorker extends
                         // the request was delete, unlock the original keys
                         ArrayListMultimap<ByteArray, KeyAccess> keys = cassandra.getKeys(reqID);
                         if (keys != null && !keys.isEmpty()) {
-                            logger.warn("Unlocking the keys: " + keys);
                             unlocker.unlockKeys(keys, new RUD(reqID, branch, false));
                         } else {
                             throw new Exception("Request not found " + reqID);
