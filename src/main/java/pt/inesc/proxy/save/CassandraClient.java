@@ -156,10 +156,16 @@ public class CassandraClient {
         for (String s : l) {
             // key-store:times.store:times,key-store:times.store:times
             String[] splitted = s.split("-");
-            Integer times = Integer.parseInt(splitted[0]);
-            ByteArray key = new ByteArray(BaseEncoding.base64().decode(splitted[1]));
-            KeyAccess access = new KeyAccess(splitted[2], null, times);
-            r.put(key, access);
+            ByteArray key = new ByteArray(BaseEncoding.base64().decode(splitted[0]));
+            String[] storeTimes = splitted[1].split("\\.");
+
+            // parse store:times pair
+            for (String storeTime : storeTimes) {
+                String[] entries = storeTime.split(":");
+                Integer times = Integer.parseInt(entries[1]);
+                KeyAccess access = new KeyAccess(entries[0], null, times);
+                r.put(key, access);
+            }
         }
         return r;
     }

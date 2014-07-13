@@ -80,26 +80,28 @@ public class RedoWorker extends
                     ChannelPack channel = pool.getChannel();
                     ByteBuffer request = cassandra.getRequest(reqID);
                     if (request == null) {
+                        logger.warn("Request deleted: " + reqID + " fetching the keys to compensate...");
                         pool.returnChannel(channel);
                         // the request was delete, unlock the original keys
                         ArrayListMultimap<ByteArray, KeyAccess> keys = cassandra.getKeys(reqID);
                         if (keys != null && !keys.isEmpty()) {
+                            logger.warn("Unlocking the keys: " + keys);
                             unlocker.unlockKeys(keys, new RUD(reqID, branch, false));
+                        } else {
+                            throw new Exception("Request not found " + reqID);
                         }
-                        throw new Exception("Request not found " + reqID);
+                    } else {
+                        // IMPORTANT: request includes cassandra metadata at begin. DO NOT
+                        // rewind
+                        writePackage(channel, request, reqID);
+                        sentCounter.incrementAndGet();
                     }
-                    // IMPORTANT: request includes cassandra metadata at begin. DO NOT
-                    // rewind
-                    sentCounter.incrementAndGet();
-
-                    writePackage(channel, request, reqID);
                 }
             } catch (Exception e) {
                 errors.add("Erro in req: " + reqID + " " + e);
                 logger.error("Erro", e);
             }
         }
-
         logger.info("Redo end");
         RedoNode.addErrors(errors, totalRequests);
     }
