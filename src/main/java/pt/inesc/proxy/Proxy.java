@@ -28,8 +28,8 @@ public class Proxy {
     public static int BACKEND_PORT = 8080;
     public static String BACKEND_HOST = "localhost";
 
-    private static final int INIT_NUMBER_OF_THREADS = 1;
-    private static final int MAX_NUMBER_OF_THREADS = 1;
+    private static final int INIT_NUMBER_OF_THREADS = 2;
+    private static final int MAX_NUMBER_OF_THREADS = 2;
     private final ThreadPool pool;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());

@@ -11,7 +11,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 
-import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
@@ -28,7 +27,7 @@ public class ServiceManager extends
         Thread {
     private final Manager manager;
     private final ServerSocket serverSocket;
-    private final Logger log = LogManager.getLogger(ServiceManager.class.getName());
+    private final Logger log = Logger.getLogger(ServiceManager.class.getName());
 
     // Only for local tests
     public ServiceManager(DependencyGraph graph) throws IOException {

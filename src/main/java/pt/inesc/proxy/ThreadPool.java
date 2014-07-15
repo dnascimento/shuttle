@@ -5,6 +5,7 @@
  * Copyright (c) 2014 - All rights reserved
  */
 package pt.inesc.proxy;
+
 import java.util.LinkedList;
 
 import org.apache.log4j.LogManager;
@@ -37,7 +38,7 @@ public class ThreadPool {
         // Fill up the pool with worker threads
         ProxyWorker thread = new ProxyWorker(this, remoteHost, remotePort);
         // Set thread name for debugging. Start it.
-        // thread.setName("Worker" + i);
+        thread.setName("Worker" + nTheads);
         nTheads++;
         thread.start();
         return thread;
@@ -52,12 +53,16 @@ public class ThreadPool {
     public ProxyWorker getWorker() {
         ProxyWorker thread = null;
         synchronized (idle) {
-            if (idle.size() > 0) {
-                thread = idle.removeFirst();
-            } else {
-                thread = newWorker();
-                log.info("thread created" + thread.getId());
+            while (idle.size() == 0) {
+                try {
+                    idle.wait();
+                } catch (InterruptedException e) {
+                    log.error(e);
+                }
             }
+            thread = idle.removeFirst();
+            // thread = newWorker();
+            // log.info("thread created" + thread.getId());
         }
         return thread;
     }
@@ -67,6 +72,7 @@ public class ThreadPool {
      */
     void returnWorker(ProxyWorker worker) {
         synchronized (idle) {
+            idle.notify();
             idle.addFirst(worker);
         }
     }
