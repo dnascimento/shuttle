@@ -120,6 +120,20 @@ public class BufferTools {
         return true;
     }
 
+    /*
+     * Search for patter at end of chunk
+     */
+    public static boolean headerIsComplete(ByteBuffer buffer) {
+        int pos = buffer.position() - 1;
+        int end = SEPARATOR.capacity() - 1;
+        for (int i = 0; i <= end; i++) {
+            if (buffer.get(pos - i) != SEPARATOR.get(end - i))
+                return false;
+        }
+        return true;
+    }
+
+
 
     /**
      * Check if 304 message

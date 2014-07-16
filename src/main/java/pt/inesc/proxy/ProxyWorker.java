@@ -16,14 +16,14 @@ import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.SelectionKey;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.BufferTools;
@@ -44,20 +44,18 @@ import pt.inesc.proxy.save.Saver;
  */
 public class ProxyWorker extends
         Thread {
-    private static Logger log = LogManager.getLogger(ProxyWorker.class.getName());
-    private int countWait = 0;
+    private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
+    private final int countWait = 0;
 
-    private final int FLUSH_PERIODICITY = 1;
+    private final int FLUSH_PERIODICITY = 10;
     /** time between attempt to flush to disk ms */
     private final int BUFFER_SIZE = 2048;
 
     private ByteBuffer buffer = allocateBuffer();
-    private final ThreadPool pool;
     private int decrementToSave = FLUSH_PERIODICITY;
-    private SelectionKey key;
     private final InetSocketAddress backendAddress;
     private SocketChannel backendSocket = null;
-    private SocketChannel frontendChannel = null;
+    private AsynchronousSocketChannel frontendChannel = null;
     private long startTS;
     private boolean ignore;
     public LinkedList<Request> requests = new LinkedList<Request>();
@@ -67,13 +65,12 @@ public class ProxyWorker extends
     private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
     private static final ArrayList<String> listOfIgnorePatterns = loadIgnoreList();
 
-    public ProxyWorker(ThreadPool pool, String remoteHost, int remotePort) {
+    public ProxyWorker(InetSocketAddress remoteAddress) {
         log.info("New worker: " + this.getId());
         log.setLevel(Level.ERROR);
         saver = new Saver();
         saver.start();
-        this.pool = pool;
-        backendAddress = new InetSocketAddress(remoteHost, remotePort);
+        backendAddress = remoteAddress;
         connect();
     }
 
@@ -99,87 +96,12 @@ public class ProxyWorker extends
         }
     }
 
-    // Loop forever waiting for work to do
-    @Override
-    public synchronized void run() {
-        boolean firstTime = true;
-        // execution cycle
-        while (true) {
-            try {
-                serveNewRequest(key, false, firstTime);
-                firstTime = false;
-                drainAndSend(key);
-            } catch (Exception e) {
-                log.error("Execution", e);
-                connect();
-            }
-
-            buffer = ByteBuffer.allocate(BUFFER_SIZE);
-            // Force to close every connection
-            // try {
-            // key.channel().close();
-            // } catch (Exception e) {
-            // logger.error("Close channel", e);
-            // }
-            if (key.channel().isOpen()) {
-                // resume interest to keep the connection open
-                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-            }
-            // Store data
-            if (--decrementToSave == 0) {
-                flushData();
-            }
-            // connect();
-        }
-    }
 
 
 
-    /**
-     * Called to initiate a unit of work by this worker thread * on the provided
-     * SelectionKey object. This method is synchronized, as is the run() method, so only
-     * one key can be serviced at a given time. Before waking the worker thread, and
-     * before returning to the main selection loop, this key's interest set is * updated
-     * to remove OP_READ. This will cause the selector * to ignore read-readiness for this
-     * channel while the worker thread is servicing it.
-     */
-    synchronized void serveNewRequest(SelectionKey key, boolean notification, boolean firstTime) {
-        log.info("New request");
-        if (notification) {
-            this.key = key;
-            // // Remove the flag of reading ready, it will be read
-            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-            log.info("Worker" + this.getId() + " notify start");
-            log.info("How many wait are waiting before notify? " + countWait);
-            this.notify(); // Awaken the thread
-            log.info("Worker" + this.getId() + " notify end");
-        } else {
-            // Ready for more. Return to pool
-            // Sleep and release object lock, wait for wake from serveNewRequest
-            // Notify the selector that I will be available
-            if (key != null && !firstTime) {
-                pool.returnWorker(this);
-                log.info("selector wake");
-                key.selector().wakeup();
-            }
-            if (key != null && firstTime) {
-                return;
-            }
 
-            try {
-                log.info("Worker" + Thread.currentThread().getId() + " will wait");
-                log.info("How many wait before " + Thread.currentThread().getId() + "sleep? " + countWait);
-                countWait++;
-                this.wait();
-                countWait--;
-                log.info("Worker" + Thread.currentThread().getId() + " wait end");
 
-            } catch (InterruptedException e) {
-                log.error("Sleep thread", e);
-                interrupted();
-            }
-        }
-    }
+
 
     /**
      * The actual code which drains the channel associated with the given key.
@@ -188,39 +110,54 @@ public class ProxyWorker extends
      * calls wakeup() on the selector so the selector will resume watching this channel.
      * 
      * @throws IOException
+     * @throws ExecutionException
+     * @throws InterruptedException
      */
-    void drainAndSend(SelectionKey key) throws IOException {
-        frontendChannel = (SocketChannel) key.channel();
+    void drainAndSend(AsynchronousSocketChannel channel) throws IOException, InterruptedException, ExecutionException {
+        frontendChannel = channel;
         int lastSizeAttemp = 0;
         int size = -1;
         ReqType reqType = null;
+
+
         // Loop while data is available; channel is nonblocking
-        while ((frontendChannel.read(buffer) > 0) || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (buffer.position() != size))) {
+        // TODO may be a handler
+        while ((frontendChannel.read(buffer).get() > 0)
+                || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (buffer.position() != size))) {
+
             if (reqType == null) {
                 reqType = getRequestType(buffer);
             }
             if (buffer.remaining() == 0) {
                 resizeBuffer();
             }
-            if ((reqType == ReqType.PUT || reqType == ReqType.POST) && (size == -1)) {
+            // try to find the content-length specification
+            if (size == -1) {
                 size = BufferTools.extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
                 lastSizeAttemp = buffer.position() - BufferTools.CONTENT_LENGTH.capacity();
                 if (buffer.position() == size) {
                     break;
                 }
             }
+
+            // if no content-length specified and header is complete
+            if (size == -1 && BufferTools.headerIsComplete(buffer)) {
+                break;
+            }
+
+
         }
         buffer.flip();
         sendToServer(buffer);
     }
 
 
-    public void sendToServer(ByteBuffer buffer) throws IOException {
+    public void sendToServer(ByteBuffer buffer) throws IOException, InterruptedException, ExecutionException {
         int endOfFirstLine = BufferTools.indexOf(buffer, BufferTools.SEPARATOR);
         int originalLimit = buffer.limit();
         if (endOfFirstLine == -1 && originalLimit == 0) {
             log.info("empty buffer - keep alive connection will be closed");
-            key.channel().close();
+            frontendChannel.close();
             return;
         }
 
@@ -257,7 +194,7 @@ public class ProxyWorker extends
         readFromBackend();
     }
 
-    public void readFromBackend() throws IOException {
+    public void readFromBackend() throws IOException, InterruptedException, ExecutionException {
         int lastSizeAttemp = 0;
         int size = -1;
         int headerEnd = -1;
@@ -288,17 +225,19 @@ public class ProxyWorker extends
                 }
             }
         }
-        sendToClient(startTS, frontendChannel);
+        sendToClient(startTS);
     }
 
-    public void sendToClient(long startTS, SocketChannel frontendChannel) throws IOException {
+    public void sendToClient(long startTS) throws IOException, InterruptedException, ExecutionException {
         // send anwser to client
         long endTS = System.currentTimeMillis();
         buffer.flip(); // make buffer readable
         int toWrite = buffer.limit();
         int written = 0;
-        while ((written += frontendChannel.write(buffer)) < toWrite)
+        // TODO may be a handler
+        while ((written += frontendChannel.write(buffer).get()) < toWrite)
             ;
+
 
         if (!ignore)
             addResponse(buffer, startTS, endTS);
@@ -474,5 +413,16 @@ public class ProxyWorker extends
             }
         }
         return false;
+    }
+
+    public void handle(AsynchronousSocketChannel ch) throws IOException, InterruptedException, ExecutionException {
+        // TODO change to direct and to a pool
+        buffer = ByteBuffer.allocate(BUFFER_SIZE);
+
+        drainAndSend(ch);
+        // Store data
+        if (--decrementToSave == 0) {
+            flushData();
+        }
     }
 }

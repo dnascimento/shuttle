@@ -8,15 +8,18 @@ package pt.inesc.proxy;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.StandardSocketOptions;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Iterator;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -28,26 +31,59 @@ public class Proxy {
     public static int BACKEND_PORT = 8080;
     public static String BACKEND_HOST = "localhost";
 
-    private static final int INIT_NUMBER_OF_THREADS = 2;
-    private static final int MAX_NUMBER_OF_THREADS = 2;
-    private final ThreadPool pool;
+    private static final int NUMBER_OF_THREADS = 2;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
+    // Initial Operating System buffer size
+    private static final Integer BUFFER_SIZE = 4 * 1024; // 4K
+    protected static final long WAIT_FOR_AVAILABLE_WORKER = 1000;
 
     public static Object lockBranchRestrain = new Object();
     public static byte[] branch = shortToByteArray(0);
     public static boolean restrain = false;
     public static long timeTravel = 0;
 
+
+    AsynchronousServerSocketChannel asynchronousServerSocketChannel;
+    ExecutorService pool;
+    AsynchronousChannelGroup group;
+    LinkedBlockingDeque<ProxyWorker> workers;
+
+
     public Proxy(int localPort, String remoteHost, int remotePort) throws IOException {
-        log.setLevel(Level.ERROR);
+        log.setLevel(Level.INFO);
         this.localPort = localPort;
-        pool = new ThreadPool(INIT_NUMBER_OF_THREADS, MAX_NUMBER_OF_THREADS, remoteHost, remotePort);
-        log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
+
         new ServiceProxy(this).start();
+
+        pool = new ThreadPoolExecutor(NUMBER_OF_THREADS, NUMBER_OF_THREADS, Long.MAX_VALUE, TimeUnit.MILLISECONDS,
+                new LinkedBlockingDeque<Runnable>());
+
+
+        group = AsynchronousChannelGroup.withThreadPool(pool);
+
+        asynchronousServerSocketChannel = AsynchronousServerSocketChannel.open(group);
+        asynchronousServerSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
+
+        InetSocketAddress backendAddress = new InetSocketAddress(remoteHost, remotePort);
+        workers = createWorkersPool(backendAddress);
+
+        log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
+
+
+
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    private LinkedBlockingDeque<ProxyWorker> createWorkersPool(InetSocketAddress remoteAddress) {
+        LinkedBlockingDeque<ProxyWorker> workers = new LinkedBlockingDeque<ProxyWorker>(NUMBER_OF_THREADS);
+        for (int i = 0; i < NUMBER_OF_THREADS; i++) {
+            workers.add(new ProxyWorker(remoteAddress));
+        }
+
+        return workers;
+    }
+
+    public static void main(String[] args) throws IOException, InterruptedException, ExecutionException {
         DOMConfigurator.configure("log4j.xml");
         if (args.length > 0) {
             if (args.length < 3) {
@@ -61,99 +97,51 @@ public class Proxy {
 
 
         new Proxy(FRONTEND_PORT, BACKEND_HOST, BACKEND_PORT).run();
-
     }
 
 
-    public void run() throws IOException {
-        // Allocate an unbound server socket channel
-        ServerSocketChannel ssc = ServerSocketChannel.open();
+    public void run() throws IOException, InterruptedException, ExecutionException {
+        final AsynchronousServerSocketChannel listener = asynchronousServerSocketChannel.bind(new InetSocketAddress(localPort));
+        listener.accept(workers, new CompletionHandler<AsynchronousSocketChannel, LinkedBlockingDeque<ProxyWorker>>() {
+            @Override
+            public void completed(AsynchronousSocketChannel ch, LinkedBlockingDeque<ProxyWorker> workersList) {
+                log.info("new request");
+                // accept the next connection
+                listener.accept(workersList, this);
 
-        // Get the associated ServerSocket to bind it with
-        ServerSocket serverSocket = ssc.socket();
+                // fetch a object to handle this request
+                ProxyWorker worker = null;
+                do {
+                    try {
+                        worker = workersList.poll(WAIT_FOR_AVAILABLE_WORKER, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        log.error(e);
+                    }
+                    log.debug("Thread waiting for available worker");
+                } while (worker == null);
 
-        // Create a new Selector for use below
-        Selector selector = Selector.open();
-
-        // Set the port the server channel will listen to
-        serverSocket.bind(new InetSocketAddress(localPort));
-
-        // Set nonblocking mode for the listening socket
-        ssc.configureBlocking(false);
-
-        // On socket accept, the selector is wake
-        ssc.register(selector, SelectionKey.OP_ACCEPT);
-
-        while (true) {
-            // This may block for a long time. Upon returning, the
-            // selected set contains keys of the ready channels.
-            int n = selector.select(2000);
-            if (n == 0) {
-                continue;
-            }
-
-            // Get an iterator over the set of selected keys
-            Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-
-            while (it.hasNext()) {
+                // handle the request
                 try {
-                    SelectionKey key = it.next();
-                    // New connection?
-                    if (key.isAcceptable()) {
-                        ServerSocketChannel server = (ServerSocketChannel) key.channel();
-                        SocketChannel channel = server.accept();
-                        log.info("New socket");
-                        // notify the selector about op_read
-                        registerChannel(selector, channel, SelectionKey.OP_READ);
-                    }
-                    // The selector was waked to read?
-                    if (key.isReadable()) {
-                        readDataFromSocket(key);
-                    }
-                } catch (Exception e) {
+                    worker.handle(ch);
+                } catch (IOException | InterruptedException | ExecutionException e) {
                     log.error(e);
-                } finally {
-                    // Remove the key
-                    it.remove();
                 }
+                // return worker to list
+                workersList.add(worker);
+
+
+
             }
-        }
+
+            @Override
+            public void failed(Throwable exc, LinkedBlockingDeque<ProxyWorker> att) {
+                // todo
+            }
+        });
+        group.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+
     }
 
-
-    /**
-     * Sample data handler method for a channel with data ready to read.
-     * 
-     * @param key A SelectionKey object associated with a channel determined by the
-     *            selector to be ready for reading. If the channel returns an EOF
-     *            condition, it is closed here, which automatically invalidates the
-     *            associated key. The selector will then de-register the channel on the
-     *            next select call.
-     * @throws IOException
-     */
-    private void readDataFromSocket(SelectionKey key) throws IOException {
-        ProxyWorker worker = pool.getWorker();
-        // Remove the flag of reading ready, drop request or take it
-        if (worker == null) {
-            log.error("No worker available");
-            return;
-        }
-        log.info("Readable by " + worker.getId());
-        // Invoking this wakes up the worker thread, then returns
-        worker.serveNewRequest(key, true, false);
-    }
-
-    private void registerChannel(Selector selector, SocketChannel channel, int opRead) throws IOException {
-        if (channel == null) {
-            return;
-        }
-
-        // set the new channel non-blooking
-        channel.configureBlocking(false);
-        channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-        // register with the selector to wake when ready to read
-        channel.register(selector, opRead);
-    }
 
     public void setBranchAndRestrain(short branch, boolean restrain) {
         log.info("new branch: " + branch + " restrain: " + restrain);
