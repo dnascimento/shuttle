@@ -79,7 +79,6 @@ public class ProxyWorker extends
     private static final long WRITE_TIMEOUT = 1000;
 
     public ProxyWorker(InetSocketAddress remoteAddress) {
-        log.info("New worker: " + this.getId());
         saver = new Saver();
         saver.start();
         backendAddress = remoteAddress;

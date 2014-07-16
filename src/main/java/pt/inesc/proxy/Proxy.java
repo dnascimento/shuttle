@@ -32,7 +32,7 @@ public class Proxy {
     public static int BACKEND_PORT = 8080;
     public static String BACKEND_HOST = "localhost";
 
-    private static final int NUMBER_OF_THREADS = 20;
+    private static final int NUMBER_OF_THREADS = 1;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
     // Initial Operating System buffer size
@@ -55,9 +55,10 @@ public class Proxy {
         this.localPort = localPort;
 
         new ServiceProxy(this).start();
+        ProxyThreadFactory threadFactory = new ProxyThreadFactory();
 
         pool = new ThreadPoolExecutor(NUMBER_OF_THREADS, NUMBER_OF_THREADS, Long.MAX_VALUE, TimeUnit.MILLISECONDS,
-                new LinkedBlockingDeque<Runnable>());
+                new LinkedBlockingDeque<Runnable>(), threadFactory);
 
 
         group = AsynchronousChannelGroup.withThreadPool(pool);
