@@ -31,11 +31,11 @@ public class Saver extends
 
     private static Logger log = LogManager.getLogger(Saver.class.getName());
 
-    CassandraClient cassandra;
+    private static CassandraClient cassandra = new CassandraClient();
     LinkedList<RequestResponseListPair> stack = new LinkedList<RequestResponseListPair>();
 
     public Saver() {
-        cassandra = new CassandraClient();
+
     }
 
     @Override

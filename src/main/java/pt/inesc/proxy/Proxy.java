@@ -37,7 +37,7 @@ public class Proxy {
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
     // Initial Operating System buffer size
     private static final Integer BUFFER_SIZE = 2 * 1024; // 4K
-    private static final int N_BUFFERS = 25;
+    private static final int N_BUFFERS = 50;
 
     public static Object lockBranchRestrain = new Object();
     public static byte[] branch = shortToByteArray(0);

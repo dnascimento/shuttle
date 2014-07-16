@@ -45,7 +45,7 @@ public class ProxyWorker extends
         Thread {
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
-    private final int FLUSH_PERIODICITY = 10;
+    private final int FLUSH_PERIODICITY = 10000;
 
     private static final int N_BUFFERS = 500;
 
@@ -60,8 +60,8 @@ public class ProxyWorker extends
     private final Saver saver;
     private final ByteBuffer headerBase = createBaseHeader();
 
-
-    private final DirectBufferPool buffers;
+    private final DirectBufferPool requestBuffers;
+    private final DirectBufferPool responseBuffers;
 
     private int endOfFirstLine;
 
@@ -69,9 +69,10 @@ public class ProxyWorker extends
 
     private boolean keepAlive;
 
+
     private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
     private static final ArrayList<Pattern> listOfIgnorePatterns = loadIgnoreList();
-    private static final Integer BUFFER_SIZE = 2 * 1024; // 2K
+    private static final Integer BUFFER_SIZE = 4 * 1024; // 2K
 
     private static final long READ_TIMEOUT = 1000;
 
@@ -82,7 +83,8 @@ public class ProxyWorker extends
         saver = new Saver();
         saver.start();
         backendAddress = remoteAddress;
-        buffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
+        responseBuffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
+        requestBuffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
         connect();
     }
 
@@ -181,7 +183,7 @@ public class ProxyWorker extends
         ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
 
         // allocate a new bytebuffer with exact size to copy
-        ByteBuffer request = ByteBuffer.allocate(clientRequestBuffer.limit() + messageIdHeader.capacity());
+        ByteBuffer request = requestBuffers.pop(clientRequestBuffer.limit() + messageIdHeader.capacity());
 
         clientRequestBuffer.limit(endOfFirstLine);
         // copy from buffer to request
@@ -195,6 +197,7 @@ public class ProxyWorker extends
         while (clientRequestBuffer.hasRemaining())
             request.put(clientRequestBuffer);
 
+        request.flip();
         request.rewind();
 
         ignore = !matchIgnoreList(request, endOfFirstLine);
@@ -234,7 +237,7 @@ public class ProxyWorker extends
             int size = -1;
             int headerEnd = -1;
             boolean bufferWasResized = false;
-            ByteBuffer responseBuffer = buffers.pop();
+            ByteBuffer responseBuffer = responseBuffers.pop();
             // Read Answer from server
             try {
                 while (backendSocket.read(responseBuffer) > 0 || (size != -1 && responseBuffer.position() != size)) {
@@ -265,7 +268,7 @@ public class ProxyWorker extends
                     }
                 }
                 if (bufferWasResized) {
-                    buffers.voteBufferSize(responseBuffer.position());
+                    responseBuffers.voteBufferSize(responseBuffer.position());
                 }
 
                 return responseBuffer;
