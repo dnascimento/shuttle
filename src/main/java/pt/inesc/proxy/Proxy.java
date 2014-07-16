@@ -9,6 +9,7 @@ package pt.inesc.proxy;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -31,12 +32,12 @@ public class Proxy {
     public static int BACKEND_PORT = 8080;
     public static String BACKEND_HOST = "localhost";
 
-    private static final int NUMBER_OF_THREADS = 2;
+    private static final int NUMBER_OF_THREADS = 20;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
     // Initial Operating System buffer size
-    private static final Integer BUFFER_SIZE = 4 * 1024; // 4K
-    protected static final long WAIT_FOR_AVAILABLE_WORKER = 1000;
+    private static final Integer BUFFER_SIZE = 2 * 1024; // 4K
+    private static final int N_BUFFERS = 25;
 
     public static Object lockBranchRestrain = new Object();
     public static byte[] branch = shortToByteArray(0);
@@ -44,14 +45,13 @@ public class Proxy {
     public static long timeTravel = 0;
 
 
-    AsynchronousServerSocketChannel asynchronousServerSocketChannel;
-    ExecutorService pool;
-    AsynchronousChannelGroup group;
-    LinkedBlockingDeque<ProxyWorker> workers;
-
+    private final AsynchronousServerSocketChannel asynchronousServerSocketChannel;
+    private final ExecutorService pool;
+    private final AsynchronousChannelGroup group;
+    private final LinkedBlockingDeque<ProxyWorker> workers;
+    private final DirectBufferPool buffers;
 
     public Proxy(int localPort, String remoteHost, int remotePort) throws IOException {
-        log.setLevel(Level.INFO);
         this.localPort = localPort;
 
         new ServiceProxy(this).start();
@@ -67,6 +67,9 @@ public class Proxy {
 
         InetSocketAddress backendAddress = new InetSocketAddress(remoteHost, remotePort);
         workers = createWorkersPool(backendAddress);
+
+        buffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
+
 
         log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
 
@@ -85,6 +88,7 @@ public class Proxy {
 
     public static void main(String[] args) throws IOException, InterruptedException, ExecutionException {
         DOMConfigurator.configure("log4j.xml");
+        log.setLevel(Level.INFO);
         if (args.length > 0) {
             if (args.length < 3) {
                 log.error("usage: <frontend-port> <backend-port> <backend-address>");
@@ -105,37 +109,17 @@ public class Proxy {
         listener.accept(workers, new CompletionHandler<AsynchronousSocketChannel, LinkedBlockingDeque<ProxyWorker>>() {
             @Override
             public void completed(AsynchronousSocketChannel ch, LinkedBlockingDeque<ProxyWorker> workersList) {
-                log.info("new request");
                 // accept the next connection
                 listener.accept(workersList, this);
+                log.error("New accept");
 
-                // fetch a object to handle this request
-                ProxyWorker worker = null;
-                do {
-                    try {
-                        worker = workersList.poll(WAIT_FOR_AVAILABLE_WORKER, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException e) {
-                        log.error(e);
-                    }
-                    log.debug("Thread waiting for available worker");
-                } while (worker == null);
-
-                // handle the request
-                try {
-                    worker.handle(ch);
-                } catch (IOException | InterruptedException | ExecutionException e) {
-                    log.error(e);
-                }
-                // return worker to list
-                workersList.add(worker);
-
-
-
+                ByteBuffer buffer = buffers.pop();
+                ch.read(buffer, ch, new ReadHandler(buffer, workersList));
             }
 
             @Override
             public void failed(Throwable exc, LinkedBlockingDeque<ProxyWorker> att) {
-                // todo
+                // TODO
             }
         });
         group.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);

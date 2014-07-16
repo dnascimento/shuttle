@@ -40,6 +40,7 @@ public class Saver extends
 
     @Override
     public void run() {
+        Thread.currentThread().setName("Saver-Thread");
         while (true) {
             synchronized (this) {
                 try {

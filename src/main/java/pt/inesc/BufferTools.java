@@ -1,6 +1,10 @@
 package pt.inesc;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +20,8 @@ public class BufferTools {
     public final static ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
     public final static ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
     private final static byte[] STATUS_304 = "304".getBytes();
+    private final static ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
+    private final static ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
 
     /**
      * Returns the index within this buffer of the first occurrence of the specified
@@ -91,6 +97,11 @@ public class BufferTools {
         return decodeUTF8(content);
     }
 
+    public static void printAll(ByteBuffer buffer) {
+        int end = buffer.limit();
+        System.out.println(printContent(buffer, 0, end));
+    }
+
     public static String printContent(ByteBuffer buffer) {
         int start = buffer.position();
         int end = buffer.limit();
@@ -144,6 +155,28 @@ public class BufferTools {
      */
     public static boolean is304(ByteBuffer buffer, int headerEnd) {
         return (buffer.get(9) == STATUS_304[0] && buffer.get(10) == STATUS_304[1] && buffer.get(11) == STATUS_304[2]);
+    }
 
+    public static boolean isKeepAlive(ByteBuffer buffer, int endOfFirstLine) {
+        int index = BufferTools.indexOf(buffer, CONNECTION);
+        if (index == -1) {
+            return isHTTP1(buffer, endOfFirstLine);
+        }
+        int letter = buffer.get(index + CONNECTION.capacity() + 1);
+        // if 2nd char is a "e": Keep-Alive
+        return (letter == 101 || letter == 69);
+    }
+
+    private static boolean isHTTP1(ByteBuffer buffer, int endOfFirstLine) {
+        return BufferTools.indexOf(endOfFirstLine - 3, endOfFirstLine, buffer, HTTP1) != -1;
+    }
+
+
+    @SuppressWarnings("resource")
+    public static WritableByteChannel getDebugChannel() throws FileNotFoundException {
+        File temp = new File("debug.txt");
+        temp.delete();
+        temp = new File("debug.txt");
+        return new RandomAccessFile(temp, "rw").getChannel();
     }
 }

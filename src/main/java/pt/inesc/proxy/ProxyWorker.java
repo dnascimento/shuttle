@@ -9,21 +9,20 @@ package pt.inesc.proxy;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
-import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 import pt.inesc.BufferTools;
@@ -45,32 +44,45 @@ import pt.inesc.proxy.save.Saver;
 public class ProxyWorker extends
         Thread {
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
-    private final int countWait = 0;
 
     private final int FLUSH_PERIODICITY = 10;
-    /** time between attempt to flush to disk ms */
-    private final int BUFFER_SIZE = 2048;
 
-    private ByteBuffer buffer = allocateBuffer();
+    private static final int N_BUFFERS = 500;
+
+    /** time between attempt to flush to disk ms */
     private int decrementToSave = FLUSH_PERIODICITY;
     private final InetSocketAddress backendAddress;
     private SocketChannel backendSocket = null;
     private AsynchronousSocketChannel frontendChannel = null;
     private long startTS;
-    private boolean ignore;
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
     private final Saver saver;
     private final ByteBuffer headerBase = createBaseHeader();
+
+
+    private final DirectBufferPool buffers;
+
+    private int endOfFirstLine;
+
+    private boolean ignore;
+
+    private boolean keepAlive;
+
     private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
-    private static final ArrayList<String> listOfIgnorePatterns = loadIgnoreList();
+    private static final ArrayList<Pattern> listOfIgnorePatterns = loadIgnoreList();
+    private static final Integer BUFFER_SIZE = 2 * 1024; // 2K
+
+    private static final long READ_TIMEOUT = 1000;
+
+    private static final long WRITE_TIMEOUT = 1000;
 
     public ProxyWorker(InetSocketAddress remoteAddress) {
         log.info("New worker: " + this.getId());
-        log.setLevel(Level.ERROR);
         saver = new Saver();
         saver.start();
         backendAddress = remoteAddress;
+        buffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
         connect();
     }
 
@@ -109,142 +121,186 @@ public class ProxyWorker extends
      * selection interest in OP_READ. When this method completes it re-enables OP_READ and
      * calls wakeup() on the selector so the selector will resume watching this channel.
      * 
-     * @throws IOException
-     * @throws ExecutionException
-     * @throws InterruptedException
+     * @param buffer
+     * @return
+     * @return
+     * @return false if no request
+     * @throws Exception
      */
-    void drainAndSend(AsynchronousSocketChannel channel) throws IOException, InterruptedException, ExecutionException {
-        frontendChannel = channel;
+    ByteBuffer drainFromClient(ByteBuffer clientRequestBuffer) throws Exception {
         int lastSizeAttemp = 0;
         int size = -1;
         ReqType reqType = null;
 
+        // Loop while data is available
+        try {
+            do {
+                if (reqType == null) {
+                    reqType = getRequestType(clientRequestBuffer);
+                }
+                if (clientRequestBuffer.remaining() == 0) {
+                    clientRequestBuffer = resizeRequestBuffer(clientRequestBuffer);
+                }
+                // try to find the content-length specification
+                if (size == -1) {
+                    size = BufferTools.extractMessageTotalSize(lastSizeAttemp, clientRequestBuffer.position(), clientRequestBuffer);
+                    lastSizeAttemp = clientRequestBuffer.position() - BufferTools.CONTENT_LENGTH.capacity();
+                    if (clientRequestBuffer.position() == size) {
+                        break;
+                    }
+                }
 
-        // Loop while data is available; channel is nonblocking
-        // TODO may be a handler
-        while ((frontendChannel.read(buffer).get() > 0)
-                || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (buffer.position() != size))) {
-
-            if (reqType == null) {
-                reqType = getRequestType(buffer);
-            }
-            if (buffer.remaining() == 0) {
-                resizeBuffer();
-            }
-            // try to find the content-length specification
-            if (size == -1) {
-                size = BufferTools.extractMessageTotalSize(lastSizeAttemp, buffer.position(), buffer);
-                lastSizeAttemp = buffer.position() - BufferTools.CONTENT_LENGTH.capacity();
-                if (buffer.position() == size) {
+                // if no content-length specified and header is complete
+                if (size == -1 && BufferTools.headerIsComplete(clientRequestBuffer)) {
                     break;
                 }
+            } while ((frontendChannel.read(clientRequestBuffer).get(READ_TIMEOUT, TimeUnit.MILLISECONDS) > 0)
+                    || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (clientRequestBuffer.position() != size)));
+
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            log.debug("Drain Client Exception", e);
+            if (clientRequestBuffer.position() != 0) {
+                log.error("Client sent some data");
             }
-
-            // if no content-length specified and header is complete
-            if (size == -1 && BufferTools.headerIsComplete(buffer)) {
-                break;
-            }
-
-
+            throw e;
         }
-        buffer.flip();
-        sendToServer(buffer);
-    }
+        clientRequestBuffer.flip();
+
+        endOfFirstLine = BufferTools.indexOf(clientRequestBuffer, BufferTools.SEPARATOR);
+        keepAlive = BufferTools.isKeepAlive(clientRequestBuffer, endOfFirstLine);
 
 
-    public void sendToServer(ByteBuffer buffer) throws IOException, InterruptedException, ExecutionException {
-        int endOfFirstLine = BufferTools.indexOf(buffer, BufferTools.SEPARATOR);
-        int originalLimit = buffer.limit();
+        int originalLimit = clientRequestBuffer.limit();
         if (endOfFirstLine == -1 && originalLimit == 0) {
-            log.info("empty buffer - keep alive connection will be closed");
-            frontendChannel.close();
-            return;
+            log.debug("empty buffer - keep alive connection will be closed");
+            throw new Exception("Empty client request");
         }
 
         startTS = System.currentTimeMillis();
-        log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
+        // log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
         ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
-        ByteBuffer request = ByteBuffer.allocate(buffer.limit() + messageIdHeader.capacity());
 
+        // allocate a new bytebuffer with exact size to copy
+        ByteBuffer request = ByteBuffer.allocate(clientRequestBuffer.limit() + messageIdHeader.capacity());
 
-        buffer.limit(endOfFirstLine);
+        clientRequestBuffer.limit(endOfFirstLine);
         // copy from buffer to request
-        while (buffer.hasRemaining())
-            request.put(buffer);
+        while (clientRequestBuffer.hasRemaining())
+            request.put(clientRequestBuffer);
 
         while (messageIdHeader.hasRemaining())
             request.put(messageIdHeader);
 
-        buffer.limit(originalLimit);
-        while (buffer.hasRemaining())
-            request.put(buffer);
+        clientRequestBuffer.limit(originalLimit);
+        while (clientRequestBuffer.hasRemaining())
+            request.put(clientRequestBuffer);
 
-        // request is generated with id, send
         request.rewind();
+
+        ignore = !matchIgnoreList(request, endOfFirstLine);
+        if (!ignore)
+            addRequest(request, startTS);
+
+        return request;
+    }
+
+
+
+    public void sendToBackend(ByteBuffer request) throws IOException {
         // Write to backend
         int toWrite = request.limit();
         int written = 0;
-        while ((written += backendSocket.write(request)) < toWrite)
-            ;
-
-        buffer.clear();
-        boolean ignore = matchIgnoreList(request, endOfFirstLine);
-        if (!ignore)
-            addRequest(request, startTS);
-        readFromBackend();
+        boolean reconnected = false;
+        while (true) {
+            request.rewind();
+            try {
+                while ((written += backendSocket.write(request)) < toWrite)
+                    ;
+                return;
+            } catch (IOException e) {
+                if (!reconnected) {
+                    connect();
+                    reconnected = true;
+                } else
+                    throw e;
+            }
+        }
     }
 
-    public void readFromBackend() throws IOException, InterruptedException, ExecutionException {
-        int lastSizeAttemp = 0;
-        int size = -1;
-        int headerEnd = -1;
-        // Read Answer from server
-        while (backendSocket.read(buffer) > 0 || (size != -1 && buffer.position() != size)) {
-            if (buffer.remaining() == 0) {
-                resizeBuffer();
-            }
-            if (headerEnd == -1) {
-                // not found yet, try to find the header
-                headerEnd = BufferTools.indexOf(lastSizeAttemp, buffer.position(), buffer, BufferTools.NEW_LINES);
-                if (BufferTools.is304(buffer, headerEnd)) {
-                    break;
+    public ByteBuffer readFromBackend(ByteBuffer originalRequest) throws IOException {
+        boolean reconnected = false;
+        while (true) {
+            int lastSizeAttemp = 0;
+            int size = -1;
+            int headerEnd = -1;
+            boolean bufferWasResized = false;
+            ByteBuffer responseBuffer = buffers.pop();
+            // Read Answer from server
+            try {
+                while (backendSocket.read(responseBuffer) > 0 || (size != -1 && responseBuffer.position() != size)) {
+                    if (responseBuffer.remaining() == 0) {
+                        bufferWasResized = true;
+                        responseBuffer = resizeResponseBuffer(responseBuffer);
+                    }
+                    if (headerEnd == -1) {
+                        // not found yet, try to find the header
+                        headerEnd = BufferTools.indexOf(lastSizeAttemp, responseBuffer.position(), responseBuffer, BufferTools.NEW_LINES);
+                        lastSizeAttemp = responseBuffer.position() - BufferTools.CONTENT_LENGTH.capacity();
+                        if (headerEnd == -1)
+                            continue;
+                        // header received
+                        size = BufferTools.extractMessageTotalSize(0, headerEnd, responseBuffer);
+                        if (BufferTools.is304(responseBuffer, headerEnd)) {
+                            // TODO
+                        }
+                    }
+                    if (size != -1) {
+                        if (responseBuffer.position() == size) {
+                            break;
+                        }
+                    } else {
+                        if (BufferTools.lastChunk(responseBuffer)) {
+                            break;
+                        }
+                    }
                 }
-                lastSizeAttemp = buffer.position() - BufferTools.CONTENT_LENGTH.capacity();
-                if (headerEnd == -1)
-                    continue;
-                // header received
-                size = BufferTools.extractMessageTotalSize(0, headerEnd, buffer);
-            }
-            if (size != -1) {
-                if (buffer.position() == size) {
-                    break;
+                if (bufferWasResized) {
+                    buffers.voteBufferSize(responseBuffer.position());
                 }
-            } else {
-                if (BufferTools.lastChunk(buffer)) {
-                    break;
+
+                return responseBuffer;
+            } catch (IOException e) {
+                if (reconnected) {
+                    log.error("read from backend", e);
+                    // TODO send error to client
+                    throw e;
+                } else {
+                    reconnected = true;
+                    connect();
+                    sendToBackend(originalRequest);
+                    log.warn("read from backend", e);
                 }
             }
         }
-        sendToClient(startTS);
     }
 
-    public void sendToClient(long startTS) throws IOException, InterruptedException, ExecutionException {
+
+
+    public void sendToClient(ByteBuffer responseBuffer) throws Exception {
         // send anwser to client
         long endTS = System.currentTimeMillis();
-        buffer.flip(); // make buffer readable
-        int toWrite = buffer.limit();
+        responseBuffer.flip(); // make buffer readable
+        int toWrite = responseBuffer.limit();
         int written = 0;
-        // TODO may be a handler
-        while ((written += frontendChannel.write(buffer).get()) < toWrite)
+
+        while ((written += frontendChannel.write(responseBuffer).get(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)) < toWrite)
             ;
 
+        frontendChannel.write(ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 })).get();
 
         if (!ignore)
-            addResponse(buffer, startTS, endTS);
-
-        log.info("Request done");
+            addResponse(responseBuffer, startTS, endTS);
     }
-
 
 
     private ReqType getRequestType(ByteBuffer buffer) {
@@ -299,32 +355,23 @@ public class ProxyWorker extends
     }
 
 
-
-    @SuppressWarnings("unused")
-    private WritableByteChannel getDebugChannel() {
-        File temp = new File("debug.txt");
-        temp.delete();
-        temp = new File("debug.txt");
-        RandomAccessFile file;
-        try {
-            return new RandomAccessFile(temp, "rw").getChannel();
-        } catch (FileNotFoundException e) {
-            log.error("Debug channel", e);
-        }
-        return backendSocket;
+    private ByteBuffer resizeResponseBuffer(ByteBuffer buffer) {
+        ByteBuffer newBuffer = resizeBuffer(buffer);
+        return newBuffer;
     }
 
-    private ByteBuffer allocateBuffer() {
-        return ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
+    private ByteBuffer resizeRequestBuffer(ByteBuffer buffer) {
+        return resizeBuffer(buffer);
     }
 
-    private void resizeBuffer() {
-        ByteBuffer newBuffer = ByteBuffer.allocate(buffer.capacity() * 2);
+    private ByteBuffer resizeBuffer(ByteBuffer buffer) {
+        // duplicates the buffer size
+        ByteBuffer newBuffer = ByteBuffer.allocateDirect(buffer.capacity() * 2);
         buffer.flip();
         // copy old buffer
         while (buffer.hasRemaining())
             newBuffer.put(buffer);
-        buffer = newBuffer;
+        return newBuffer;
     }
 
 
@@ -376,10 +423,10 @@ public class ProxyWorker extends
     }
 
 
-    private static ArrayList<String> loadIgnoreList() {
+    private static ArrayList<Pattern> loadIgnoreList() {
         try {
             File file = new File(IGNORE_LIST_FILE);
-            ArrayList<String> listOfIgnorePatterns = new ArrayList<String>();
+            ArrayList<Pattern> listOfIgnorePatterns = new ArrayList<Pattern>();
             if (!file.exists()) {
                 return listOfIgnorePatterns;
             }
@@ -388,7 +435,7 @@ public class ProxyWorker extends
 
             String line;
             while ((line = ri.readLine()) != null) {
-                listOfIgnorePatterns.add(line);
+                listOfIgnorePatterns.add(Pattern.compile(line));
             }
             ri.close();
             return listOfIgnorePatterns;
@@ -404,25 +451,54 @@ public class ProxyWorker extends
      * @param endOfFirstLine
      * @return
      */
+
+
     private boolean matchIgnoreList(ByteBuffer header, int endOfFirstLine) {
         String url = BufferTools.printContent(header, 0, endOfFirstLine);
-        url = url.replaceAll(" HTTP\\/\\d.\\d", "");
-        for (String regex : listOfIgnorePatterns) {
-            if (url.matches(regex)) {
+        // url = url.replaceAll(" HTTP\\/\\d.\\d", "");
+        url = url.substring(0, url.length() - 9);
+        // could be improved using only file extensions and Bytes
+        for (Pattern regex : listOfIgnorePatterns) {
+            if (regex.matcher(url).matches()) {
                 return true;
             }
         }
         return false;
     }
 
-    public void handle(AsynchronousSocketChannel ch) throws IOException, InterruptedException, ExecutionException {
-        // TODO change to direct and to a pool
-        buffer = ByteBuffer.allocate(BUFFER_SIZE);
+    public boolean handle(AsynchronousSocketChannel ch, ByteBuffer buffer) {
+        frontendChannel = ch;
+        try {
+            ch.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
+            ByteBuffer request = drainFromClient(buffer);
+            sendToBackend(request);
+            ByteBuffer response = readFromBackend(request);
+            sendToClient(response);
 
-        drainAndSend(ch);
-        // Store data
-        if (--decrementToSave == 0) {
-            flushData();
+            if (!keepAlive) {
+                closeFrontEndChannel();
+                connect();
+            }
+            if (--decrementToSave == 0) {
+                flushData();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            closeFrontEndChannel();
+            log.error(e);
         }
+
+        return keepAlive;
+    }
+
+    private void closeFrontEndChannel() {
+        try {
+            frontendChannel.close();
+            log.debug("Close connection");
+        } catch (IOException e) {
+            log.error(e);
+        }
+        frontendChannel = null;
+
     }
 }
