@@ -111,7 +111,7 @@ public class Interface extends
             System.out.println(manager.graph.getExecutionList(commit));
             break;
         case 'd':
-            System.out.println(manager.graph.showDepGraph());
+            System.out.println(manager.graph);
             break;
         case 'e':
             Pair<Short, Long> pair = collectBranchAndCommit(s);

@@ -14,7 +14,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
-import pt.inesc.manager.graph.DependencyGraph;
+import pt.inesc.manager.graph.DepGraphDoubleLinked;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.NodeRegistryMsg;
 import undo.proto.ToManagerProto.StartEndEntry;
@@ -30,7 +30,7 @@ public class ServiceManager extends
     private final Logger log = Logger.getLogger(ServiceManager.class.getName());
 
     // Only for local tests
-    public ServiceManager(DependencyGraph graph) throws IOException {
+    public ServiceManager(DepGraphDoubleLinked graph) throws IOException {
         super();
         manager = new Manager();
         manager.graph = graph;

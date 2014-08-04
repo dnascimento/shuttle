@@ -1,9 +1,3 @@
-/*
- * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
- * 
- * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
- * Copyright (c) 2014 - All rights reserved
- */
 package pt.inesc.manager.graph;
 
 import java.io.Serializable;
@@ -16,20 +10,37 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
 
-public class DependencyGraph
+public class DepGraph
         implements Serializable {
-    /**
-     * 
-     */
+
     private static final long serialVersionUID = 1L;
-    private static final Long SEPARATOR = (long) -1;
+
+    /**
+     * Separator between sequence of requests
+     */
+    static final Long SEPARATOR = (long) -1;
+
+    /**
+     * Class which displays this graph
+     */
+    transient ShowGraph graphDisplayer;
+
+    /**
+     * Set of entries which can be the roots
+     */
+    HashSet<Long> rootCandidates = new HashSet<Long>();
+
+    /**
+     * Temporary storage of the start-end of each request because the end may arrive
+     * before the start
+     */
+    final HashMap<Long, Long> tmpStartEnd = new HashMap<Long, Long>();
+
     /**
      * Each dependency establish the elements which can only run after the key.
      */
-    public HashMap<Long, Dependency> graph = new HashMap<Long, Dependency>();
-    transient ShowGraph graphDisplayer;
-    HashSet<Long> rootCandidates = new HashSet<Long>();
-    private final HashMap<Long, Long> tmpStartEnd = new HashMap<Long, Long>();
+    public HashMap<Long, Dependency> graph;
+
 
 
     public void addDependencies(long key, Long... dependencies) {
@@ -72,27 +83,7 @@ public class DependencyGraph
         }
     }
 
-    /**
-     * Get roots:
-     * search for items which do not depend from other items
-     */
-    public synchronized ArrayList<Long> getRoots() {
-        ArrayList<Long> roots = new ArrayList<Long>();
-        for (Long l : graph.keySet()) {
-            Dependency d = graph.get(l);
-            if (d.countBefore == 0) {
-                roots.add(l);
-            }
-        }
-        return roots;
-    }
 
-
-    public synchronized void restoreCounters() {
-        for (Dependency d : graph.values()) {
-            d.countBeforeTmp = d.countBefore;
-        }
-    }
 
     /**
      * From a root key, extract the list of requests dependent from
@@ -100,11 +91,14 @@ public class DependencyGraph
      * @param rootKey (a key with counter = 0
      * @param baseCommit only requests after the commit are allowed
      * @return
+     * @throws Exception
      */
-    public synchronized List<Long> getExecutionList(long rootKey, long baseCommit) {
+    public synchronized List<Long> getExecutionList(long rootKey, long baseCommit) throws Exception {
         Dependency entry = graph.get(rootKey);
-        assert (entry != null); // TODO Handle exception: invalid root
-        assert (entry.countBefore == 0);
+        if (entry == null || entry.countBefore == 0) {
+            throw new Exception("Invalid root");
+        }
+
         LinkedList<DependencyArray> executionList = new LinkedList<DependencyArray>();
         Dependency rootReq = graph.get(rootKey);
         DependencyArray current = new DependencyArray(rootReq);
@@ -138,7 +132,6 @@ public class DependencyGraph
         }
         return null;
     }
-
 
     /**
      * Load every request which have been executed concurrently with entry
@@ -186,7 +179,74 @@ public class DependencyGraph
         }
     }
 
-    // ////////////////////////////////////////////////////////////////////
+
+
+
+
+
+    /**
+     * Before iterating the graph, the countBefore must be reseted.
+     */
+    public synchronized void restoreCounters() {
+        for (Dependency d : graph.values()) {
+            d.countBeforeTmp = d.countBefore;
+        }
+    }
+
+
+
+    /**
+     * Get roots:
+     * search for items which do not depend from other items
+     */
+    public synchronized ArrayList<Long> getRoots() {
+        ArrayList<Long> roots = new ArrayList<Long>();
+        for (Long l : graph.keySet()) {
+            Dependency d = graph.get(l);
+            if (d.countBefore == 0) {
+                roots.add(l);
+            }
+        }
+        return roots;
+    }
+
+    /**
+     * Iterate the graph to get the execution lists
+     * 
+     * @param baseCommit
+     * @return A list of sequences of requests which can be performed in parallel by
+     *         distinct clients. The sequences are splitted with -1 to identify the
+     *         requests which cannot be executed in parallel by the same client.
+     * @throws Exception if a root is invalid
+     */
+    public List<List<Long>> getExecutionList(long baseCommit) throws Exception {
+        restoreCounters();
+        List<List<Long>> result = new LinkedList<List<Long>>();
+        for (Long rootKey : getRoots()) {
+            List<Long> execArray = getExecutionList(rootKey, baseCommit);
+            if (execArray != null)
+                result.add(execArray);
+        }
+        return result;
+    }
+
+
+    /**
+     * Retrieves one array with start|end|start|end...
+     * 
+     * @param array with start|end|start|end...
+     */
+    public synchronized void updateStartEnd(long start, long end) {
+
+        Dependency dep = graph.get(start);
+        if (dep == null) {
+            tmpStartEnd.put(start, end);
+        } else {
+            dep.start = start;
+            dep.end = end;
+        }
+    }
+
     /**
      * Search cycle using DSF algorithm (LIFO)
      * 
@@ -227,6 +287,8 @@ public class DependencyGraph
     }
 
 
+
+
     public Dependency getEntry(long key) {
         Dependency entry = graph.get(key);
         if (entry == null) {
@@ -236,10 +298,7 @@ public class DependencyGraph
         return entry;
     }
 
-    public void display() {
-        graphDisplayer = new ShowGraph(this.graph);
-        graphDisplayer.start();
-    }
+
 
 
     public synchronized void reset() {
@@ -249,23 +308,17 @@ public class DependencyGraph
             graphDisplayer.reset();
     }
 
-    /**
-     * Retrieves one array with start|end|start|end...
-     * 
-     * @param array with start|end|start|end...
-     */
-    public synchronized void updateStartEnd(long start, long end) {
 
-        Dependency dep = graph.get(start);
-        if (dep == null) {
-            tmpStartEnd.put(start, end);
-        } else {
-            dep.start = start;
-            dep.end = end;
-        }
+
+    public void display() {
+        graphDisplayer = new ShowGraph(this.graph);
+        graphDisplayer.start();
     }
 
-    public String showDepGraph() {
+
+
+    @Override
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("Key:start:end;before; dependencies");
         for (Entry<Long, Dependency> e : graph.entrySet()) {
@@ -283,14 +336,6 @@ public class DependencyGraph
         return sb.toString();
     }
 
-    public List<List<Long>> getExecutionList(long baseCommit) {
-        restoreCounters();
-        List<List<Long>> result = new LinkedList<List<Long>>();
-        for (Long rootKey : getRoots()) {
-            List<Long> execArray = getExecutionList(rootKey, baseCommit);
-            if (execArray != null)
-                result.add(execArray);
-        }
-        return result;
-    }
+
+
 }

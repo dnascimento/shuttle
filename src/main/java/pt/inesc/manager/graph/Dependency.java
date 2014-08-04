@@ -8,12 +8,11 @@ package pt.inesc.manager.graph;
 
 import java.io.Serializable;
 import java.util.HashSet;
+import java.util.List;
 
 public class Dependency
         implements Comparable<Dependency>, Serializable {
-    /**
-     * 
-     */
+
     private static final long serialVersionUID = 1L;
 
     /** request start timestamp. It is also the ID */
@@ -27,6 +26,10 @@ public class Dependency
 
     /** How many requests must execute before this */
     int countBefore;
+
+    /** IDs which this entry depends from */
+    private final HashSet<Long> before = new HashSet<Long>();
+
 
     /** IDs dependent from entry */
     private final HashSet<Long> after = new HashSet<Long>();
@@ -56,12 +59,10 @@ public class Dependency
         return after.contains(dep);
     }
 
+
+
+
     @Override
-    public String toString() {
-        return start + " : " + end;
-    }
-
-
     public int compareTo(Dependency o) {
         return (int) (this.start - o.start);
     }
@@ -70,5 +71,17 @@ public class Dependency
         return start;
     }
 
+    public boolean addPrevious(List<Long> dependencies) {
+        return before.addAll(dependencies);
 
+    }
+
+    public HashSet<Long> getBefore() {
+        return before;
+    }
+
+    @Override
+    public String toString() {
+        return start + " : " + end;
+    }
 }

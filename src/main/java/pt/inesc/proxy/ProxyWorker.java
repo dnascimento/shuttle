@@ -419,7 +419,9 @@ public class ProxyWorker extends
         header.put("0000000000000".getBytes());
         header.put("\nB: ".getBytes());
         header.put(Proxy.branch); // 5bytes
+        // not restraint
         header.put("\nR: f".getBytes());
+        // not redo
         header.put("\nRedo: f".getBytes());
         return header;
     }

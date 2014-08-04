@@ -26,7 +26,8 @@ import pt.inesc.manager.branchTree.BranchNode;
 import pt.inesc.manager.branchTree.BranchTree;
 import pt.inesc.manager.communication.GroupCom;
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
-import pt.inesc.manager.graph.DependencyGraph;
+import pt.inesc.manager.graph.DepGraph;
+import pt.inesc.manager.graph.DepGraphDoubleLinked;
 import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.NotifyEvent;
 import undo.proto.FromManagerProto;
@@ -42,7 +43,7 @@ public class Manager {
 
     public Object ackWaiter = new Object();
     private static final String GRAPH_FILE = "graph.obj";
-    DependencyGraph graph;
+    DepGraph graph;
     private static ServiceManager service;
     public BranchTree branches = new BranchTree();
 
@@ -54,7 +55,7 @@ public class Manager {
     }
 
     public Manager() throws IOException {
-        graph = new DependencyGraph();
+        graph = new DepGraph();
         service = new ServiceManager(this);
         service.start();
     }
@@ -119,7 +120,6 @@ public class Manager {
     }
 
     public void deleteBranch(Short branch) {
-        // TODO Auto-generated method stub
         throw new NotImplementedException("delete branch");
     }
 
@@ -157,7 +157,7 @@ public class Manager {
     public void loadGraph() throws IOException, ClassNotFoundException {
         FileInputStream fin = new FileInputStream(GRAPH_FILE);
         ObjectInputStream ois = new ObjectInputStream(fin);
-        graph = (DependencyGraph) ois.readObject();
+        graph = (DepGraphDoubleLinked) ois.readObject();
         ois.close();
 
     }

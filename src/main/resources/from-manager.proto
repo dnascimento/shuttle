@@ -12,7 +12,15 @@ message ToDataNode{
 	optional bool redoOver = 3;
 	repeated int32 pathBranch = 4;
 	repeated int64 pathCommit = 5;
+	optional EntryAccessesMsg entryAccessesMsg = 6;
+
+	message EntryAccessesMsg{
+		repeated bytes keys = 1;
+		required int64 baseRid = 2;
+	}
+
 }
+
 
 //To redo node
 message ExecList{

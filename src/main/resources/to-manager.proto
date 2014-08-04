@@ -10,7 +10,15 @@ message MsgToManager{
 	optional TrackMsg trackMsgFromClient = 3;
 	optional NodeRegistryMsg nodeRegistry = 4;
 	optional AckMsg ack = 5;
+	repeated EntryAccessList entryAccessList = 6;
 }
+
+
+message EntryAccessList{
+	required bytes key = 1;
+	repeated int64 rid = 2;
+}
+
 
 //From data-nodes and client nodes
 message TrackMsg{

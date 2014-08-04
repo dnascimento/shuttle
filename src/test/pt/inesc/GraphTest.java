@@ -14,16 +14,16 @@ import java.util.List;
 
 import org.junit.Test;
 
-import pt.inesc.manager.graph.DependencyGraph;
+import pt.inesc.manager.graph.DepGraphDoubleLinked;
 
 
 public class GraphTest {
-    DependencyGraph graph;
+    DepGraphDoubleLinked graph;
     long[] rootArray;
 
     /** Graphs strategies */
     public void abcdIndependentCycle() {
-        graph = new DependencyGraph();
+        graph = new DepGraphDoubleLinked();
         // List with 4 nodes: A:0-1; B:1-2; C:2-3; com A->B->C->D D->B
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5, 4, 7 };
         int i = 0;
@@ -39,7 +39,7 @@ public class GraphTest {
 
 
     public void abcIndependentLine() {
-        graph = new DependencyGraph();
+        graph = new DepGraphDoubleLinked();
         // List with 3 nodes: A:0-1; B:1-2; C:2-3; com A->B->C
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5 };
         int i = 0;
@@ -52,7 +52,7 @@ public class GraphTest {
     }
 
     public void parallelLines() {
-        graph = new DependencyGraph();
+        graph = new DepGraphDoubleLinked();
         // 2x List with 3 nodes: A:0-1; B:1-2; C:2-3; com A->B->C
         long[] startEndArray = new long[] { 1, 4, 3, 6, 5, 7, 2, 5, 4, 7, 6, 8 };
         int i = 0;
@@ -75,8 +75,8 @@ public class GraphTest {
     }
 
     @Test
-    public void startBeforeEnd() {
-        graph = new DependencyGraph();
+    public void startBeforeEnd() throws Exception {
+        graph = new DepGraphDoubleLinked();
         graph.addDependencies(1L);
         graph.addDependencies(3L, 1L);
         graph.addDependencies(7L, 1L);

@@ -12,17 +12,17 @@ import java.io.IOException;
 import org.junit.Test;
 
 import pt.inesc.manager.ServiceManager;
-import pt.inesc.manager.graph.DependencyGraph;
+import pt.inesc.manager.graph.DepGraphDoubleLinked;
 import undo.proto.ToManagerProto.TrackEntry;
 import undo.proto.ToManagerProto.TrackMsg;
 
 public class ServiceToDatabaseTest {
     ServiceManager service;
-    DependencyGraph graph;
+    DepGraphDoubleLinked graph;
 
     @org.junit.Before
     public void init() throws IOException {
-        graph = new DependencyGraph();
+        graph = new DepGraphDoubleLinked();
         service = new ServiceManager(graph);
     }
 

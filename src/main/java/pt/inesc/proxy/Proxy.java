@@ -112,7 +112,6 @@ public class Proxy {
             public void completed(AsynchronousSocketChannel ch, LinkedBlockingDeque<ProxyWorker> workersList) {
                 // accept the next connection
                 listener.accept(workersList, this);
-                log.error("New accept");
 
                 ByteBuffer buffer = buffers.pop();
                 ch.read(buffer, ch, new ReadHandler(buffer, workersList));

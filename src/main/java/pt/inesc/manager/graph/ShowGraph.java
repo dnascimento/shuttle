@@ -134,11 +134,13 @@ public class ShowGraph extends
 
         // Color and labels
         Transformer<String, Paint> vertexPaint = new Transformer<String, Paint>() {
+            @Override
             public Paint transform(String i) {
                 return Color.decode("#4586F5");
             }
         };
         Transformer<String, Shape> vertexSize = new Transformer<String, Shape>() {
+            @Override
             public Shape transform(String i) {
                 Ellipse2D circle = new Ellipse2D.Double(-15, -15, 70, 30);
                 return circle;
@@ -157,5 +159,15 @@ public class ShowGraph extends
         frame.setVisible(true);
     }
 
+    class TruncatedStringLabeller
+            implements Transformer<String, String> {
+        private static final int SIZE = 10;
 
+        @Override
+        public String transform(String label) {
+            int l = label.length();
+            int start = Math.max(l - SIZE, 0);
+            return label.substring(start, l);
+        }
+    }
 }
