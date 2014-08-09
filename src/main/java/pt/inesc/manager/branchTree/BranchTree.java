@@ -5,8 +5,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 
 public class BranchTree {
-    public final static long INIT_COMMIT = 0L;
-    public final static short INIT_BRANCH = 0;
+    public static final long INIT_COMMIT = 0L;
+    public static final short INIT_BRANCH = 0;
     public short currentBranch = INIT_BRANCH;
 
 

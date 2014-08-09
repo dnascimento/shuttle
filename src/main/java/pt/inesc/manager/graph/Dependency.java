@@ -7,8 +7,8 @@
 package pt.inesc.manager.graph;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 
 public class Dependency
         implements Comparable<Dependency>, Serializable {
@@ -27,10 +27,6 @@ public class Dependency
     /** How many requests must execute before this */
     int countBefore;
 
-    /** IDs which this entry depends from */
-    private final HashSet<Long> before = new HashSet<Long>();
-
-
     /** IDs dependent from entry */
     private final HashSet<Long> after = new HashSet<Long>();
 
@@ -38,11 +34,21 @@ public class Dependency
         start = key;
     }
 
+    public Dependency(long key, Long... dependencies) {
+        start = key;
+        after.addAll(Arrays.asList(dependencies));
+    }
+
+
     public Boolean hasAfter() {
         return !after.isEmpty();
     }
 
-    public Long[] getArrayAfter() {
+    public int getCountBefore() {
+        return countBefore;
+    }
+
+    public Long[] copyArrayAfter() {
         return after.toArray(new Long[0]);
     }
 
@@ -61,6 +67,35 @@ public class Dependency
 
 
 
+    /*
+     * (non-Javadoc)
+     * 
+     * @see java.lang.Object#equals(java.lang.Object)
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        Dependency other = (Dependency) obj;
+        if (after == null) {
+            if (other.after != null)
+                return false;
+        } else if (!after.equals(other.after))
+            return false;
+        if (countBefore != other.countBefore)
+            return false;
+        if (countBeforeTmp != other.countBeforeTmp)
+            return false;
+        if (end != other.end)
+            return false;
+        if (start != other.start)
+            return false;
+        return true;
+    }
 
     @Override
     public int compareTo(Dependency o) {
@@ -69,15 +104,6 @@ public class Dependency
 
     public Long getKey() {
         return start;
-    }
-
-    public boolean addPrevious(List<Long> dependencies) {
-        return before.addAll(dependencies);
-
-    }
-
-    public HashSet<Long> getBefore() {
-        return before;
     }
 
     @Override

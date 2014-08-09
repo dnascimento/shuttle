@@ -43,8 +43,8 @@ public class RedoNode extends
         Thread {
     public static final int MY_PORT = 11500;
     public static final InetSocketAddress TARGET_LOAD_BALANCER_ADDR = new InetSocketAddress("localhost", 8080);
-    private final static Logger log = LogManager.getLogger(RedoNode.class.getName());
-    private final static int N_WORKERS = 1;
+    private static final Logger log = LogManager.getLogger(RedoNode.class.getName());
+    private static final int N_WORKERS = 1;
     protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
     private List<String> errors = new LinkedList<String>();
     private ArrayList<RedoWorker> workers = new ArrayList<RedoWorker>();

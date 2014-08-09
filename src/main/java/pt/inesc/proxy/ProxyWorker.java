@@ -45,12 +45,12 @@ public class ProxyWorker extends
         Thread {
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
-    private final int FLUSH_PERIODICITY = 10000;
+    // TODO testing mode, change to bigger value
+    private final int FLUSH_PERIODICITY = 1;
 
     private static final int N_BUFFERS = 500;
 
     /** time between attempt to flush to disk ms */
-    private int decrementToSave = FLUSH_PERIODICITY;
     private final InetSocketAddress backendAddress;
     private SocketChannel backendSocket = null;
     private AsynchronousSocketChannel frontendChannel = null;
@@ -155,13 +155,15 @@ public class ProxyWorker extends
                 if (size == -1 && BufferTools.headerIsComplete(clientRequestBuffer)) {
                     break;
                 }
-            } while ((frontendChannel.read(clientRequestBuffer).get(READ_TIMEOUT, TimeUnit.MILLISECONDS) > 0)
-                    || ((reqType == ReqType.PUT || reqType == ReqType.POST) && (clientRequestBuffer.position() != size)));
 
+                if ((reqType == ReqType.PUT || reqType == ReqType.POST) && (clientRequestBuffer.position() == size)) {
+                    break;
+                }
+            } while ((frontendChannel.read(clientRequestBuffer).get(READ_TIMEOUT, TimeUnit.MILLISECONDS) > 0));
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             log.debug("Drain Client Exception", e);
             if (clientRequestBuffer.position() != 0) {
-                log.error("Client sent some data");
+                log.error("Client sent some data", e);
             }
             throw e;
         }
@@ -199,14 +201,12 @@ public class ProxyWorker extends
         request.flip();
         request.rewind();
 
-        ignore = !matchIgnoreList(request, endOfFirstLine);
+        ignore = matchIgnoreList(request, endOfFirstLine);
         if (!ignore)
             addRequest(request, startTS);
 
         return request;
     }
-
-
 
     public void sendToBackend(ByteBuffer request) throws IOException {
         // Write to backend
@@ -329,11 +329,11 @@ public class ProxyWorker extends
      * Flush the data to server before continue
      */
     private void flushData() {
+        log.debug("Flushing the requests to cassandra");
         RequestResponseListPair pair = new RequestResponseListPair(requests, responses);
         requests = new LinkedList<Request>();
         responses = new LinkedList<Response>();
         saver.save(pair);
-        decrementToSave = FLUSH_PERIODICITY;
     }
 
 
@@ -483,7 +483,7 @@ public class ProxyWorker extends
                 closeFrontEndChannel();
                 connect();
             }
-            if (--decrementToSave == 0) {
+            if (requests.size() >= FLUSH_PERIODICITY) {
                 flushData();
             }
         } catch (Exception e) {

@@ -89,7 +89,7 @@ public class Proxy {
 
     public static void main(String[] args) throws IOException, InterruptedException, ExecutionException {
         DOMConfigurator.configure("log4j.xml");
-        log.setLevel(Level.INFO);
+        log.setLevel(Level.DEBUG);
         if (args.length > 0) {
             if (args.length < 3) {
                 log.error("usage: <frontend-port> <backend-port> <backend-address>");
@@ -99,8 +99,6 @@ public class Proxy {
             BACKEND_PORT = Integer.parseInt(args[1]);
             BACKEND_HOST = args[2];
         }
-
-
         new Proxy(FRONTEND_PORT, BACKEND_HOST, BACKEND_PORT).run();
     }
 

@@ -27,7 +27,8 @@ import pt.inesc.manager.branchTree.BranchTree;
 import pt.inesc.manager.communication.GroupCom;
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import pt.inesc.manager.graph.DepGraph;
-import pt.inesc.manager.graph.DepGraphDoubleLinked;
+import pt.inesc.manager.graph.SelectiveDepGraph;
+import pt.inesc.manager.graph.SimpleDepGraph;
 import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.NotifyEvent;
 import undo.proto.FromManagerProto;
@@ -55,21 +56,16 @@ public class Manager {
     }
 
     public Manager() throws IOException {
-        graph = new DepGraph();
+        graph = new SimpleDepGraph();
         service = new ServiceManager(this);
         service.start();
     }
 
 
     /* ------------------- Operations ----------------- */
-    public void redo(long parentCommit, short parentBranch) throws Exception {
+    public void replay(long parentCommit, short parentBranch, List<Long> attackSource) throws Exception {
         // get requests to send
-        List<Long> roots = graph.getRoots();
-        if (roots.size() == 0) {
-            log.error("No roots available");
-            return;
-        }
-        log.info("Redo based on branch: " + parentBranch + " and commit: " + parentCommit);
+        log.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
 
         short newBranch = branches.fork(parentCommit, parentBranch);
         LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
@@ -78,38 +74,38 @@ public class Manager {
         // enable restrain in the proxy
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
 
-
-        redoRequests(parentCommit, newBranch, roots);
-
-
-        // disable retrain and change to new branch
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
-        log.warn("Set new branch: " + newBranch);
-        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
-        log.info("Redo is over");
-    }
-
-    private void redoRequests(long parentCommit, short redoBranch, List<Long> roots) throws Exception {
-        log.info(roots);
-        graph.restoreCounters();
-        for (Long root : roots) {
-            List<Long> list = graph.getExecutionList(root, parentCommit);
-            if (list == null)
-                continue;
-            try {
-                ExecList msg = FromManagerProto.ExecList.newBuilder().addAllRid(list).setBranch(redoBranch).setStart(false).build();
-                group.broadcast(msg, NodeGroup.REDO, false);
-            } catch (IOException e) {
-                log.error(e);
-            }
+        // get the requests to exec
+        List<List<Long>> execLists;
+        if (attackSource == null) {
+            execLists = graph.replayAllList(parentCommit);
+        } else {
+            execLists = graph.selectiveReplayList(parentCommit, attackSource);
         }
-        ExecList startMsg = FromManagerProto.ExecList.newBuilder().setBranch(redoBranch).setStart(true).build();
+
+        // inform the slaves which requests will be replayed
+        for (List<Long> execList : execLists) {
+            if (execList == null)
+                continue;
+            ExecList msg = FromManagerProto.ExecList.newBuilder().addAllRid(execList).setBranch(parentBranch).setStart(false).build();
+            group.broadcast(msg, NodeGroup.REDO, false);
+        }
+
+        // order to replay the requests
+        ExecList startMsg = FromManagerProto.ExecList.newBuilder().setBranch(parentBranch).setStart(true).build();
         group.broadcast(startMsg, NodeGroup.REDO, false);
         // wait for ack
         synchronized (ackWaiter) {
             ackWaiter.wait();
         }
+
+        // disable retrain and change to new branch
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
+        log.warn("Set new branch: " + newBranch);
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
+        log.info("Replay is over");
     }
+
+
 
     public void newCommit(long commit) throws Exception {
         branches.addCommit(commit);
@@ -140,6 +136,10 @@ public class Manager {
         log.info("Branch is created");
     }
 
+    /* --------- Get requests per database entry ----- */
+    public void getRequestsPerDatabaseEntry(String store, String key) {
+        // TODO contact the stub, get the request list
+    }
 
     /* -------------------- Graph -------------------- */
     public void showGraph() {
@@ -157,7 +157,7 @@ public class Manager {
     public void loadGraph() throws IOException, ClassNotFoundException {
         FileInputStream fin = new FileInputStream(GRAPH_FILE);
         ObjectInputStream ois = new ObjectInputStream(fin);
-        graph = (DepGraphDoubleLinked) ois.readObject();
+        graph = (SelectiveDepGraph) ois.readObject();
         ois.close();
 
     }

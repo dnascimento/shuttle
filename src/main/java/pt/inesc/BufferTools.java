@@ -13,15 +13,20 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 public class BufferTools {
-    private static Logger logger = LogManager.getLogger(BufferTools.class.getName());
-    private final static Charset UTF8_CHARSET = Charset.forName("UTF-8");
-    private final static ByteBuffer LAST_CHUNK = ByteBuffer.wrap(new byte[] { 48, 13, 10, 13, 10 });
-    public final static ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
-    public final static ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
-    public final static ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
-    private final static byte[] STATUS_304 = "304".getBytes();
-    private final static ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
-    private final static ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
+    private static final Logger logger = LogManager.getLogger(BufferTools.class.getName());
+    private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+    private static final ByteBuffer LAST_CHUNK = ByteBuffer.wrap(new byte[] { 48, 13, 10, 13, 10 });
+    public static final ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
+    public static final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
+    public static final ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
+    private static final byte[] STATUS_304 = "304".getBytes();
+    private static final ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
+    private static final ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
+
+
+    private BufferTools() {
+        // hide the public constructor of the utility class
+    }
 
     /**
      * Returns the index within this buffer of the first occurrence of the specified
@@ -37,14 +42,12 @@ public class BufferTools {
         int patternLen = pattern.limit();
         int lastIndex = end - patternLen + 1;
         Label: for (int i = startPosition; i < lastIndex; i++) {
-            if (buffer.get(i) == pattern.get(0)) {
-                for (int j = 1; j < patternLen; j++) {
-                    if (buffer.get(i + j) != pattern.get(j)) {
-                        continue Label;
-                    }
+            for (int j = 0; j < patternLen; j++) {
+                if (buffer.get(i + j) != pattern.get(j)) {
+                    continue Label;
                 }
-                return i;
             }
+            return i;
         }
         return -1;
     }
@@ -84,7 +87,8 @@ public class BufferTools {
         }
         int contentLenght = Integer.parseInt(decodeUTF8(lenght));
         contentLenght += indexOf(buffer, NEW_LINES);
-        contentLenght += 4; // 4 newlines bytes
+        // 4 newlines bytes
+        contentLenght += 4;
         return contentLenght;
     }
 
@@ -99,7 +103,7 @@ public class BufferTools {
 
     public static void printAll(ByteBuffer buffer) {
         int end = buffer.limit();
-        System.out.println(printContent(buffer, 0, end));
+        logger.info(printContent(buffer, 0, end));
     }
 
     public static String printContent(ByteBuffer buffer) {
@@ -112,7 +116,7 @@ public class BufferTools {
         int position = buffer.position();
 
         for (int i = position; i < buffer.limit(); i++) {
-            System.out.print(Integer.toHexString(buffer.get(i)));
+            logger.info(Integer.toHexString(buffer.get(i)));
         }
         logger.info("Limit: " + buffer.limit());
         logger.info("Position" + buffer.position());
@@ -125,8 +129,9 @@ public class BufferTools {
         int pos = buffer.position() - 1;
         int end = LAST_CHUNK.capacity() - 1;
         for (int i = 0; i <= end; i++) {
-            if (buffer.get(pos - i) != LAST_CHUNK.get(end - i))
+            if (buffer.get(pos - i) != LAST_CHUNK.get(end - i)) {
                 return false;
+            }
         }
         return true;
     }
@@ -154,7 +159,7 @@ public class BufferTools {
      * @return
      */
     public static boolean is304(ByteBuffer buffer, int headerEnd) {
-        return (buffer.get(9) == STATUS_304[0] && buffer.get(10) == STATUS_304[1] && buffer.get(11) == STATUS_304[2]);
+        return buffer.get(9) == STATUS_304[0] && buffer.get(10) == STATUS_304[1] && buffer.get(11) == STATUS_304[2];
     }
 
     public static boolean isKeepAlive(ByteBuffer buffer, int endOfFirstLine) {
@@ -164,7 +169,7 @@ public class BufferTools {
         }
         int letter = buffer.get(index + CONNECTION.capacity() + 1);
         // if 2nd char is a "e": Keep-Alive
-        return (letter == 101 || letter == 69);
+        return letter == 101 || letter == 69;
     }
 
     private static boolean isHTTP1(ByteBuffer buffer, int endOfFirstLine) {
@@ -174,9 +179,10 @@ public class BufferTools {
 
     @SuppressWarnings("resource")
     public static WritableByteChannel getDebugChannel() throws FileNotFoundException {
-        File temp = new File("debug.txt");
+        String filename = "debug.txt";
+        File temp = new File(filename);
         temp.delete();
-        temp = new File("debug.txt");
+        temp = new File(filename);
         return new RandomAccessFile(temp, "rw").getChannel();
     }
 }

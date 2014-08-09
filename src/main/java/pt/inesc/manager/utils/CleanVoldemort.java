@@ -14,7 +14,7 @@ import voldemort.client.protocol.admin.AdminClientConfig;
 import voldemort.cluster.Node;
 
 public class CleanVoldemort {
-    private final static Logger log = LogManager.getLogger(Manager.class.getName());
+    private static final Logger log = LogManager.getLogger(Manager.class.getName());
 
     static int VOLDEMORT_PORT = 6666;
 

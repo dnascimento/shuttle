@@ -14,7 +14,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
-import pt.inesc.manager.graph.DepGraphDoubleLinked;
+import pt.inesc.manager.graph.SelectiveDepGraph;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.NodeRegistryMsg;
 import undo.proto.ToManagerProto.StartEndEntry;
@@ -30,7 +30,7 @@ public class ServiceManager extends
     private final Logger log = Logger.getLogger(ServiceManager.class.getName());
 
     // Only for local tests
-    public ServiceManager(DepGraphDoubleLinked graph) throws IOException {
+    public ServiceManager(SelectiveDepGraph graph) throws IOException {
         super();
         manager = new Manager();
         manager.graph = graph;
@@ -119,11 +119,11 @@ public class ServiceManager extends
     }
 
     public void newList(List<TrackEntry> list) {
-        log.info(depListToString(list));
+        log.debug(depListToString(list));
         for (TrackEntry entry : list) {
             manager.addDependencies(entry.getRid(), entry.getDependencyList());
         }
-        log.info("dep list is processed");
+        log.debug("dep list is processed");
     }
 
 

@@ -82,7 +82,7 @@ public class ShowGraph extends
     }
 
     /**
-     * Key executes after dependencies. Each dependencie -> key
+     * Key executes after dependencies. Each dependency -> key
      * 
      * @param key
      * @param dependencies

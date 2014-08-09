@@ -85,7 +85,6 @@ public class Interface extends
     private void advanced(Scanner s) throws Exception {
         System.out.println("a) Timetravel proxy");
         System.out.println("b) Show graph roots");
-        System.out.println("c) Show execution list");
         System.out.println("d) Show dependency map");
         System.out.println("e) Create new branch");
         System.out.println("f) Change to branch");
@@ -104,11 +103,6 @@ public class Interface extends
             break;
         case 'b':
             System.out.println(manager.graph.getRoots());
-            break;
-        case 'c':
-            System.out.println("Enter base commit: (0 is the base)");
-            long commit = s.nextLong();
-            System.out.println(manager.graph.getExecutionList(commit));
             break;
         case 'd':
             System.out.println(manager.graph);
@@ -227,7 +221,7 @@ public class Interface extends
         Pair<Short, Long> pair = collectBranchAndCommit(s);
         if (pair == null)
             return;
-        manager.redo(pair.v2, pair.v1);
+        manager.replay(pair.v2, pair.v1, null);
     }
 
     private Pair<Short, Long> collectBranchAndCommit(Scanner s) throws Exception {
@@ -294,8 +288,8 @@ public class Interface extends
     }
 
     class Pair<T1, T2> {
-        public T1 v1;
-        public T2 v2;
+        T1 v1;
+        T2 v2;
 
         public Pair(T1 v1, T2 v2) {
             super();
