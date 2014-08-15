@@ -129,8 +129,8 @@ public class RedoNode extends
         threadPool = Executors.newFixedThreadPool(N_WORKERS);
     }
 
-    public void newRequest(List<Long> execList, short branch) throws Exception {
-        workers.add(new RedoWorker(execList, TARGET_LOAD_BALANCER_ADDR, branch));
+    public void newRequest(List<Long> execList, short branch, boolean selective) throws Exception {
+        workers.add(new RedoWorker(execList, TARGET_LOAD_BALANCER_ADDR, branch, selective));
     }
 
     private void newConnection(Socket socket) throws Exception {
@@ -138,7 +138,7 @@ public class RedoNode extends
         FromManagerProto.ExecList list = ExecList.parseDelimitedFrom(stream);
         List<Long> execList = list.getRidList();
         if (execList.size() != 0) {
-            newRequest(execList, (short) list.getBranch());
+            newRequest(execList, (short) list.getBranch(), list.getSelective());
         }
         if (list.getStart()) {
             startOrder();

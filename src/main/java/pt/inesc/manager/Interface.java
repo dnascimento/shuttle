@@ -8,6 +8,7 @@ package pt.inesc.manager;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Scanner;
 
@@ -34,7 +35,7 @@ public class Interface extends
             try {
                 System.out.println("-------------------------------");
                 System.out.println("a) New Commit");
-                System.out.println("b) Redo");
+                System.out.println("b) Replay");
                 System.out.println("c) Clean");
                 System.out.println("d) Branches");
                 System.out.println("e) Graph");
@@ -50,7 +51,7 @@ public class Interface extends
                     commit(s);
                     break;
                 case 'b':
-                    redo(s);
+                    replay(s);
                     break;
                 case 'c':
                     clean(s);
@@ -217,11 +218,17 @@ public class Interface extends
         }
     }
 
-    private void redo(Scanner s) throws Exception {
+    private void replay(Scanner s) throws Exception {
         Pair<Short, Long> pair = collectBranchAndCommit(s);
         if (pair == null)
             return;
-        manager.replay(pair.v2, pair.v1, null);
+        System.out.println("Enter the intrusion source requests to perform selective replay or empty to perform rewind and replay: ");
+        String[] entries = s.nextLine().split(" ");
+        ArrayList<Long> list = new ArrayList<Long>(entries.length);
+        for (int i = 0; i < entries.length; i++) {
+            list.set(i, new Long(entries[i]));
+        }
+        manager.replay(pair.v2, pair.v1, list);
     }
 
     private Pair<Short, Long> collectBranchAndCommit(Scanner s) throws Exception {

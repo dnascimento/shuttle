@@ -27,6 +27,7 @@ message ExecList{
 	repeated int64 rid = 1;
 	required int32 branch = 2;
 	required bool start = 3;
+	required bool selective = 4;
 }
 
 

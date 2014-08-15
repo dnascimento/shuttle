@@ -47,14 +47,16 @@ public class RedoWorker extends
     private long totalRequests = 0;
     private final VoldemortUnlocker unlocker;
 
-    public RedoWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
+    private final boolean selectiveReplay;
+
+    public RedoWorker(List<Long> execList, InetSocketAddress remoteHost, short branch, boolean selectiveReplay) throws Exception {
         super();
         this.executionArray = execList;
         logger.info("New Worker");
         cassandra = new CassandraClient();
         this.branchBytes = shortToByteArray(branch);
         this.branch = branch;
-
+        this.selectiveReplay = selectiveReplay;
         // create a variable group of threads to handle each channel
         pool = new RedoChannelPool(remoteHost, cassandra);
         unlocker = new VoldemortUnlocker();

@@ -63,6 +63,16 @@ public class Manager {
 
 
     /* ------------------- Operations ----------------- */
+    /**
+     * Perform request replay. If attackSource is null or isEmpty, then replay every
+     * request.
+     * Otherwise, perform selective replay
+     * 
+     * @param parentCommit
+     * @param parentBranch
+     * @param attackSource
+     * @throws Exception
+     */
     public void replay(long parentCommit, short parentBranch, List<Long> attackSource) throws Exception {
         // get requests to send
         log.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
@@ -74,9 +84,14 @@ public class Manager {
         // enable restrain in the proxy
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
 
+        boolean selectiveReplay = false;
+        if (attackSource == null || attackSource.isEmpty()) {
+            selectiveReplay = true;
+        }
+
         // get the requests to exec
         List<List<Long>> execLists;
-        if (attackSource == null) {
+        if (selectiveReplay) {
             execLists = graph.replayAllList(parentCommit);
         } else {
             execLists = graph.selectiveReplayList(parentCommit, attackSource);
@@ -86,7 +101,12 @@ public class Manager {
         for (List<Long> execList : execLists) {
             if (execList == null)
                 continue;
-            ExecList msg = FromManagerProto.ExecList.newBuilder().addAllRid(execList).setBranch(parentBranch).setStart(false).build();
+            ExecList msg = FromManagerProto.ExecList.newBuilder()
+                                                    .addAllRid(execList)
+                                                    .setBranch(parentBranch)
+                                                    .setStart(false)
+                                                    .setSelective(selectiveReplay)
+                                                    .build();
             group.broadcast(msg, NodeGroup.REDO, false);
         }
 
@@ -104,7 +124,6 @@ public class Manager {
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
         log.info("Replay is over");
     }
-
 
 
     public void newCommit(long commit) throws Exception {
