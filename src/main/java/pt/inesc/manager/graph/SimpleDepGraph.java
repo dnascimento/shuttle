@@ -23,6 +23,12 @@ public class SimpleDepGraph extends
         throw new Exception("Not supported");
     }
 
+    @Override
+    public void removeNode(Long from, Long to) {
+        Dependency nextNode = getNode(to);
+        nextNode.countBefore--;
+    }
+
 
 
 }

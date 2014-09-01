@@ -35,10 +35,10 @@ public class RedoTest {
                                                1401017951353L));
         requestsToExecute.add(-1L);
         RedoNode redo = new RedoNode();
-        redo.newRequest(requestsToExecute, (short) 1);
+        redo.newRequest(requestsToExecute, (short) 1, false);
         redo.startOrder();
         System.in.read();
-        redo.newRequest(requestsToExecute, (short) 2);
+        redo.newRequest(requestsToExecute, (short) 2, false);
         redo.startOrder();
     }
 

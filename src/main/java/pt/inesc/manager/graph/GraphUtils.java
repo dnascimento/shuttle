@@ -131,42 +131,37 @@ public class GraphUtils {
 
 
     /**
-     * Search cycle using DSF algorithm (LIFO)
+     * Search cycle using DFS algorithm (LIFO)
      * 
      * @param root
      * @param possibleCicles
      */
-    public static void searchCycle(Long root, Long[] possibleCiclesNexts, DepGraph graph) {
-        Dependency rootEntry = graph.getNode(root);
-        Iterator<Long> it = rootEntry.getAfter().iterator();
+    public static void searchCycle(Long root, DepGraph graph) {
+        Dependency rootNode = graph.getNode(root);
+        searchCycleAux(rootNode, rootNode, graph);
+    }
+
+    /**
+     * Given a rootNode and one of the children of the tree, do DFS to find the root node.
+     * The algorithm stops if the child ends after the rootStart. In that case,
+     * A node never depends from a node that started after the request ends.
+     * 
+     * @param nextNode
+     * @param rootStart
+     * @param graph
+     * @return
+     */
+    private static void searchCycleAux(Dependency node, Dependency rootNode, DepGraph graph) {
+        Iterator<Long> it = node.getAfter().iterator();
         while (it.hasNext()) {
-            Long next = it.next();
-            Dependency nextNode = graph.getNode(next);
-            if (searchCycleAux(nextNode, root, graph)) {
+            Dependency child = graph.getNode(it.next());
+            if (child.getKey() == rootNode.getKey()) {
+                // if(node.start > root){
+                graph.removeNode(node.getKey(), rootNode.getKey());
                 it.remove();
-                nextNode.countBefore--;
+            } else {
+                searchCycleAux(child, rootNode, graph);
             }
         }
     }
-
-    private static Boolean searchCycleAux(Dependency nextNode, Long rootStart, DepGraph graph) {
-        for (long next : nextNode.getAfter()) {
-            if (next == rootStart) {
-                // found cycle
-                if (nextNode.start > rootStart) {
-                    nextNode.getAfter().remove(rootStart);
-                    graph.getNode(rootStart).countBefore--;
-                    return false;
-                } else {
-                    return true;
-                }
-            }
-            Dependency child = graph.getNode(next);
-            if (child.end > rootStart)
-                if (searchCycleAux(child, rootStart, graph))
-                    return true;
-        }
-        return false;
-    }
-
 }

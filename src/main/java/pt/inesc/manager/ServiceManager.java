@@ -69,19 +69,24 @@ public class ServiceManager extends
         ToManagerProto.MsgToManager proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
         if (proto == null)
             return;
+        // add dependencies (From Database nodes)
         if (proto.hasTrackMsg()) {
             TrackMsg m1 = proto.getTrackMsg();
             newList(m1.getEntryList());
         }
+        // add start-end of each request (from proxy)
         if (proto.hasStartEndMsg()) {
             StartEndMsg m2 = proto.getStartEndMsg();
             updateStartEnd(m2.getMsgList());
         }
+        //
         if (proto.hasTrackMsgFromClient()) {
             log.info("New msg: TrackMsg from Client Lib");
             TrackMsg m3 = proto.getTrackMsgFromClient();
             clientDependencies(m3.getEntryList());
         }
+
+        //
         if (proto.hasNodeRegistry()) {
             log.info("New msg: has Node Registry");
             NodeRegistryMsg msg = proto.getNodeRegistry();

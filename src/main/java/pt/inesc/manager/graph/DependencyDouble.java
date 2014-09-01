@@ -23,5 +23,10 @@ public class DependencyDouble extends
         return before;
     }
 
+    public void removeBefore(Long from) {
+        before.remove(from);
+
+    }
+
 
 }

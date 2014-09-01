@@ -35,6 +35,8 @@ public abstract class DepGraph
 
     public abstract void addNode(Long from, Long to);
 
+    public abstract void removeNode(Long from, Long to);
+
 
     public List<List<Long>> replayAllList(long baseCommit) throws Exception {
         restoreCounters();
@@ -66,7 +68,7 @@ public abstract class DepGraph
         }
 
         // Copy the after list to detect cycles later
-        Long[] possibleCicles = keyEntry.copyArrayAfter();
+        // HashSet<Long> possibleCicles = keyEntry.cloneAfter();
 
         // add dependencies
         for (Long depKey : dependencies) {
@@ -77,9 +79,9 @@ public abstract class DepGraph
         if (graphDisplayer != null) {
             graphDisplayer.addEdgeAndVertex(key, dependencies);
         }
-        if (possibleCicles.length == 0) {
-            GraphUtils.searchCycle(key, possibleCicles, this);
-        }
+        // if (possibleCicles.size() == 0) {
+        GraphUtils.searchCycle(key, this);
+        // }
     }
 
 

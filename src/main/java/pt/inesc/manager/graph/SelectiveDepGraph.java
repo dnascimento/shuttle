@@ -133,4 +133,9 @@ public class SelectiveDepGraph extends
         return roots;
     }
 
+    @Override
+    public void removeNode(Long from, Long to) {
+        DependencyDouble nextNode = (DependencyDouble) getNode(to);
+        nextNode.removeBefore(from);
+    }
 }

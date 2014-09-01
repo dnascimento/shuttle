@@ -48,8 +48,12 @@ public class Dependency
         return countBefore;
     }
 
-    public Long[] copyArrayAfter() {
-        return after.toArray(new Long[0]);
+    public HashSet<Long> cloneAfter() {
+        HashSet<Long> clone = new HashSet<Long>();
+        for (Long entry : after) {
+            clone.add(entry);
+        }
+        return clone;
     }
 
     public HashSet<Long> getAfter() {
