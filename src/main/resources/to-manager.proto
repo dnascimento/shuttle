@@ -43,7 +43,7 @@ message StartEndEntry{
 	required int64 end = 2;
 }
 
-message RUD{
+message SRD{
 	optional int64 rid = 1;
 	optional int32 branch = 2;
 	optional bool restrain = 3;

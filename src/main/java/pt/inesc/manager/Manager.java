@@ -81,7 +81,8 @@ public class Manager {
         LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
         // notify the database nodes about the path of the redo branch
         group.sendNewRedoBranch(path);
-        // enable restrain in the proxy
+
+        // enable restrain in the proxy (should be done at the end)
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
 
         boolean selectiveReplay = false;
@@ -96,6 +97,9 @@ public class Manager {
         } else {
             execLists = graph.selectiveReplayList(parentCommit, attackSource);
         }
+
+        // TODO: allocate the required replay nodes
+
 
         // inform the slaves which requests will be replayed
         for (List<Long> execList : execLists) {

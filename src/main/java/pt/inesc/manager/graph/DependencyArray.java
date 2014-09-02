@@ -24,6 +24,7 @@ public class DependencyArray
         array.addAll(currentExpanded.array);
     }
 
+    @Override
     public Iterator<Dependency> iterator() {
         return array.iterator();
     }

@@ -25,6 +25,7 @@ public class GraphUtils {
      */
     public static List<List<Long>> getExecutionList(long baseCommit, List<Long> roots, DepGraph graph) throws Exception {
         List<List<Long>> result = new LinkedList<List<Long>>();
+        // for each root, get the exec list.
         for (Long rootKey : roots) {
             List<Long> execArray = getExecutionList(rootKey, baseCommit, graph);
             if (execArray != null)
@@ -44,14 +45,30 @@ public class GraphUtils {
     private static List<Long> getExecutionList(long rootKey, long baseCommit, DepGraph graph) throws Exception {
         LinkedList<DependencyArray> executionList = new LinkedList<DependencyArray>();
         Dependency rootReq = graph.getNode(rootKey);
-        DependencyArray current = new DependencyArray(rootReq);
+        DependencyArray executeNow = new DependencyArray(rootReq);
+        DependencyArray executeLater = new DependencyArray();
 
-        while (!current.isEmpty()) {
-            executionList.add(current);
-            DependencyArray next = new DependencyArray();
-            expandEntries(current, next, graph);
-            current = next;
+        while (!executeNow.isEmpty()) {
+            DependencyArray expanding = new DependencyArray();
+
+            long latestEnd = 0;
+            // get the latest request which will execute now
+            for (Dependency entry : executeNow) {
+                latestEnd = Math.max(latestEnd, entry.end);
+            }
+
+            // for each in executeNow, expandEntry
+            for (Dependency entry : executeNow) {
+                expandEntry(entry, latestEnd, expanding, executeLater, graph);
+            }
+
+            executeNow.add(expanding);
+            executionList.add(executeNow);
+            executeNow = executeLater;
+            executeLater = new DependencyArray();
         }
+
+        // Convert list to array
         int totalSize = 0;
         for (DependencyArray a : executionList) {
             totalSize += a.size();
@@ -84,47 +101,39 @@ public class GraphUtils {
      * @param readyHeap
      * @return
      */
-    private static void expandEntries(DependencyArray current, DependencyArray next, DepGraph graph) {
-        DependencyArray currentExpanded = new DependencyArray();
-        for (Dependency entry : current) {
-            long previousEnd = entry.end;
-            for (long key : entry.getAfter()) {
-                Dependency req = graph.getNode(key);
-                req.countBeforeTmp--;
-                if (req.countBeforeTmp == 0) {
-                    if (req.start < previousEnd) {
-                        currentExpanded.add(req);
-                        // executed with current request
-                        expandEntry(req, currentExpanded, next, graph);
-                    } else {
-                        next.add(req);
-                    }
-                }
+    private static void expandEntry(Dependency entry, long latestEnd, DependencyArray execNow, DependencyArray execLater, DepGraph graph) {
+        List<Dependency> listReadyToExec = new ArrayList<Dependency>();
+
+        // Get the end of the latest request that will execute in this batch
+        for (long key : entry.getAfter()) {
+            Dependency afterEntry = graph.getNode(key);
+            // vote to execute
+            afterEntry.countBeforeTmp--;
+            // if all dependencies are scheduled
+            if (afterEntry.countBeforeTmp == 0) {
+                latestEnd = Math.max(latestEnd, afterEntry.end);
+                listReadyToExec.add(afterEntry);
             }
         }
-        current.add(currentExpanded);
+
+        for (Dependency entryReadyToExec : listReadyToExec) {
+            // if next starts before this ends
+            if (entry.start < latestEnd) {
+                execNow.add(entryReadyToExec);
+                // executed with current request
+                expandEntry(entryReadyToExec, latestEnd, execNow, execLater, graph);
+            } else {
+                // it will execute later, not in parallel
+                execLater.add(entryReadyToExec);
+            }
+        }
+
+
+
+
     }
 
 
-
-
-
-    private static void expandEntry(Dependency entry, DependencyArray current, DependencyArray next, DepGraph graph) {
-        long previousEnd = entry.end;
-        for (Long childKey : entry.getAfter()) {
-            Dependency child = graph.getNode(childKey);
-            child.countBeforeTmp--;
-            if (child.countBeforeTmp == 0) {
-                if (child.start < previousEnd) {
-                    current.add(child);
-                    expandEntry(child, current, next, graph);
-                    previousEnd = Math.max(previousEnd, child.end);
-                } else {
-                    next.add(child);
-                }
-            }
-        }
-    }
 
 
 

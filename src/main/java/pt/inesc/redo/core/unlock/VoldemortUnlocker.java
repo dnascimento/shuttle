@@ -12,9 +12,9 @@ import voldemort.client.SocketStoreClientFactory;
 import voldemort.client.StoreClient;
 import voldemort.client.StoreClientFactory;
 import voldemort.client.protocol.RequestFormatType;
-import voldemort.undoTracker.DBUndoStub;
+import voldemort.undoTracker.DBProxy;
 import voldemort.undoTracker.KeyAccess;
-import voldemort.undoTracker.RUD;
+import voldemort.undoTracker.SRD;
 import voldemort.utils.ByteArray;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -51,7 +51,7 @@ public class VoldemortUnlocker {
     /**
      * @param accessedKeys Not empty set of keys to unlock
      */
-    public void unlockKeys(ArrayListMultimap<ByteArray, KeyAccess> unlockedKeys, RUD rud) {
+    public void unlockKeys(ArrayListMultimap<ByteArray, KeyAccess> unlockedKeys, SRD srd) {
         ArrayListMultimap<String, ByteArray> perStore = invertToPerStore(unlockedKeys);
         StoreClient<ByteArray, Object> client;
         StringBuilder sb = new StringBuilder();
@@ -60,12 +60,12 @@ public class VoldemortUnlocker {
             sb.append("\n Store:" + store);
             List<ByteArray> accesses = perStore.get(store);
             client = get(store);
-            Map<ByteArray, Boolean> result = client.unlockKeys(accesses, rud);
+            Map<ByteArray, Boolean> result = client.unlockKeys(accesses, srd);
             for (ByteArray key : accesses) {
                 result.get(key);
-                sb.append(" : " + DBUndoStub.hexStringToAscii(key));
+                sb.append(" : " + DBProxy.hexStringToAscii(key));
                 if (result.get(key) == null || result.get(key) == false) {
-                    log.error("ERROR: Fail to unlock the key: " + DBUndoStub.hexStringToAscii(key));
+                    log.error("ERROR: Fail to unlock the key: " + DBProxy.hexStringToAscii(key));
                 }
             }
         }

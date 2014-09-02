@@ -58,7 +58,7 @@ public class BranchTree {
      * @param parentCommit
      * @param parentBranch
      * @param newCommit
-     * @return
+     * @return the path of the new branch
      * @throws Exception
      */
     public short fork(long parentCommit, short parentBranch) throws Exception {

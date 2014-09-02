@@ -24,7 +24,7 @@ import pt.inesc.redo.core.handlers.ChannelPack;
 import pt.inesc.redo.core.handlers.HandlerWrite;
 import pt.inesc.redo.core.unlock.VoldemortUnlocker;
 import voldemort.undoTracker.KeyAccess;
-import voldemort.undoTracker.RUD;
+import voldemort.undoTracker.SRD;
 import voldemort.utils.ByteArray;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -87,7 +87,7 @@ public class RedoWorker extends
                         // the request was delete, unlock the original keys
                         ArrayListMultimap<ByteArray, KeyAccess> keys = cassandra.getKeys(reqID);
                         if (keys != null && !keys.isEmpty()) {
-                            unlocker.unlockKeys(keys, new RUD(reqID, branch, false));
+                            unlocker.unlockKeys(keys, new SRD(reqID, branch, false));
                         } else {
                             throw new Exception("Request not found " + reqID);
                         }
