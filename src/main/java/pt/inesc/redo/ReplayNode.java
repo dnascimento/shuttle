@@ -25,7 +25,10 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 import pt.inesc.manager.Manager;
-import pt.inesc.redo.core.RedoWorker;
+import pt.inesc.redo.core.ReplayMode;
+import pt.inesc.redo.core.ReplayWorker;
+import pt.inesc.redo.core.ReplayWorkerDependency;
+import pt.inesc.redo.core.ReplayWorkerTime;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.ToManagerProto;
@@ -39,24 +42,24 @@ import undo.proto.ToManagerProto.NodeRegistryMsg.NodeGroup;
  * Pool of channels ready to connect to Real Server and get the data Then return the data
  * to original thread and continue
  */
-public class RedoNode extends
+public class ReplayNode extends
         Thread {
     public static final int MY_PORT = 11500;
     public static final InetSocketAddress TARGET_LOAD_BALANCER_ADDR = new InetSocketAddress("localhost", 8080);
-    private static final Logger log = LogManager.getLogger(RedoNode.class.getName());
+    private static final Logger log = LogManager.getLogger(ReplayNode.class.getName());
     private static final int N_WORKERS = 1;
     protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
     private List<String> errors = new LinkedList<String>();
-    private ArrayList<RedoWorker> workers = new ArrayList<RedoWorker>();
+    private ArrayList<ReplayWorker> workers = new ArrayList<ReplayWorker>();
     private static long totalRequests = 0;
     ServerSocket myServerSocket;
 
     public static void main(String[] args) throws Exception {
         DOMConfigurator.configure("log4j.xml");
-        new RedoNode().start();
+        new ReplayNode().start();
     }
 
-    public RedoNode() throws Exception {
+    public ReplayNode() throws Exception {
         try {
             myServerSocket = new ServerSocket(MY_PORT);
             registryToManger();
@@ -107,7 +110,7 @@ public class RedoNode extends
 
     public void startOrder() {
         Date startDate = new Date();
-        for (RedoWorker worker : workers) {
+        for (ReplayWorker worker : workers) {
             threadPool.execute(worker);
         }
 
@@ -125,29 +128,34 @@ public class RedoNode extends
         log.info("Request rate = " + (((double) totalRequests) / duration * 1000) + " req/sec");
         sendAck();
         errors = new LinkedList<String>();
-        workers = new ArrayList<RedoWorker>();
+        workers = new ArrayList<ReplayWorker>();
         threadPool = Executors.newFixedThreadPool(N_WORKERS);
     }
 
-    public void newRequest(List<Long> execList, short branch, boolean selective) throws Exception {
-        workers.add(new RedoWorker(execList, TARGET_LOAD_BALANCER_ADDR, branch, selective));
+    public void newRequest(List<Long> execList, short branch, ReplayMode replayMode) throws Exception {
+        if (replayMode.equals(ReplayMode.timeOrder)) {
+            workers.add(new ReplayWorkerTime(execList, TARGET_LOAD_BALANCER_ADDR, branch));
+        } else {
+            workers.add(new ReplayWorkerDependency(execList, TARGET_LOAD_BALANCER_ADDR, branch));
+        }
     }
 
     private void newConnection(Socket socket) throws Exception {
         InputStream stream = socket.getInputStream();
-        FromManagerProto.ExecList list = ExecList.parseDelimitedFrom(stream);
-        List<Long> execList = list.getRidList();
+        FromManagerProto.ExecList request = ExecList.parseDelimitedFrom(stream);
+        List<Long> execList = request.getRidList();
         if (execList.size() != 0) {
-            newRequest(execList, (short) list.getBranch(), list.getSelective());
+            ReplayMode replayMode = ReplayMode.valueOf(request.getReplayMode());
+            newRequest(execList, (short) request.getBranch(), replayMode);
         }
-        if (list.getStart()) {
+        if (request.getStart()) {
             startOrder();
         }
     }
 
     public synchronized static void addErrors(List<String> errors, long totalRequests) {
         errors.addAll(errors);
-        RedoNode.totalRequests += totalRequests;
+        ReplayNode.totalRequests += totalRequests;
     }
 
     private void sendAck() {

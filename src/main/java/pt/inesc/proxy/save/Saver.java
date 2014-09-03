@@ -93,7 +93,7 @@ public class Saver extends
         LinkedList<Long> startEndList = new LinkedList<Long>();
         while (!responsesList.isEmpty()) {
             Response req = responsesList.removeFirst();
-            cassandra.putResponse(req.start, req.data);
+            cassandra.putResponse(req.start, req.end, req.data);
             startEndList.add(req.start);
             startEndList.add(req.end);
         }

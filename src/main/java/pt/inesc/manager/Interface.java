@@ -222,13 +222,28 @@ public class Interface extends
         Pair<Short, Long> pair = collectBranchAndCommit(s);
         if (pair == null)
             return;
-        System.out.println("Enter the intrusion source requests to perform selective replay or empty to perform rewind and replay: ");
-        String[] entries = s.nextLine().split(" ");
-        ArrayList<Long> list = new ArrayList<Long>(entries.length);
-        for (int i = 0; i < entries.length; i++) {
-            list.set(i, new Long(entries[i]));
+        System.out.println("Enter the recovery mode: \n 0-sorted by dependency \n 1-sorted by time \n 2-selective replay ");
+        int opt = s.nextInt();
+        switch (opt) {
+        case 0:
+            manager.replayDependencyOrdered(pair.v2, pair.v1);
+            break;
+        case 1:
+            manager.replayTimeOrdered(pair.v2, pair.v1);
+            break;
+        case 2:
+            System.out.println("Enter the intrusion source requests (spaced)");
+            String[] entries = s.nextLine().split(" ");
+            ArrayList<Long> attackSource = new ArrayList<Long>(entries.length);
+            for (int i = 0; i < entries.length; i++) {
+                attackSource.set(i, new Long(entries[i]));
+            }
+            manager.selectiveReplay(pair.v2, pair.v1, attackSource);
+            break;
+        default:
+            System.out.println("Unknown option");
+            break;
         }
-        manager.replay(pair.v2, pair.v1, list);
     }
 
     private Pair<Short, Long> collectBranchAndCommit(Scanner s) throws Exception {

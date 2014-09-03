@@ -53,7 +53,7 @@ public class SelectiveDepGraph extends
             dep.countBeforeTmp = 0;
         }
         // create the exec list of the subgraph (given the toReplay)
-        return GraphUtils.getExecutionList(baseCommit, toReplayRoots, this);
+        return GraphUtils.getExecutionListSortedByDependencies(baseCommit, toReplayRoots, this);
     }
 
     /**

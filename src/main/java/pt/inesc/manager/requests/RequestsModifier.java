@@ -26,9 +26,9 @@ public class RequestsModifier {
         return sb.toString();
     }
 
-    public String showRequest(long reqId) {
+    public String showRequest(long reqId) throws Exception {
         CassandraClient client = new CassandraClient();
-        ByteBuffer buffer = client.getRequest(reqId);
+        ByteBuffer buffer = client.getRequest(reqId).data;
         client.close();
         if (buffer == null) {
             return "Request not found";
@@ -38,7 +38,7 @@ public class RequestsModifier {
 
     public void editRequest(long reqId) throws Exception {
         CassandraClient client = new CassandraClient();
-        ByteBuffer buffer = client.getRequest(reqId);
+        ByteBuffer buffer = client.getRequest(reqId).data;
         File desktop = new File(System.getProperty("user.home") + "/Desktop");
         File tmp = new File(desktop, "request.txt");
         tmp.createNewFile();

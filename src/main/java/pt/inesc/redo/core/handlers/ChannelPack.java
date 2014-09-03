@@ -11,32 +11,38 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import pt.inesc.proxy.save.CassandraClient;
+import pt.inesc.proxy.save.Request;
 import pt.inesc.redo.core.RedoChannelPool;
 
 
 public class ChannelPack {
     public AsynchronousSocketChannel channel;
     public int bytesToProcess;
-    public ByteBuffer buffer;
-    public AtomicInteger sentCounter;
+    public Request request;
     public CassandraClient cassandra;
-    public long reqId;
     public RedoChannelPool pool;
+    public ByteBuffer buffer;
+    public final AtomicInteger sentCounter;
+    public final BiggestEndList biggestEnd;
 
     public ChannelPack(AsynchronousSocketChannel channel,
             ByteBuffer buffer,
             CassandraClient cassandra,
-            RedoChannelPool redoChannelPool) {
-        this.channel = channel;
+            RedoChannelPool redoChannelPool,
+            BiggestEndList biggestEnd,
+            AtomicInteger sentCounter) {
         this.buffer = buffer;
+        this.channel = channel;
         this.cassandra = cassandra;
         this.pool = redoChannelPool;
+        this.sentCounter = sentCounter;
+        this.biggestEnd = biggestEnd;
+        this.request = null;
     }
 
-    public void reset(int bytesToProcess, AtomicInteger sentCounter, long reqId) {
+    public void reset(int bytesToProcess, Request request) {
         this.bytesToProcess = bytesToProcess;
-        this.sentCounter = sentCounter;
-        this.reqId = reqId;
+        this.request = request;
     }
 
     public void renew() {

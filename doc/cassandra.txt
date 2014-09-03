@@ -8,6 +8,7 @@ USE requeststore;
 
 CREATE TABLE requests (
   id bigint,
+  end bigint,
   request blob,
   keys list<text>,
   response blob,

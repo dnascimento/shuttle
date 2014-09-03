@@ -3,14 +3,21 @@ package pt.inesc.manager.graph;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 public abstract class DepGraph
         implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = LogManager.getLogger(DepGraph.class.getName());
 
 
     /**
@@ -40,8 +47,29 @@ public abstract class DepGraph
 
     public List<List<Long>> replayAllList(long baseCommit) throws Exception {
         restoreCounters();
-        return GraphUtils.getExecutionList(baseCommit, getRoots(), this);
+        return GraphUtils.getExecutionListSortedByDependencies(baseCommit, getRoots(), this);
     }
+
+    /**
+     * Create an execution list where requests are ordered by their start-end. A
+     * request
+     * can start only after its previous ends.
+     */
+
+    public List<List<Long>> replayTimeOrdered(long baseCommit) {
+        restoreCounters();
+        List<List<Long>> result = new LinkedList<List<Long>>();
+        ArrayList<Long> list = new ArrayList<Long>(graph.keySet());
+
+        // sort the list by time, the replay instance coordinates the start-end.
+        long tsStart = new Date().getTime();
+        Collections.sort(list);
+        long tsEnd = new Date().getTime();
+        LOGGER.info("Execution list sorted in " + (tsEnd - tsStart) + " ms");
+
+        return result;
+    }
+
 
     public abstract List<List<Long>> selectiveReplayList(long baseCommit, List<Long> attackSource) throws Exception;
 
@@ -179,5 +207,7 @@ public abstract class DepGraph
         }
         return sb.toString();
     }
+
+
 
 }

@@ -42,7 +42,8 @@ public class CassandraClient {
     private static final String COL_REQUEST = "request";
     private static final String COL_RESPONSE = "response";
     private static final String COL_KEYS = "keys";
-    private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + " from " + TABLE_NAME + " where id=");
+    private static final String COL_END = "end";
+    private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + ", " + COL_END + " from " + TABLE_NAME + " where id=");
     private static final String QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME + " where id=");
 
     private static final String QUERY_KEYS = new String("select " + COL_KEYS + " from " + TABLE_NAME + " where id=");
@@ -51,6 +52,7 @@ public class CassandraClient {
 
     private static final String DELETE_REQUEST = "Update " + TABLE_NAME + " set " + COL_REQUEST + " = NULL, " + COL_RESPONSE
             + " = NULL where " + COL_ID + " = ";
+
 
 
     private final Cluster cluster;
@@ -96,11 +98,12 @@ public class CassandraClient {
      * Put response is Synchronous
      * 
      * @param rid
+     * @param end
      * @param data
      */
-    public void putResponse(long rid, ByteBuffer data) {
+    public void putResponse(long rid, long end, ByteBuffer data) {
         data.rewind();
-        Insert query = QueryBuilder.insertInto(TABLE_NAME).value(COL_ID, rid).value(COL_RESPONSE, data);
+        Insert query = QueryBuilder.insertInto(TABLE_NAME).value(COL_ID, rid).value(COL_RESPONSE, data).value(COL_END, end);
 
         if (session != null) {
             session.execute(query);
@@ -111,18 +114,19 @@ public class CassandraClient {
 
     // /////////////////////////////////////////////////////////////
 
-    public ByteBuffer getRequest(long id) {
+    public Request getRequest(long rid) throws Exception {
         StringBuilder sb = new StringBuilder();
         sb.append(QUERY_REQUEST);
-        sb.append(id);
+        sb.append(rid);
         sb.append(";");
         ResultSet result = session.execute(sb.toString());
         for (Row row : result.all()) {
-            return row.getBytes(COL_REQUEST);
+            ByteBuffer data = row.getBytes(COL_REQUEST);
+            long end = row.getLong(COL_END);
+            return new Request(data, rid, end);
         }
-        return null;
+        throw new Exception("Unknown request " + rid);
     }
-
 
     public ByteBuffer getResponse(long id) {
         StringBuilder sb = new StringBuilder();

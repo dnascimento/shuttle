@@ -18,6 +18,8 @@ public class HandlerRead
     private static final Logger log = LogManager.getLogger(HandlerRead.class.getName());
 
 
+
+    @Override
     public void completed(Integer bytesRead, ChannelPack aux) {
         if (aux.buffer.remaining() == 0) {
             // More to read
@@ -25,17 +27,28 @@ public class HandlerRead
             aux.channel.read(aux.buffer, aux, new HandlerRead());
         } else {
             processRead(aux);
-            int remain = aux.sentCounter.decrementAndGet();
-            if (remain == 0) {
-                // wake thread
-                synchronized (aux.sentCounter) {
-                    aux.sentCounter.notify();
+            if (aux.sentCounter != null) {
+                int remain = aux.sentCounter.decrementAndGet();
+                if (remain == 0) {
+                    // wake thread
+                    synchronized (aux.sentCounter) {
+                        aux.sentCounter.notify();
+                    }
+                }
+            }
+
+            if (aux.biggestEnd != null) {
+                synchronized (aux.biggestEnd) {
+                    if (aux.biggestEnd.wasTheBiggest(aux.request.end)) {
+                        aux.biggestEnd.notify();
+                    }
                 }
             }
         }
     }
 
 
+    @Override
     public void failed(Throwable exc, ChannelPack channel) {
         log.error("Read fail", exc);
         // //TODO se isto for frequente mais vale fechar e abrir sempre
@@ -44,7 +57,7 @@ public class HandlerRead
     }
 
     private void processRead(ChannelPack aux) {
-        ByteBuffer originalResponse = aux.cassandra.getResponse(aux.reqId);
+        ByteBuffer originalResponse = aux.cassandra.getResponse(aux.request.rid);
         ByteBuffer buffer = aux.buffer;
         buffer.flip(); // make buffer readable
         buffer.rewind();

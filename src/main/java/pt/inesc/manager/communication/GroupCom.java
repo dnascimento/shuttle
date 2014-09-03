@@ -17,7 +17,7 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.manager.branchTree.BranchNode;
 import pt.inesc.proxy.Proxy;
-import pt.inesc.redo.RedoNode;
+import pt.inesc.redo.ReplayNode;
 import undo.proto.FromManagerProto;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.AckMsg;
@@ -38,7 +38,7 @@ public class GroupCom {
     public GroupCom() {
         // Default instances:
         proxyList.add(new InetSocketAddress("localhost", Proxy.MY_PORT));
-        redoList.add(new InetSocketAddress("localhost", RedoNode.MY_PORT));
+        redoList.add(new InetSocketAddress("localhost", ReplayNode.MY_PORT));
         databaseList.add(new InetSocketAddress("localhost", 11200));
     }
 

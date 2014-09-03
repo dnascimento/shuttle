@@ -377,23 +377,7 @@ public class ProxyWorker extends
     }
 
 
-    public LinkedList<Request> getAndResetRequestList() {
-        if (requests.size() != 0) {
-            LinkedList<Request> tmp = requests;
-            requests = new LinkedList<Request>();
-            return tmp;
-        }
-        return null;
-    }
 
-    public LinkedList<Response> getAndResetResponseList() {
-        if (responses.size() != 0) {
-            LinkedList<Response> tmp = responses;
-            responses = new LinkedList<Response>();
-            return tmp;
-        }
-        return null;
-    }
 
     private ByteBuffer generateHeaderFromBase(long startTS) {
         synchronized (Proxy.lockBranchRestrain) {

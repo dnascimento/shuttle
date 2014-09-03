@@ -14,7 +14,8 @@ import java.util.List;
 import org.apache.log4j.xml.DOMConfigurator;
 import org.junit.Test;
 
-import pt.inesc.redo.RedoNode;
+import pt.inesc.redo.ReplayNode;
+import pt.inesc.redo.core.ReplayMode;
 
 public class RedoTest {
 
@@ -34,11 +35,11 @@ public class RedoTest {
                                                1401017949825L,
                                                1401017951353L));
         requestsToExecute.add(-1L);
-        RedoNode redo = new RedoNode();
-        redo.newRequest(requestsToExecute, (short) 1, false);
+        ReplayNode redo = new ReplayNode();
+        redo.newRequest(requestsToExecute, (short) 1, ReplayMode.dependencyOrder);
         redo.startOrder();
         System.in.read();
-        redo.newRequest(requestsToExecute, (short) 2, false);
+        redo.newRequest(requestsToExecute, (short) 2, ReplayMode.dependencyOrder);
         redo.startOrder();
     }
 

@@ -31,13 +31,14 @@ import pt.inesc.manager.graph.SelectiveDepGraph;
 import pt.inesc.manager.graph.SimpleDepGraph;
 import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.NotifyEvent;
+import pt.inesc.redo.core.ReplayMode;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.FromManagerProto.ProxyMsg;
 import undo.proto.FromManagerProto.ToDataNode;
 
 public class Manager {
-    private static final Logger log = LogManager.getLogger(Manager.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger(Manager.class.getName());
 
     public static final InetSocketAddress MANAGER_ADDR = new InetSocketAddress("localhost", 11000);
     public GroupCom group = new GroupCom();
@@ -61,8 +62,43 @@ public class Manager {
         service.start();
     }
 
-
     /* ------------------- Operations ----------------- */
+
+    private short prepareReplay(long parentCommit, short parentBranch) throws Exception {
+        // get requests to send
+        LOGGER.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
+
+        short newBranch = branches.fork(parentCommit, parentBranch);
+        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
+        // notify the database nodes about the path of the redo branch
+        group.sendNewRedoBranch(path);
+
+        // enable restrain in the proxy (should be done at the end)
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
+        return newBranch;
+    }
+
+    public void replayDependencyOrdered(long parentCommit, short parentBranch) throws Exception {
+        short newBranch = prepareReplay(parentCommit, parentBranch);
+        List<List<Long>> execLists = graph.replayAllList(parentCommit);
+        replay(parentCommit, parentBranch, newBranch, ReplayMode.dependencyOrder, execLists);
+    }
+
+    public void replayTimeOrdered(long parentCommit, short parentBranch) throws Exception {
+        short newBranch = prepareReplay(parentCommit, parentBranch);
+        List<List<Long>> execLists = graph.replayTimeOrdered(parentCommit);
+        replay(parentCommit, parentBranch, newBranch, ReplayMode.timeOrder, execLists);
+    }
+
+    public void selectiveReplay(long parentCommit, short parentBranch, List<Long> attackSource) throws Exception {
+        short newBranch = prepareReplay(parentCommit, parentBranch);
+        List<List<Long>> execLists = graph.selectiveReplayList(parentCommit, attackSource);
+        replay(parentCommit, parentBranch, newBranch, ReplayMode.selective, execLists);
+    }
+
+
+
+
     /**
      * Perform request replay. If attackSource is null or isEmpty, then replay every
      * request.
@@ -73,33 +109,9 @@ public class Manager {
      * @param attackSource
      * @throws Exception
      */
-    public void replay(long parentCommit, short parentBranch, List<Long> attackSource) throws Exception {
-        // get requests to send
-        log.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
-
-        short newBranch = branches.fork(parentCommit, parentBranch);
-        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
-        // notify the database nodes about the path of the redo branch
-        group.sendNewRedoBranch(path);
-
-        // enable restrain in the proxy (should be done at the end)
-        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
-
-        boolean selectiveReplay = false;
-        if (attackSource == null || attackSource.isEmpty()) {
-            selectiveReplay = true;
-        }
-
-        // get the requests to exec
-        List<List<Long>> execLists;
-        if (selectiveReplay) {
-            execLists = graph.replayAllList(parentCommit);
-        } else {
-            execLists = graph.selectiveReplayList(parentCommit, attackSource);
-        }
-
-        // TODO: allocate the required replay nodes
-
+    private void replay(long parentCommit, short parentBranch, short newBranch, ReplayMode replayMode, List<List<Long>> execLists) throws Exception {
+        // TODO invoke the infrastructure to start the replay nodes
+        // infrastructrure.startReplay()
 
         // inform the slaves which requests will be replayed
         for (List<Long> execList : execLists) {
@@ -109,7 +121,7 @@ public class Manager {
                                                     .addAllRid(execList)
                                                     .setBranch(parentBranch)
                                                     .setStart(false)
-                                                    .setSelective(selectiveReplay)
+                                                    .setReplayMode(replayMode.toString())
                                                     .build();
             group.broadcast(msg, NodeGroup.REDO, false);
         }
@@ -124,9 +136,9 @@ public class Manager {
 
         // disable retrain and change to new branch
         group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
-        log.warn("Set new branch: " + newBranch);
+        LOGGER.warn("Set new branch: " + newBranch);
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
-        log.info("Replay is over");
+        LOGGER.info("Replay is over");
     }
 
 
@@ -147,16 +159,16 @@ public class Manager {
     }
 
     public void newBranch(long parentCommit, short parentBranch) throws Exception {
-        log.info("Create branch based on branch: " + parentBranch + " and commit: " + parentCommit);
+        LOGGER.info("Create branch based on branch: " + parentBranch + " and commit: " + parentCommit);
 
         short newBranch = branches.fork(parentCommit, parentBranch);
         LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
         // notify the database nodes about the path of the redo branch
         group.sendNewRedoBranch(path);
         group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE, false);
-        log.warn("Set new branch: " + newBranch);
+        LOGGER.warn("Set new branch: " + newBranch);
         group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY, false);
-        log.info("Branch is created");
+        LOGGER.info("Branch is created");
     }
 
     /* --------- Get requests per database entry ----- */

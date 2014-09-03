@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 public class Request {
     public ByteBuffer data;
     public long rid;
-
+    public long end;
 
 
     public Request(ByteBuffer data, long rid) {
@@ -20,6 +20,12 @@ public class Request {
         this.rid = rid;
     }
 
+    public Request(ByteBuffer data, long rid, long end) {
+        super();
+        this.data = data;
+        this.rid = rid;
+        this.end = end;
+    }
 
 
 

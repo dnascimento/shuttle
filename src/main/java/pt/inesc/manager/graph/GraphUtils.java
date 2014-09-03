@@ -14,6 +14,8 @@ public class GraphUtils {
     private static final Long SEPARATOR = (long) -1;
 
 
+
+
     /**
      * Iterate the graph to get the execution lists
      * 
@@ -23,7 +25,7 @@ public class GraphUtils {
      *         requests which cannot be executed in parallel by the same client.
      * @throws Exception if a root is invalid
      */
-    public static List<List<Long>> getExecutionList(long baseCommit, List<Long> roots, DepGraph graph) throws Exception {
+    public static List<List<Long>> getExecutionListSortedByDependencies(long baseCommit, List<Long> roots, DepGraph graph) throws Exception {
         List<List<Long>> result = new LinkedList<List<Long>>();
         // for each root, get the exec list.
         for (Long rootKey : roots) {
@@ -33,6 +35,9 @@ public class GraphUtils {
         }
         return result;
     }
+
+
+    /* -------------------------------- Aux methods -------------------------------- */
 
     /**
      * From a root key, extract the list of requests dependent from
@@ -173,4 +178,6 @@ public class GraphUtils {
             }
         }
     }
+
+
 }
