@@ -4,7 +4,7 @@
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
  * Copyright (c) 2014 - All rights reserved
  */
-package pt.inesc.redo.core.handlers;
+package pt.inesc.replay.core.handlers;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
-import pt.inesc.redo.core.RedoChannelPool;
+import pt.inesc.replay.core.RedoChannelPool;
 
 
 public class ChannelPack {

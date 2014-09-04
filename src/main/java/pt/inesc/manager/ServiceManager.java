@@ -46,6 +46,9 @@ public class ServiceManager extends
 
     @Override
     public void run() {
+        String threadName = Thread.currentThread().getName();
+        Thread.currentThread().setName("ServiceManager Main: " + threadName);
+
         log.info("Manager Service is listening...");
         while (true) {
             Socket s = null;
@@ -54,18 +57,21 @@ public class ServiceManager extends
                 receive(s);
             } catch (IOException e) {
                 log.error(e);
-            }
-            if (s != null) {
-                try {
-                    s.close();
-                } catch (IOException e) {
-                    log.error(e);
-                }
+            } finally {
+                if (s != null)
+                    try {
+                        s.close();
+                    } catch (IOException e) {
+                        log.error(e);
+                    }
             }
         }
     }
 
     private void receive(Socket socket) throws IOException {
+        String threadName = Thread.currentThread().getName();
+        Thread.currentThread().setName("ServiceManager retrieveData: " + threadName);
+
         ToManagerProto.MsgToManager proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
         if (proto == null)
             return;

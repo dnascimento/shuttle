@@ -4,7 +4,7 @@
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
  * Copyright (c) 2014 - All rights reserved
  */
-package pt.inesc.redo.core;
+package pt.inesc.replay.core;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -16,9 +16,9 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.CassandraClient;
-import pt.inesc.redo.ReplayNode;
-import pt.inesc.redo.core.cookies.CookieMan;
-import pt.inesc.redo.core.unlock.VoldemortUnlocker;
+import pt.inesc.replay.ReplayNode;
+import pt.inesc.replay.core.cookies.CookieMan;
+import pt.inesc.replay.core.unlock.VoldemortUnlocker;
 import voldemort.undoTracker.KeyAccess;
 import voldemort.undoTracker.SRD;
 import voldemort.utils.ByteArray;

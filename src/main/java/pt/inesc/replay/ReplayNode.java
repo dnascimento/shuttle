@@ -4,7 +4,7 @@
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
  * Copyright (c) 2014 - All rights reserved
  */
-package pt.inesc.redo;
+package pt.inesc.replay;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,10 +25,10 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 import pt.inesc.manager.Manager;
-import pt.inesc.redo.core.ReplayMode;
-import pt.inesc.redo.core.ReplayWorker;
-import pt.inesc.redo.core.ReplayWorkerDependency;
-import pt.inesc.redo.core.ReplayWorkerTime;
+import pt.inesc.replay.core.ReplayMode;
+import pt.inesc.replay.core.ReplayWorker;
+import pt.inesc.replay.core.ReplayWorkerDependency;
+import pt.inesc.replay.core.ReplayWorkerTime;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.ToManagerProto;

@@ -1,4 +1,4 @@
-package pt.inesc.redo.core.handlers;
+package pt.inesc.replay.core.handlers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

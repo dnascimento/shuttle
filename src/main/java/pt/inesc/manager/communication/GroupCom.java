@@ -17,7 +17,7 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.manager.branchTree.BranchNode;
 import pt.inesc.proxy.Proxy;
-import pt.inesc.redo.ReplayNode;
+import pt.inesc.replay.ReplayNode;
 import undo.proto.FromManagerProto;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.AckMsg;

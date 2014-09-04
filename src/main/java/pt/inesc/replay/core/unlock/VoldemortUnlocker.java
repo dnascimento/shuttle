@@ -1,4 +1,4 @@
-package pt.inesc.redo.core.unlock;
+package pt.inesc.replay.core.unlock;
 
 import java.util.List;
 import java.util.Map;

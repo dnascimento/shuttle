@@ -220,7 +220,7 @@
 			</build>
 		</profile> 
 		<profile>
-			<id>redo</id>
+			<id>replay</id>
 			<build>
 				<plugins>
 					<plugin>
@@ -234,7 +234,7 @@
 									<goal>java</goal>
 								</goals>
 								<configuration>
-									<mainClass>pt.inesc.redo.RedoNode</mainClass>
+									<mainClass>pt.inesc.replay.ReplayNode</mainClass>
 								</configuration>
 							</execution>
 						</executions>

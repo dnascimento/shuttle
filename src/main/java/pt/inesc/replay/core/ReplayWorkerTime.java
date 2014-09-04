@@ -4,15 +4,15 @@
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
  * Copyright (c) 2014 - All rights reserved
  */
-package pt.inesc.redo.core;
+package pt.inesc.replay.core;
 
 import java.net.InetSocketAddress;
 import java.util.List;
 
 import pt.inesc.proxy.save.Request;
-import pt.inesc.redo.core.handlers.BiggestEndList;
-import pt.inesc.redo.core.handlers.ChannelPack;
-import pt.inesc.redo.core.handlers.HandlerWrite;
+import pt.inesc.replay.core.handlers.BiggestEndList;
+import pt.inesc.replay.core.handlers.ChannelPack;
+import pt.inesc.replay.core.handlers.HandlerWrite;
 
 
 public class ReplayWorkerTime extends

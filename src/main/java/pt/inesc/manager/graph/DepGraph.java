@@ -66,7 +66,7 @@ public abstract class DepGraph
         Collections.sort(list);
         long tsEnd = new Date().getTime();
         LOGGER.info("Execution list sorted in " + (tsEnd - tsStart) + " ms");
-
+        result.add(list);
         return result;
     }
 
@@ -150,7 +150,7 @@ public abstract class DepGraph
         ArrayList<Long> roots = new ArrayList<Long>();
         for (Long l : graph.keySet()) {
             Dependency d = graph.get(l);
-            if (d.countBefore == 0) {
+            if (d.getCountBefore() == 0) {
                 roots.add(l);
             }
         }

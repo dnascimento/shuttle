@@ -1,4 +1,4 @@
-package pt.inesc.redo.core;
+package pt.inesc.replay.core;
 
 public enum ReplayMode {
     dependencyOrder, timeOrder, selective;

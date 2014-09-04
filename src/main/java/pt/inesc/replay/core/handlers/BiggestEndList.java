@@ -1,4 +1,4 @@
-package pt.inesc.redo.core.handlers;
+package pt.inesc.replay.core.handlers;
 
 import java.util.Comparator;
 import java.util.PriorityQueue;

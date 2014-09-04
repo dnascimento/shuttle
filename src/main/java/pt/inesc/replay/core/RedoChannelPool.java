@@ -1,4 +1,4 @@
-package pt.inesc.redo.core;
+package pt.inesc.replay.core;
 
 import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
@@ -15,8 +15,8 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.CassandraClient;
-import pt.inesc.redo.core.handlers.BiggestEndList;
-import pt.inesc.redo.core.handlers.ChannelPack;
+import pt.inesc.replay.core.handlers.BiggestEndList;
+import pt.inesc.replay.core.handlers.ChannelPack;
 
 public class RedoChannelPool {
     private static Logger logger = LogManager.getLogger(RedoChannelPool.class.getName());

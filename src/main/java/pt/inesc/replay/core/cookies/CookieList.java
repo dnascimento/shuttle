@@ -4,7 +4,7 @@
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
  * Copyright (c) 2014 - All rights reserved
  */
-package pt.inesc.redo.core.cookies;
+package pt.inesc.replay.core.cookies;
 
 import java.util.HashMap;
 

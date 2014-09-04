@@ -23,6 +23,11 @@ public class DependencyDouble extends
         return before;
     }
 
+    @Override
+    public int getCountBefore() {
+        return before.size();
+    }
+
     public void removeBefore(Long from) {
         before.remove(from);
 

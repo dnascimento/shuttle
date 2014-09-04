@@ -31,7 +31,7 @@ import pt.inesc.manager.graph.SelectiveDepGraph;
 import pt.inesc.manager.graph.SimpleDepGraph;
 import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.NotifyEvent;
-import pt.inesc.redo.core.ReplayMode;
+import pt.inesc.replay.core.ReplayMode;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.FromManagerProto.ProxyMsg;
