@@ -27,8 +27,6 @@ import org.apache.log4j.xml.DOMConfigurator;
 import pt.inesc.manager.Manager;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.replay.core.ReplayWorker;
-import pt.inesc.replay.core.ReplayWorkerDependency;
-import pt.inesc.replay.core.ReplayWorkerTime;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.ToManagerProto;
@@ -133,11 +131,7 @@ public class ReplayNode extends
     }
 
     public void newRequest(List<Long> execList, short branch, ReplayMode replayMode) throws Exception {
-        if (replayMode.equals(ReplayMode.timeOrder)) {
-            workers.add(new ReplayWorkerTime(execList, TARGET_LOAD_BALANCER_ADDR, branch));
-        } else {
-            workers.add(new ReplayWorkerDependency(execList, TARGET_LOAD_BALANCER_ADDR, branch));
-        }
+        workers.add(new ReplayWorker(execList, TARGET_LOAD_BALANCER_ADDR, branch));
     }
 
     private void newConnection(Socket socket) throws Exception {

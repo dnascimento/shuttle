@@ -14,6 +14,7 @@ import java.util.Scanner;
 
 import pt.inesc.manager.requests.RequestsModifier;
 import pt.inesc.proxy.save.CassandraClient;
+import pt.inesc.replay.core.ReplayMode;
 
 
 public class Interface extends
@@ -85,7 +86,6 @@ public class Interface extends
 
     private void advanced(Scanner s) throws Exception {
         System.out.println("a) Timetravel proxy");
-        System.out.println("b) Show graph roots");
         System.out.println("d) Show dependency map");
         System.out.println("e) Create new branch");
         System.out.println("f) Change to branch");
@@ -101,9 +101,6 @@ public class Interface extends
             manager.proxyTimeTravel(instant);
             String dateString = new SimpleDateFormat("H:m:S").format(new Date(instant));
             System.out.println("Traveling to: " + dateString);
-            break;
-        case 'b':
-            System.out.println(manager.graph.getRoots());
             break;
         case 'd':
             System.out.println(manager.graph);
@@ -222,23 +219,33 @@ public class Interface extends
         Pair<Short, Long> pair = collectBranchAndCommit(s);
         if (pair == null)
             return;
-        System.out.println("Enter the recovery mode: \n 0-sorted by dependency \n 1-sorted by time \n 2-selective replay ");
+        long commit = pair.v2;
+        short branch = pair.v1;
+
+        System.out.println("Enter the recovery mode: \n 0- all in serial \n 1- all in parallel \n 2- selective in serial \n 3 - selective in parallel ");
         int opt = s.nextInt();
-        switch (opt) {
-        case 0:
-            manager.replayDependencyOrdered(pair.v2, pair.v1);
-            break;
-        case 1:
-            manager.replayTimeOrdered(pair.v2, pair.v1);
-            break;
-        case 2:
+        ArrayList<Long> attackSource = null;
+        if (opt == 2 || opt == 3) {
             System.out.println("Enter the intrusion source requests (spaced)");
             String[] entries = s.nextLine().split(" ");
-            ArrayList<Long> attackSource = new ArrayList<Long>(entries.length);
+            attackSource = new ArrayList<Long>(entries.length);
             for (int i = 0; i < entries.length; i++) {
                 attackSource.set(i, new Long(entries[i]));
             }
-            manager.selectiveReplay(pair.v2, pair.v1, attackSource);
+        }
+
+        switch (opt) {
+        case 0:
+            manager.replay(commit, branch, ReplayMode.allSerial, attackSource);
+            break;
+        case 1:
+            manager.replay(commit, branch, ReplayMode.allParallel, attackSource);
+            break;
+        case 2:
+            manager.replay(commit, branch, ReplayMode.selectiveSerial, attackSource);
+            break;
+        case 3:
+            manager.replay(commit, branch, ReplayMode.selectiveParallel, attackSource);
             break;
         default:
             System.out.println("Unknown option");

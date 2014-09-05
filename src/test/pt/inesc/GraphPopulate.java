@@ -11,25 +11,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-import java.util.HashMap;
 
 import junit.framework.Assert;
 
 import org.junit.Test;
 
-import pt.inesc.manager.graph.DepGraph;
 import pt.inesc.manager.graph.Dependency;
-import pt.inesc.manager.graph.SelectiveDepGraph;
-import pt.inesc.manager.graph.SimpleDepGraph;
+import pt.inesc.manager.graph.GraphShuttle;
+import pt.inesc.manager.graph.SortedMap;
 
 
 public class GraphPopulate {
 
     @Test
     public void testGraphStructure() throws IOException {
-        abcdLinked(new SimpleDepGraph());
-        abcdLinked(new SelectiveDepGraph());
-
+        abcdLinked(new GraphShuttle());
     }
 
 
@@ -40,55 +36,56 @@ public class GraphPopulate {
      * C depends from B
      * D depends from C
      */
-    public static void abcdLinked(DepGraph graph) throws IOException {
+    public static void abcdLinked(GraphShuttle graph) throws IOException {
         long[] startEndArray = new long[] { 1, 3, 2, 4, 3, 5, 4, 7 };
         int i = 0;
         while (i < startEndArray.length) {
-            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+            graph.addStartEnd(startEndArray[i++], startEndArray[i++]);
         }
         graph.addDependencies(2L, 1L);
         graph.addDependencies(3L, 2L);
         graph.addDependencies(4L, 3L);
 
-        HashMap<Long, Dependency> map = graph.getMap();
+        SortedMap<Long, Dependency> map = graph.map;
         Assert.assertEquals(4, map.size());
 
-        assertEquals(0, map.get(1L).getCountBefore());
-        assertEquals(1, map.get(1L).getAfter().size());
-        assertTrue(map.get(1L).isAfter(2L));
+        assertEquals(0, map.get(1L).before.size());
+        assertEquals(1, map.get(1L).after.size());
+        assertTrue(map.get(1L).after.contains(2L));
 
-        assertEquals(1, map.get(2L).getCountBefore());
-        assertEquals(1, map.get(2L).getAfter().size());
-        assertTrue(map.get(2L).isAfter(3L));
+        assertEquals(1, map.get(2L).before.size());
+        assertEquals(1, map.get(2L).after.size());
+        assertTrue(map.get(2L).after.contains(3L));
+        assertTrue(map.get(2L).before.contains(1L));
 
-        assertEquals(1, map.get(3L).getCountBefore());
-        assertEquals(1, map.get(3L).getAfter().size());
-        assertTrue(map.get(3L).isAfter(4L));
+        assertEquals(1, map.get(3L).before.size());
+        assertEquals(1, map.get(3L).after.size());
+        assertTrue(map.get(3L).after.contains(4L));
 
-        assertEquals(1, map.get(4L).getCountBefore());
-        assertEquals(0, map.get(4L).getAfter().size());
+        assertEquals(1, map.get(4L).before.size());
+        assertEquals(0, map.get(4L).after.size());
     }
 
-    public static void abcdSerie(DepGraph graph) throws Exception {
+    public static void abcdSerie(GraphShuttle graph) throws Exception {
         long[] startEndArray = new long[] { 1, 2, 3, 4, 5, 6, 7, 8 };
         int i = 0;
         while (i < startEndArray.length) {
-            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+            graph.addStartEnd(startEndArray[i++], startEndArray[i++]);
         }
         graph.addDependencies(3L, 1L);
         graph.addDependencies(5L, 3L);
         graph.addDependencies(7L, 5L);
     }
 
-    public static void efghSerie(DepGraph graph) throws Exception {
-        long[] startEndArray = new long[] { 10, 11, 12, 13, 14, 15, 16, 17 };
+    public static void efghSerie(GraphShuttle graph) throws Exception {
+        long[] startEndArray = new long[] { 9, 10, 11, 12, 13, 14, 15, 16 };
         int i = 0;
         while (i < startEndArray.length) {
-            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+            graph.addStartEnd(startEndArray[i++], startEndArray[i++]);
         }
-        graph.addDependencies(12L, 10L);
-        graph.addDependencies(14L, 12L);
-        graph.addDependencies(16L, 14L);
+        graph.addDependencies(11L, 9L);
+        graph.addDependencies(13L, 11L);
+        graph.addDependencies(15L, 13L);
     }
 
 
@@ -97,15 +94,17 @@ public class GraphPopulate {
      * 
      * @param graph
      */
-    public static void complexGraph(DepGraph graph) {
-        long[] startEndArray = new long[] { 1, 2, 3, 10, 4, 10, 5, 10, 15, 20, 7, 18, 10, 18, 30, 40, 50, 60, 55, 70, 65, 80 };
+    public static void complexGraph(GraphShuttle graph) {
+        long[] startEndArray = new long[] { 1, 2, 3, 10, 4, 10, 5, 10, 15, 20, 7, 18, 10, 18, 6, 15, 8, 12, 9, 15, 30, 40, 50, 60, 55, 70,
+                65, 80, 100, 120 };
         int i = 0;
         while (i < startEndArray.length) {
-            graph.updateStartEnd(startEndArray[i++], startEndArray[i++]);
+            graph.addStartEnd(startEndArray[i++], startEndArray[i++]);
         }
 
         // WARNING: ARRAY WITH INVERSE DEPENDENCY ORDER, FOLLOWING THE ARROWS
-        long[] dependencyArray = new long[] { 1, 3, 3, 4, 4, 5, 5, 3, 5, 15, 5, 30, 7, 5, 5, 7, 15, 7, 10, 5, 30, 50, 30, 55, 55, 65 };
+        long[] dependencyArray = new long[] { 1, 3, 3, 4, 4, 5, 5, 3, 5, 15, 15, 7, 7, 5, 5, 7, 10, 7, 6, 8, 5, 30, 30, 50, 30, 55, 8, 9,
+                55, 65, 6, 10 };
         i = 1;
         while (i < dependencyArray.length) {
             graph.addDependencies(dependencyArray[i], dependencyArray[i - 1]);

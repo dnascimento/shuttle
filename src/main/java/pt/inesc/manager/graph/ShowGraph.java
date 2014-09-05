@@ -11,9 +11,7 @@ import java.awt.Dimension;
 import java.awt.Paint;
 import java.awt.Shape;
 import java.awt.geom.Ellipse2D;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JFrame;
@@ -50,14 +48,14 @@ public class ShowGraph extends
         g = new SparseMultigraph<String, String>();
     }
 
-    public ShowGraph(HashMap<Long, Dependency> hashGraph) {
+    public ShowGraph(SortedMap<Long, Dependency> map) {
         this();
-        for (Entry<Long, Dependency> entry : hashGraph.entrySet()) {
-            g.addVertex(entry.getValue().toString());
-            for (long depKey : entry.getValue().getAfter()) {
-                Dependency depEntry = hashGraph.get(depKey);
+        for (Dependency v : map) {
+            g.addVertex(v.toString());
+            for (long depKey : v.after) {
+                Dependency depEntry = map.get(depKey);
                 g.addVertex(depEntry.toString());
-                addEdge(entry.getValue().toString(), depEntry.toString());
+                addEdge(v.toString(), depEntry.toString());
             }
         }
         refresh.set(true);

@@ -16,8 +16,12 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.CassandraClient;
+import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.ReplayNode;
 import pt.inesc.replay.core.cookies.CookieMan;
+import pt.inesc.replay.core.handlers.BiggestEndList;
+import pt.inesc.replay.core.handlers.ChannelPack;
+import pt.inesc.replay.core.handlers.HandlerWrite;
 import pt.inesc.replay.core.unlock.VoldemortUnlocker;
 import voldemort.undoTracker.KeyAccess;
 import voldemort.undoTracker.SRD;
@@ -26,7 +30,7 @@ import voldemort.utils.ByteArray;
 import com.google.common.collect.ArrayListMultimap;
 
 
-public abstract class ReplayWorker extends
+public class ReplayWorker extends
         Thread {
     protected static Logger logger = LogManager.getLogger(ReplayWorker.class.getName());
 
@@ -41,6 +45,11 @@ public abstract class ReplayWorker extends
     protected long totalRequests = 0;
     protected final VoldemortUnlocker unlocker;
 
+
+    private final BiggestEndList biggestEnd = new BiggestEndList();
+    protected final RedoChannelPool pool;
+
+
     public ReplayWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
         super();
         this.executionArray = execList;
@@ -50,19 +59,44 @@ public abstract class ReplayWorker extends
         this.branch = branch;
         // create a variable group of threads to handle each channel
         unlocker = new VoldemortUnlocker();
+
+        pool = new RedoChannelPool(remoteHost, cassandra, biggestEnd);
+
     }
 
 
     @Override
     public void run() {
         logger.info("time:" + new Date().getTime());
-        startReplay();
+
+        // if the request start is smaller than the biggest executing end, then, wait.
+        for (long reqId : executionArray) {
+            try {
+                Request request = cassandra.getRequest(reqId);
+                while (true) {
+                    long biggestEndExecuting;
+                    synchronized (biggestEnd) {
+                        biggestEndExecuting = biggestEnd.getBiggest();
+                        if (request.rid <= biggestEndExecuting || biggestEnd.isEmpty()) {
+                            biggestEnd.addEnd(request.end);
+                            break;
+                        }
+                        biggestEnd.wait();
+                        logger.info("continue");
+                    }
+                }
+                // execute request
+                writePackage(request);
+            } catch (Exception e) {
+                errors.add("Erro in req: " + reqId + " " + e);
+                logger.error("Erro", e);
+            }
+        }
 
         logger.info("Redo end");
         ReplayNode.addErrors(errors, totalRequests);
     }
 
-    protected abstract void startReplay();
 
     protected void compensateRequest(long reqID) throws Exception {
         logger.warn("Request deleted: " + reqID + " fetching the keys to compensate...");
@@ -137,5 +171,23 @@ public abstract class ReplayWorker extends
         }
         return r;
     }
+
+
+
+    /**
+     * The retrieved execution list is built of a single list ordered by requestID. This
+     * method ensures that a request is sent only after the requests, which end before,
+     * are executed.
+     */
+
+
+    private void writePackage(Request request) throws Exception {
+        ChannelPack pack = pool.getChannel();
+        // ProxyWorker.printContent(data);
+        setNewHeader(request.data, request.rid);
+        pack.reset(request.data.limit() - request.data.position(), request);
+        pack.channel.write(request.data, pack, new HandlerWrite());
+    }
+
 
 }

@@ -26,9 +26,7 @@ import pt.inesc.manager.branchTree.BranchNode;
 import pt.inesc.manager.branchTree.BranchTree;
 import pt.inesc.manager.communication.GroupCom;
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
-import pt.inesc.manager.graph.DepGraph;
-import pt.inesc.manager.graph.SelectiveDepGraph;
-import pt.inesc.manager.graph.SimpleDepGraph;
+import pt.inesc.manager.graph.GraphShuttle;
 import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.NotifyEvent;
 import pt.inesc.replay.core.ReplayMode;
@@ -45,7 +43,7 @@ public class Manager {
 
     public Object ackWaiter = new Object();
     private static final String GRAPH_FILE = "graph.obj";
-    DepGraph graph;
+    GraphShuttle graph = new GraphShuttle();
     private static ServiceManager service;
     public BranchTree branches = new BranchTree();
 
@@ -57,47 +55,11 @@ public class Manager {
     }
 
     public Manager() throws IOException {
-        graph = new SimpleDepGraph();
         service = new ServiceManager(this);
         service.start();
     }
 
     /* ------------------- Operations ----------------- */
-
-    private short prepareReplay(long parentCommit, short parentBranch) throws Exception {
-        // get requests to send
-        LOGGER.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
-
-        short newBranch = branches.fork(parentCommit, parentBranch);
-        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
-        // notify the database nodes about the path of the redo branch
-        group.sendNewRedoBranch(path);
-
-        // enable restrain in the proxy (should be done at the end)
-        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
-        return newBranch;
-    }
-
-    public void replayDependencyOrdered(long parentCommit, short parentBranch) throws Exception {
-        short newBranch = prepareReplay(parentCommit, parentBranch);
-        List<List<Long>> execLists = graph.replayAllList(parentCommit);
-        replay(parentCommit, parentBranch, newBranch, ReplayMode.dependencyOrder, execLists);
-    }
-
-    public void replayTimeOrdered(long parentCommit, short parentBranch) throws Exception {
-        short newBranch = prepareReplay(parentCommit, parentBranch);
-        List<List<Long>> execLists = graph.replayTimeOrdered(parentCommit);
-        replay(parentCommit, parentBranch, newBranch, ReplayMode.timeOrder, execLists);
-    }
-
-    public void selectiveReplay(long parentCommit, short parentBranch, List<Long> attackSource) throws Exception {
-        short newBranch = prepareReplay(parentCommit, parentBranch);
-        List<List<Long>> execLists = graph.selectiveReplayList(parentCommit, attackSource);
-        replay(parentCommit, parentBranch, newBranch, ReplayMode.selective, execLists);
-    }
-
-
-
 
     /**
      * Perform request replay. If attackSource is null or isEmpty, then replay every
@@ -109,7 +71,23 @@ public class Manager {
      * @param attackSource
      * @throws Exception
      */
-    private void replay(long parentCommit, short parentBranch, short newBranch, ReplayMode replayMode, List<List<Long>> execLists) throws Exception {
+    public void replay(long parentCommit, short parentBranch, ReplayMode replayMode, List<Long> attackSource) throws Exception {
+        // get requests to send
+        LOGGER.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
+
+        short newBranch = branches.fork(parentCommit, parentBranch);
+        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
+        // notify the database nodes about the path of the redo branch
+        group.sendNewRedoBranch(path);
+
+        // enable restrain in the proxy (should be done at the end)
+        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setRestrain(true).build(), NodeGroup.PROXY, false);
+
+
+        // Get execution list
+        List<List<Long>> execLists = graph.replay(parentCommit, replayMode, attackSource);
+
+
         // TODO invoke the infrastructure to start the replay nodes
         // infrastructrure.startReplay()
 
@@ -192,7 +170,7 @@ public class Manager {
     public void loadGraph() throws IOException, ClassNotFoundException {
         FileInputStream fin = new FileInputStream(GRAPH_FILE);
         ObjectInputStream ois = new ObjectInputStream(fin);
-        graph = (SelectiveDepGraph) ois.readObject();
+        graph = (GraphShuttle) ois.readObject();
         ois.close();
 
     }

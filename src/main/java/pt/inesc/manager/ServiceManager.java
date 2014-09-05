@@ -14,7 +14,6 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
-import pt.inesc.manager.graph.SelectiveDepGraph;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.NodeRegistryMsg;
 import undo.proto.ToManagerProto.StartEndEntry;
@@ -29,13 +28,7 @@ public class ServiceManager extends
     private final ServerSocket serverSocket;
     private final Logger log = Logger.getLogger(ServiceManager.class.getName());
 
-    // Only for local tests
-    public ServiceManager(SelectiveDepGraph graph) throws IOException {
-        super();
-        manager = new Manager();
-        manager.graph = graph;
-        serverSocket = null;
-    }
+
 
     public ServiceManager(Manager manager) throws IOException {
         super();
@@ -83,7 +76,9 @@ public class ServiceManager extends
         // add start-end of each request (from proxy)
         if (proto.hasStartEndMsg()) {
             StartEndMsg m2 = proto.getStartEndMsg();
-            updateStartEnd(m2.getMsgList());
+            for (StartEndEntry entry : m2.getMsgList()) {
+                manager.graph.addStartEnd(entry.getStart(), entry.getEnd());
+            }
         }
         //
         if (proto.hasTrackMsgFromClient()) {
@@ -122,12 +117,6 @@ public class ServiceManager extends
     }
 
 
-
-    private void updateStartEnd(List<StartEndEntry> entryList) {
-        for (StartEndEntry entry : entryList) {
-            manager.graph.updateStartEnd(entry.getStart(), entry.getEnd());
-        }
-    }
 
     public void newList(List<TrackEntry> list) {
         log.debug(depListToString(list));

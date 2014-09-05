@@ -7,82 +7,69 @@
 package pt.inesc.manager.graph;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 public class Dependency
-        implements Comparable<Dependency>, Serializable {
+        implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    // To detect cycles
-    /** preorder number **/
-    int preorder;
-    /** check strong componenet containing v **/
-    boolean chk;
-    /** to check if v is visited **/
-    boolean visited;
-
-
-
-
-
-
     /** request start timestamp. It is also the ID */
-    long start;
+    public long start;
 
     /** request end timestamp */
-    long end;
+    public long end;
 
-
-    int countBeforeTmp;
-
-    /** How many requests must execute before this */
-    int countBefore;
+    /** IDs which this entry depends from */
+    public final HashSet<Long> before = new HashSet<Long>();
 
     /** IDs dependent from entry */
-    private final HashSet<Long> after = new HashSet<Long>();
+    public final HashSet<Long> after = new HashSet<Long>();
 
-    public Dependency(long key) {
-        start = key;
+    public boolean visited;
+
+    public Dependency(long start, long end) {
+        this.start = start;
+        this.end = end;
     }
 
-    public Dependency(long key, Long... dependencies) {
-        start = key;
-        after.addAll(Arrays.asList(dependencies));
+    public void addBefore(List<Long> dependencies) {
+        before.addAll(dependencies);
     }
 
-
-    public Boolean hasAfter() {
-        return !after.isEmpty();
-    }
-
-    public int getCountBefore() {
-        return countBefore;
-    }
-
-    public HashSet<Long> cloneAfter() {
-        HashSet<Long> clone = new HashSet<Long>();
-        for (Long entry : after) {
-            clone.add(entry);
-        }
-        return clone;
-    }
-
-    public HashSet<Long> getAfter() {
-        return after;
-    }
-
+    /**
+     * Add a new link to a request that will execute after
+     * 
+     * @param key
+     * @return true if is a new requests
+     */
     public boolean addAfter(Long key) {
         return after.add(key);
-
-    }
-
-    public boolean isAfter(Long dep) {
-        return after.contains(dep);
     }
 
 
+
+    @Override
+    public String toString() {
+        return start + " : " + end;
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see java.lang.Object#hashCode()
+     */
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((after == null) ? 0 : after.hashCode());
+        result = prime * result + ((before == null) ? 0 : before.hashCode());
+        result = prime * result + (int) (end ^ (end >>> 32));
+        result = prime * result + (int) (start ^ (start >>> 32));
+        return result;
+    }
 
     /*
      * (non-Javadoc)
@@ -103,28 +90,15 @@ public class Dependency
                 return false;
         } else if (!after.equals(other.after))
             return false;
-        if (countBefore != other.countBefore)
-            return false;
-        if (countBeforeTmp != other.countBeforeTmp)
+        if (before == null) {
+            if (other.before != null)
+                return false;
+        } else if (!before.equals(other.before))
             return false;
         if (end != other.end)
             return false;
         if (start != other.start)
             return false;
         return true;
-    }
-
-    @Override
-    public int compareTo(Dependency o) {
-        return (int) (this.start - o.start);
-    }
-
-    public Long getKey() {
-        return start;
-    }
-
-    @Override
-    public String toString() {
-        return start + " : " + end;
     }
 }
