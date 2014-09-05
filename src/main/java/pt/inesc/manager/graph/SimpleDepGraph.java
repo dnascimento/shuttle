@@ -10,10 +10,19 @@ public class SimpleDepGraph extends
 
     @Override
     public void addNode(Long from, Long to) {
-        Dependency fromEntry = getOrCreateNode(from);
-        boolean isNew = fromEntry.addAfter(to);
+
+
+
+        Dependency fromNode = getOrCreateNode(from);
+        Dependency toNode = getOrCreateNode(to);
+
+        // avoid double linked edges
+        if (toNode.isAfter(from)) {
+            return;
+        }
+
+        boolean isNew = fromNode.addAfter(to);
         if (isNew) {
-            Dependency toNode = getOrCreateNode(to);
             toNode.countBefore++;
         }
     }

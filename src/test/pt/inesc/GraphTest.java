@@ -32,4 +32,20 @@ public class GraphTest {
     }
 
 
+    @Test
+    public void complexGraphWithCycles() throws Exception {
+        DepGraph graph = new SimpleDepGraph();
+        GraphPopulate.complexGraph(graph);
+        // List<List<Dependency>> cycles = graph.removeCycles();
+        //
+        // List<List<Long>> all = graph.replayAllList(0);
+        // Assert.assertEquals("[[1, 3, 5, 7, -1], [10, 12, 14, 16, -1]]",
+        // all.toString());
+        List<List<Long>> time = graph.replayTimeOrdered(0);
+        Assert.assertEquals("[[1, 3, 5, 7, 10, 12, 14, 16]]", time.toString());
+    }
+
+
+
+
 }

@@ -1,7 +1,6 @@
 package pt.inesc.manager.graph;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -144,40 +143,6 @@ public class GraphUtils {
 
 
 
-    /**
-     * Search cycle using DFS algorithm (LIFO)
-     * 
-     * @param root
-     * @param possibleCicles
-     */
-    public static void searchCycle(Long root, DepGraph graph) {
-        Dependency rootNode = graph.getNode(root);
-        searchCycleAux(rootNode, rootNode, graph);
-    }
-
-    /**
-     * Given a rootNode and one of the children of the tree, do DFS to find the root node.
-     * The algorithm stops if the child ends after the rootStart. In that case,
-     * A node never depends from a node that started after the request ends.
-     * 
-     * @param nextNode
-     * @param rootStart
-     * @param graph
-     * @return
-     */
-    private static void searchCycleAux(Dependency node, Dependency rootNode, DepGraph graph) {
-        Iterator<Long> it = node.getAfter().iterator();
-        while (it.hasNext()) {
-            Dependency child = graph.getNode(it.next());
-            if (child.getKey() == rootNode.getKey()) {
-                // if(node.start > root){
-                graph.removeNode(node.getKey(), rootNode.getKey());
-                it.remove();
-            } else {
-                searchCycleAux(child, rootNode, graph);
-            }
-        }
-    }
 
 
 }

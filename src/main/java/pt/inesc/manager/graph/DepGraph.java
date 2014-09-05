@@ -25,12 +25,6 @@ public abstract class DepGraph
      */
     private transient ShowGraph graphDisplayer;
 
-    /**
-     * Temporary storage of the start-end of each request because the end may arrive
-     * before the start
-     */
-    final HashMap<Long, Long> tmpStartEnd = new HashMap<Long, Long>();
-
 
     /**
      * Each dependency establish the elements which can only run after the key.
@@ -87,16 +81,7 @@ public abstract class DepGraph
      */
     public synchronized void addDependencies(Long key, List<Long> dependencies) {
         // get the end-time
-        Dependency keyEntry = getOrCreateNode(key);
-        if (keyEntry.end == 0) {
-            Long endTmp = tmpStartEnd.remove(keyEntry.start);
-            if (endTmp != null) {
-                keyEntry.end = endTmp;
-            }
-        }
-
-        // Copy the after list to detect cycles later
-        // HashSet<Long> possibleCicles = keyEntry.cloneAfter();
+        getOrCreateNode(key);
 
         // add dependencies
         for (Long depKey : dependencies) {
@@ -107,9 +92,6 @@ public abstract class DepGraph
         if (graphDisplayer != null) {
             graphDisplayer.addEdgeAndVertex(key, dependencies);
         }
-        // if (possibleCicles.size() == 0) {
-        GraphUtils.searchCycle(key, this);
-        // }
     }
 
 
@@ -121,21 +103,30 @@ public abstract class DepGraph
      * @param end
      */
     public synchronized void updateStartEnd(long start, long end) {
-        Dependency dep = graph.get(start);
-        if (dep == null) {
-            tmpStartEnd.put(start, end);
-        } else {
-            dep.start = start;
-            dep.end = end;
-        }
+        Dependency dep = getOrCreateNode(start);
+        dep.end = end;
     }
 
+    public List<List<Dependency>> removeCycles() {
+        GabowShuttle gabow = new GabowShuttle(graph);
+        List<List<Dependency>> strongConnectedComponents = gabow.getSCComponents();
+        return strongConnectedComponents;
+
+    }
+
+
+
+
+
+
+
+    /* ------------------ Gets and sets ------------------------- */
 
     public Dependency getNode(Long key) {
         return graph.get(key);
     }
 
-    public Dependency getOrCreateNode(Long key) {
+    protected Dependency getOrCreateNode(Long key) {
         if (!graph.containsKey(key)) {
             graph.put(key, new Dependency(key));
         }

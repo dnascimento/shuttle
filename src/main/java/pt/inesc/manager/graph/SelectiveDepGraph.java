@@ -18,10 +18,15 @@ public class SelectiveDepGraph extends
 
     @Override
     public void addNode(Long from, Long to) {
-        DependencyDouble fromEntry = (DependencyDouble) getOrCreateNode(from);
-        boolean isNew = fromEntry.addAfter(to);
+        DependencyDouble fromNode = (DependencyDouble) getOrCreateNode(from);
+        DependencyDouble toNode = (DependencyDouble) getOrCreateNode(to);
+
+        if (toNode.isAfter(from)) {
+            return;
+        }
+
+        boolean isNew = fromNode.addAfter(to);
         if (isNew) {
-            DependencyDouble toNode = (DependencyDouble) getOrCreateNode(to);
             toNode.addPrevious(from);
             toNode.countBefore++;
         }

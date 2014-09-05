@@ -15,6 +15,19 @@ public class Dependency
 
     private static final long serialVersionUID = 1L;
 
+    // To detect cycles
+    /** preorder number **/
+    int preorder;
+    /** check strong componenet containing v **/
+    boolean chk;
+    /** to check if v is visited **/
+    boolean visited;
+
+
+
+
+
+
     /** request start timestamp. It is also the ID */
     long start;
 
@@ -65,7 +78,7 @@ public class Dependency
 
     }
 
-    public boolean hasAfter(Long dep) {
+    public boolean isAfter(Long dep) {
         return after.contains(dep);
     }
 
