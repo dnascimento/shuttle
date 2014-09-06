@@ -25,10 +25,10 @@ public class GraphShuttle
 
     private transient ShowGraph graphDisplayer;
 
-    public final SortedMap<Long, Dependency> map;
+    public final SortedMap<Dependency> map;
 
     public GraphShuttle() {
-        map = new SortedMap<Long, Dependency>();
+        map = new SortedMap<Dependency>();
     }
 
     /**
@@ -51,7 +51,7 @@ public class GraphShuttle
      * @param start
      * @param end
      */
-    public void addStartEnd(long start, long end) {
+    public synchronized void addStartEnd(long start, long end) {
         // checkIfExists with end
         Dependency entry = getOrCreate(start);
         entry.end = end;
@@ -63,7 +63,7 @@ public class GraphShuttle
      * @param key
      * @param dependencies
      */
-    public void addDependencies(long key, List<Long> dependencies) {
+    public synchronized void addDependencies(long key, List<Long> dependencies) {
         getOrCreate(key).addBefore(dependencies);
 
         for (Long k : dependencies) {
@@ -249,12 +249,13 @@ public class GraphShuttle
     }
 
 
-    public List<List<Long>> replay(long baseCommit, ReplayMode mode, List<Long> attackSource) {
+    public synchronized List<List<Long>> replay(long baseCommit, ReplayMode mode, List<Long> attackSource) {
         List<List<Long>> result = new ArrayList<List<Long>>(1);
 
         switch (mode) {
         case allParallel:
-            return DepAlgorithms.replayParallel(baseCommit, this);
+            result = DepAlgorithms.replayParallel(baseCommit, this);
+            return result;
         case allSerial:
             result.add(DepAlgorithms.replaySerial(baseCommit, this));
             return result;

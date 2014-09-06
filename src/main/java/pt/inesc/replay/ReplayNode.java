@@ -62,7 +62,7 @@ public class ReplayNode extends
             myServerSocket = new ServerSocket(MY_PORT);
             registryToManger();
         } catch (BindException e) {
-            throw new Exception("Redo Node already running in same port...");
+            throw new Exception("Replay Node already running in same port...");
         }
     }
 
@@ -138,7 +138,9 @@ public class ReplayNode extends
         InputStream stream = socket.getInputStream();
         FromManagerProto.ExecList request = ExecList.parseDelimitedFrom(stream);
         List<Long> execList = request.getRidList();
-        if (execList.size() != 0) {
+        if (execList.size() == 0) {
+            log.warn("Retrieved an empty execution list");
+        } else {
             ReplayMode replayMode = ReplayMode.valueOf(request.getReplayMode());
             newRequest(execList, (short) request.getBranch(), replayMode);
         }

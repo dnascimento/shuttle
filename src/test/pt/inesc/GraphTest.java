@@ -52,12 +52,13 @@ public class GraphTest {
         GraphPopulate.complexGraph(graph);
 
         // serial
-        Assert.assertEquals("[[1, -1, 3, 4, 5, 9, 7, 10, 6, 8, 15, -1, 30, -1, 50, 55, 65, -1, 100]]",
+
+        Assert.assertEquals("[[1, -1, 3, 4, 5, 6, 7, 8, 9, 10, 15, -1, 30, -1, 50, 55, 65, -1, 100]]",
                             graph.replay(0, ReplayMode.allSerial, null).toString());
 
 
         // parallel
-        Assert.assertEquals("[[1, -1, 4, 3, 6, 8, 10, 5, -1, 55, 7, 50, 9, 65, 15, 30], [100]]",
+        Assert.assertEquals("[[1, -1, 3, 4, 5, 6, 7, 8, 9, 10, 15, -1, 30, -1, 50, 55, 65], [100]]",
                             graph.replay(0, ReplayMode.allParallel, null).toString());
 
 
@@ -70,7 +71,7 @@ public class GraphTest {
         Assert.assertEquals("[[55, 65]]", graph.replay(35, ReplayMode.selectiveParallel, Arrays.asList(55L)).toString());
 
         // three affected
-        Assert.assertEquals("[[55, -1, 100, 65]]", graph.replay(35, ReplayMode.selectiveSerial, Arrays.asList(55L, 100L)).toString());
+        Assert.assertEquals("[[55, 65, -1, 100]]", graph.replay(35, ReplayMode.selectiveSerial, Arrays.asList(55L, 100L)).toString());
         Assert.assertEquals("[[55, 65], [100]]", graph.replay(35, ReplayMode.selectiveParallel, Arrays.asList(55L, 100L)).toString());
 
         // TODO more tests

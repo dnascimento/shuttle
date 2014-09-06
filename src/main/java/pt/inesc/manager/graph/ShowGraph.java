@@ -48,7 +48,7 @@ public class ShowGraph extends
         g = new SparseMultigraph<String, String>();
     }
 
-    public ShowGraph(SortedMap<Long, Dependency> map) {
+    public ShowGraph(SortedMap< Dependency> map) {
         this();
         for (Dependency v : map) {
             g.addVertex(v.toString());

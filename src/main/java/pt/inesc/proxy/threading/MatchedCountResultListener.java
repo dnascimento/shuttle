@@ -24,7 +24,6 @@ public class MatchedCountResultListener<V>
      */
     @Override
     public void finish(V obj) {
-        // System.out.println("count is "+obj);
         matchedCount.addAndGet((Integer) obj);
     }
 

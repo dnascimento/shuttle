@@ -23,20 +23,17 @@ public class ChannelPack {
     public RedoChannelPool pool;
     public ByteBuffer buffer;
     public final AtomicInteger sentCounter;
-    public final BiggestEndList biggestEnd;
 
     public ChannelPack(AsynchronousSocketChannel channel,
             ByteBuffer buffer,
             CassandraClient cassandra,
             RedoChannelPool redoChannelPool,
-            BiggestEndList biggestEnd,
             AtomicInteger sentCounter) {
         this.buffer = buffer;
         this.channel = channel;
         this.cassandra = cassandra;
         this.pool = redoChannelPool;
         this.sentCounter = sentCounter;
-        this.biggestEnd = biggestEnd;
         this.request = null;
     }
 

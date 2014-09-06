@@ -1,69 +1,82 @@
 package pt.inesc.manager.graph;
 
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.PriorityQueue;
+import java.util.Set;
 
-public class SortedMap<K, V>
-        implements Iterable<V> {
+public class SortedMap<V>
+        implements Iterable<V>, Serializable {
 
-    private final HashMap<K, V> map = new HashMap<K, V>();
-    private final PriorityQueue<K> sortedQueue = new PriorityQueue<K>();
+    private static final long serialVersionUID = 1L;
 
-    public void put(K key, V value) {
-        V existing = map.put(key, value);
-        if (existing == null) {
-            sortedQueue.add(key);
-        }
+    private final HashMap<Long, V> map = new HashMap<Long, V>();
+    private SortedMapIterator currentIterator = null;
+    private int sizeOfLastKeySetIterated = 0;
+
+    public void put(Long key, V value) {
+        map.put(key, value);
     }
 
-    public V get(K key) {
+    public V get(Long key) {
         return map.get(key);
     }
 
     @Override
     public Iterator<V> iterator() {
-        return new SortedMapIterator(map, sortedQueue);
+        if (currentIterator != null && sizeOfLastKeySetIterated == map.size()) {
+            return currentIterator;
+        }
+        currentIterator = new SortedMapIterator(map);
+        sizeOfLastKeySetIterated = map.size();
+        return currentIterator;
     }
-
 
     public class SortedMapIterator
             implements Iterator<V> {
 
-        private final HashMap<K, V> map;
-        private final Iterator<K> it;
-        K currentKey;
+        private final HashMap<Long, V> map;
+        private final long[] sortedKeys;
+        int pointer;
 
-        public SortedMapIterator(HashMap<K, V> map, PriorityQueue<K> sortedQueue) {
+        public SortedMapIterator(HashMap<Long, V> map) {
             this.map = map;
-            it = sortedQueue.iterator();
+            Set<Long> keys = map.keySet();
+
+            sortedKeys = new long[keys.size()];
+            int i = 0;
+            for (Long key : keys) {
+                sortedKeys[i++] = key;
+            }
+            Arrays.sort(sortedKeys);
+
         }
 
         @Override
         public boolean hasNext() {
-            return it.hasNext();
+            return pointer != sortedKeys.length;
         }
 
         @Override
         public V next() {
-            currentKey = it.next();
-            return map.get(currentKey);
+            long key = sortedKeys[pointer++];
+            return map.get(key);
         }
 
         @Override
         public void remove() {
-            if (currentKey == null) {
+            if (pointer == sortedKeys.length) {
                 throw new IllegalStateException();
             }
-            it.remove();
-            map.remove(currentKey);
+            long key = sortedKeys[pointer++];
+            map.remove(key);
         }
     }
 
 
     public void clear() {
         map.clear();
-        sortedQueue.clear();
     }
 
     public int size() {

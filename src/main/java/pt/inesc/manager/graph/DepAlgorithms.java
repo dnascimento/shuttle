@@ -31,8 +31,15 @@ public final class DepAlgorithms {
             }
             biggestEndExecuting = Math.max(biggestEndExecuting, node.end);
         }
+
+        // sort execLis
+        // sortExecList(execList);
+
+
         return execList;
     }
+
+
 
     /**
      * Separate the main tree into multiple subtrees and then invoke the
@@ -67,7 +74,6 @@ public final class DepAlgorithms {
     public static List<Long> replaySelectiveSerial(long baseCommit, List<Long> attackSource, GraphShuttle baseGraph) {
         GraphShuttle subGraph = replaySelective(baseCommit, attackSource, baseGraph);
         return replaySerial(baseCommit, subGraph);
-
     }
 
     public static List<List<Long>> replaySelectiveParallel(long baseCommit, List<Long> attackSource, GraphShuttle baseGraph) {

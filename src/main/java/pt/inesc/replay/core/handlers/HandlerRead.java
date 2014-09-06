@@ -36,14 +36,6 @@ public class HandlerRead
                     }
                 }
             }
-
-            if (aux.biggestEnd != null) {
-                synchronized (aux.biggestEnd) {
-                    if (aux.biggestEnd.wasTheBiggest(aux.request.end)) {
-                        aux.biggestEnd.notify();
-                    }
-                }
-            }
         }
     }
 

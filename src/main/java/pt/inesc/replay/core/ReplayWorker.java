@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -19,7 +20,6 @@ import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.ReplayNode;
 import pt.inesc.replay.core.cookies.CookieMan;
-import pt.inesc.replay.core.handlers.BiggestEndList;
 import pt.inesc.replay.core.handlers.ChannelPack;
 import pt.inesc.replay.core.handlers.HandlerWrite;
 import pt.inesc.replay.core.unlock.VoldemortUnlocker;
@@ -46,7 +46,7 @@ public class ReplayWorker extends
     protected final VoldemortUnlocker unlocker;
 
 
-    private final BiggestEndList biggestEnd = new BiggestEndList();
+    private final AtomicInteger executingCounter = new AtomicInteger(0);
     protected final RedoChannelPool pool;
 
 
@@ -60,33 +60,33 @@ public class ReplayWorker extends
         // create a variable group of threads to handle each channel
         unlocker = new VoldemortUnlocker();
 
-        pool = new RedoChannelPool(remoteHost, cassandra, biggestEnd);
-
+        pool = new RedoChannelPool(remoteHost, cassandra, executingCounter);
     }
 
 
     @Override
     public void run() {
-        logger.info("time:" + new Date().getTime());
+        logger.info("Start time:" + new Date().getTime());
 
         // if the request start is smaller than the biggest executing end, then, wait.
         for (long reqId : executionArray) {
             try {
-                Request request = cassandra.getRequest(reqId);
-                while (true) {
-                    long biggestEndExecuting;
-                    synchronized (biggestEnd) {
-                        biggestEndExecuting = biggestEnd.getBiggest();
-                        if (request.rid <= biggestEndExecuting || biggestEnd.isEmpty()) {
-                            biggestEnd.addEnd(request.end);
-                            break;
+                if (reqId == -1) {
+                    // wait for all to execute
+                    synchronized (executingCounter) {
+                        if (executingCounter.get() == 0) {
+                            executingCounter.wait();
                         }
-                        biggestEnd.wait();
-                        logger.info("continue");
                     }
+                    logger.info("continue");
+                    continue;
+                } else {
+                    // execute request
+                    Request request = cassandra.getRequest(reqId);
+                    executingCounter.incrementAndGet();
+                    writePackage(request);
+                    totalRequests++;
                 }
-                // execute request
-                writePackage(request);
             } catch (Exception e) {
                 errors.add("Erro in req: " + reqId + " " + e);
                 logger.error("Erro", e);
@@ -96,7 +96,6 @@ public class ReplayWorker extends
         logger.info("Redo end");
         ReplayNode.addErrors(errors, totalRequests);
     }
-
 
     protected void compensateRequest(long reqID) throws Exception {
         logger.warn("Request deleted: " + reqID + " fetching the keys to compensate...");

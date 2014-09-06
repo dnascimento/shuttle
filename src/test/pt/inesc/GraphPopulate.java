@@ -11,6 +11,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Iterator;
 
 import junit.framework.Assert;
 
@@ -46,7 +48,7 @@ public class GraphPopulate {
         graph.addDependencies(3L, 2L);
         graph.addDependencies(4L, 3L);
 
-        SortedMap<Long, Dependency> map = graph.map;
+        SortedMap<Dependency> map = graph.map;
         Assert.assertEquals(4, map.size());
 
         assertEquals(0, map.get(1L).before.size());
@@ -110,8 +112,28 @@ public class GraphPopulate {
             graph.addDependencies(dependencyArray[i], dependencyArray[i - 1]);
             i += 2;
         }
+        graph.toString();
 
         graph.display();
+    }
+
+
+    @Test
+    public void testSortedMap() {
+        SortedMap<Dependency> map = new SortedMap<Dependency>();
+        long[] startTimes = new long[] { 20, 15, 30, 5, 10, 8, 1 };
+        for (int i = 0; i < startTimes.length; i++) {
+            map.put(startTimes[i], new Dependency(startTimes[i], 15L));
+        }
+        Arrays.sort(startTimes);
+        Iterator<Dependency> it = map.iterator();
+        int i = 0;
+        while (it.hasNext()) {
+            Dependency node = it.next();
+            long start = startTimes[i];
+            Assert.assertEquals(start, node.start);
+        }
+
     }
 
 }

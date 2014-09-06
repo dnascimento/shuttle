@@ -93,7 +93,7 @@ public class Manager {
 
         // inform the slaves which requests will be replayed
         for (List<Long> execList : execLists) {
-            if (execList == null)
+            if (execList == null || execList.size() == 0)
                 continue;
             ExecList msg = FromManagerProto.ExecList.newBuilder()
                                                     .addAllRid(execList)
@@ -105,7 +105,11 @@ public class Manager {
         }
 
         // order to replay the requests
-        ExecList startMsg = FromManagerProto.ExecList.newBuilder().setBranch(parentBranch).setStart(true).build();
+        ExecList startMsg = FromManagerProto.ExecList.newBuilder()
+                                                     .setReplayMode(replayMode.toString())
+                                                     .setBranch(parentBranch)
+                                                     .setStart(true)
+                                                     .build();
         group.broadcast(startMsg, NodeGroup.REDO, false);
         // wait for ack
         synchronized (ackWaiter) {

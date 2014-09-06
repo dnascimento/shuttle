@@ -15,7 +15,6 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.proxy.save.CassandraClient;
-import pt.inesc.replay.core.handlers.BiggestEndList;
 import pt.inesc.replay.core.handlers.ChannelPack;
 
 public class RedoChannelPool {
@@ -27,7 +26,6 @@ public class RedoChannelPool {
     AsynchronousChannelGroup group;
     private static final int BUFFER_SIZE = 512 * 1024;
 
-    private BiggestEndList biggestEnd;
     private AtomicInteger sentCounter;
 
     private RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra) throws Exception {
@@ -38,14 +36,6 @@ public class RedoChannelPool {
     }
 
 
-    public RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra, BiggestEndList biggestEnd) throws Exception {
-        this(remoteHost, cassandra);
-        this.biggestEnd = biggestEnd;
-
-        for (int i = 0; i < INIT_NUMBER_OF_THREADS_AND_CHANNELS; i++) {
-            createPackChannel();
-        }
-    }
 
     public RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra, AtomicInteger sentCounter) throws Exception {
         this(remoteHost, cassandra);
@@ -92,7 +82,7 @@ public class RedoChannelPool {
     private ChannelPack createPackChannel() throws Exception {
         AsynchronousSocketChannel socketChannel = createChannel();
         ByteBuffer buffer = allocateBuffer();
-        ChannelPack pack = new ChannelPack(socketChannel, buffer, cassandra, this, biggestEnd, sentCounter);
+        ChannelPack pack = new ChannelPack(socketChannel, buffer, cassandra, this, sentCounter);
         availableChannels.add(pack);
         return pack;
     }
