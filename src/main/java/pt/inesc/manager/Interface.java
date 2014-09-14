@@ -137,6 +137,7 @@ public class Interface extends
         System.out.println("a) load");
         System.out.println("b) save");
         System.out.println("c) reset");
+        System.out.println("d) count");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -151,10 +152,11 @@ public class Interface extends
         case 'c':
             manager.resetGraph();
             break;
+        case 'd':
+            System.out.println(manager.graph.countDependencies());
         default:
             return;
         }
-
     }
 
 

@@ -77,10 +77,11 @@ public class SortedMap<V>
 
     public void clear() {
         map.clear();
+        currentIterator = null;
+        sizeOfLastKeySetIterated = 0;
     }
 
     public int size() {
         return map.size();
     }
-
 }

@@ -32,10 +32,6 @@ public final class DepAlgorithms {
             biggestEndExecuting = Math.max(biggestEndExecuting, node.end);
         }
 
-        // sort execLis
-        // sortExecList(execList);
-
-
         return execList;
     }
 

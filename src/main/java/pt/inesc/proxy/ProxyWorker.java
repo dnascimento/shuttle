@@ -78,6 +78,8 @@ public class ProxyWorker extends
 
     private static final long WRITE_TIMEOUT = 1000;
 
+    private final ByteBuffer END_OF_MESSAGE = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
+
     public ProxyWorker(InetSocketAddress remoteAddress) {
         saver = new Saver();
         saver.start();
@@ -298,8 +300,7 @@ public class ProxyWorker extends
         while ((written += frontendChannel.write(responseBuffer).get(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)) < toWrite)
             ;
 
-        frontendChannel.write(ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 })).get();
-
+        // frontendChannel.write(END_OF_MESSAGE).get();
         if (!ignore)
             addResponse(responseBuffer, startTS, endTS);
     }

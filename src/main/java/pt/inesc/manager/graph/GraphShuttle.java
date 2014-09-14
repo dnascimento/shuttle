@@ -249,6 +249,23 @@ public class GraphShuttle
     }
 
 
+    public synchronized int countDependencies() {
+        Iterator<Dependency> it = map.iterator();
+        int counterBefore = 0;
+        int counterAfter = 0;
+
+        while (it.hasNext()) {
+            Dependency dep = it.next();
+            counterBefore += dep.before.size();
+            counterAfter += dep.after.size();
+        }
+
+        if (counterBefore != counterAfter) {
+            System.err.println(counterBefore + " before, while " + counterAfter + " after");
+        }
+        return counterBefore;
+    }
+
     public synchronized List<List<Long>> replay(long baseCommit, ReplayMode mode, List<Long> attackSource) {
         List<List<Long>> result = new ArrayList<List<Long>>(1);
 

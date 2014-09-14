@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.apache.log4j.Logger;
 
@@ -27,7 +29,7 @@ public class ServiceManager extends
     private final Manager manager;
     private final ServerSocket serverSocket;
     private final Logger log = Logger.getLogger(ServiceManager.class.getName());
-
+    protected ExecutorService threadPool = Executors.newFixedThreadPool(10);
 
 
     public ServiceManager(Manager manager) throws IOException {
@@ -44,116 +46,124 @@ public class ServiceManager extends
 
         log.info("Manager Service is listening...");
         while (true) {
-            Socket s = null;
+            Socket s;
             try {
                 s = serverSocket.accept();
-                receive(s);
+                threadPool.execute(new ServiceManagerMsgHandler(s));
             } catch (IOException e) {
                 log.error(e);
-            } finally {
-                if (s != null)
-                    try {
-                        s.close();
-                    } catch (IOException e) {
-                        log.error(e);
+            }
+        }
+    }
+
+    class ServiceManagerMsgHandler
+            implements Runnable {
+        Socket socket;
+
+        public ServiceManagerMsgHandler(Socket s) {
+            this.socket = s;
+        }
+
+        @Override
+        public void run() {
+            ToManagerProto.MsgToManager proto;
+            try {
+                proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
+                if (proto == null)
+                    return;
+                // add dependencies (From Database nodes)
+                if (proto.hasTrackMsg()) {
+                    TrackMsg m1 = proto.getTrackMsg();
+                    newList(m1.getEntryList());
+                }
+                // add start-end of each request (from proxy)
+                if (proto.hasStartEndMsg()) {
+                    StartEndMsg m2 = proto.getStartEndMsg();
+                    for (StartEndEntry entry : m2.getMsgList()) {
+                        manager.graph.addStartEnd(entry.getStart(), entry.getEnd());
                     }
+                }
+                //
+                if (proto.hasTrackMsgFromClient()) {
+                    log.info("New msg: TrackMsg from Client Lib");
+                    TrackMsg m3 = proto.getTrackMsgFromClient();
+                    clientDependencies(m3.getEntryList());
+                }
+
+                //
+                if (proto.hasNodeRegistry()) {
+                    log.info("New msg: has Node Registry");
+                    NodeRegistryMsg msg = proto.getNodeRegistry();
+                    NodeGroup group;
+                    switch (msg.getGroup()) {
+                    case DB_NODE:
+                        group = NodeGroup.DATABASE;
+                        break;
+                    case PROXY:
+                        group = NodeGroup.PROXY;
+                        break;
+                    case REDO_NODE:
+                        group = NodeGroup.REDO;
+                        break;
+                    default:
+                        log.error("Unknown new node group");
+                        return;
+                    }
+                    manager.group.newNode(msg.getHostname(), msg.getPort(), group);
+                }
+                if (proto.hasAck()) {
+                    // TODO multiple redo nodes, o wait pode nao estar locked ainda
+                    synchronized (manager.ackWaiter) {
+                        manager.ackWaiter.notify();
+                    }
+                }
+                socket.close();
+            } catch (IOException e) {
+                log.error("Service Manager", e);
+            } finally {
             }
-        }
-    }
 
-    private void receive(Socket socket) throws IOException {
-        String threadName = Thread.currentThread().getName();
-        Thread.currentThread().setName("ServiceManager retrieveData: " + threadName);
-
-        ToManagerProto.MsgToManager proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
-        if (proto == null)
-            return;
-        // add dependencies (From Database nodes)
-        if (proto.hasTrackMsg()) {
-            TrackMsg m1 = proto.getTrackMsg();
-            newList(m1.getEntryList());
         }
-        // add start-end of each request (from proxy)
-        if (proto.hasStartEndMsg()) {
-            StartEndMsg m2 = proto.getStartEndMsg();
-            for (StartEndEntry entry : m2.getMsgList()) {
-                manager.graph.addStartEnd(entry.getStart(), entry.getEnd());
+
+
+
+        public void newList(List<TrackEntry> list) {
+            log.debug(depListToString(list));
+            for (TrackEntry entry : list) {
+                manager.addDependencies(entry.getRid(), entry.getDependencyList());
             }
-        }
-        //
-        if (proto.hasTrackMsgFromClient()) {
-            log.info("New msg: TrackMsg from Client Lib");
-            TrackMsg m3 = proto.getTrackMsgFromClient();
-            clientDependencies(m3.getEntryList());
+            log.debug("dep list is processed");
         }
 
-        //
-        if (proto.hasNodeRegistry()) {
-            log.info("New msg: has Node Registry");
-            NodeRegistryMsg msg = proto.getNodeRegistry();
-            NodeGroup group;
-            switch (msg.getGroup()) {
-            case DB_NODE:
-                group = NodeGroup.DATABASE;
-                break;
-            case PROXY:
-                group = NodeGroup.PROXY;
-                break;
-            case REDO_NODE:
-                group = NodeGroup.REDO;
-                break;
-            default:
-                log.error("Unknown new node group");
-                return;
+
+        private void clientDependencies(List<TrackEntry> list) {
+            log.debug("------ Client Side dependency--------");
+            log.debug(depListToString(list));
+            log.debug("--------------");
+            // TODO insert into graph and compare
+        }
+
+        /**
+         * Display dependency list properly
+         * 
+         * @param list
+         * @return
+         */
+        private String depListToString(List<TrackEntry> list) {
+            log.debug("------Dep List (size: " + list.size() + ")--------");
+            StringBuilder sb = new StringBuilder();
+            for (TrackEntry entry : list) {
+                sb.append("\n[");
+                sb.append(entry.getRid());
+                sb.append("<-");
+                for (Long l : entry.getDependencyList()) {
+                    sb.append(l);
+                    sb.append(",");
+                }
+                sb.append("]\n");
             }
-            manager.group.newNode(msg.getHostname(), msg.getPort(), group);
+            sb.append("--------------");
+            return sb.toString();
         }
-        if (proto.hasAck()) {
-            // TODO multiple redo nodes, o wait pode nao estar locked ainda
-            synchronized (manager.ackWaiter) {
-                manager.ackWaiter.notify();
-            }
-        }
-    }
-
-
-
-    public void newList(List<TrackEntry> list) {
-        log.debug(depListToString(list));
-        for (TrackEntry entry : list) {
-            manager.addDependencies(entry.getRid(), entry.getDependencyList());
-        }
-        log.debug("dep list is processed");
-    }
-
-
-    private void clientDependencies(List<TrackEntry> list) {
-        log.debug("------ Client Side dependency--------");
-        log.debug(depListToString(list));
-        log.debug("--------------");
-        // TODO insert into graph and compare
-    }
-
-    /**
-     * Display dependency list properly
-     * 
-     * @param list
-     * @return
-     */
-    private String depListToString(List<TrackEntry> list) {
-        log.debug("------Dep List (size: " + list.size() + ")--------");
-        StringBuilder sb = new StringBuilder();
-        for (TrackEntry entry : list) {
-            sb.append("\n[");
-            sb.append(entry.getRid());
-            sb.append("<-");
-            for (Long l : entry.getDependencyList()) {
-                sb.append(l);
-                sb.append(",");
-            }
-            sb.append("]\n");
-        }
-        sb.append("--------------");
-        return sb.toString();
     }
 }
