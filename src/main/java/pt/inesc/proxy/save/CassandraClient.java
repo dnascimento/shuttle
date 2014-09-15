@@ -80,6 +80,22 @@ public class CassandraClient {
         }
     }
 
+
+    public void putRequestResponse(Request req, Response res) {
+        req.data.rewind();
+        res.data.rewind();
+
+        Insert query = QueryBuilder.insertInto(TABLE_NAME)
+                                   .value(COL_ID, res.start)
+                                   .value(COL_REQUEST, req.data)
+                                   .value(COL_RESPONSE, res.data)
+                                   .value(COL_END, res.end);
+        if (session != null) {
+            session.execute(query);
+        }
+    }
+
+
     /**
      * This PUT is Synchronous
      * 
@@ -88,22 +104,6 @@ public class CassandraClient {
     public void putRequest(Request pack) {
         pack.data.rewind();
         Insert query = QueryBuilder.insertInto(TABLE_NAME).value(COL_ID, pack.rid).value(COL_REQUEST, pack.data);
-
-        if (session != null) {
-            session.execute(query);
-        }
-    }
-
-    /**
-     * Put response is Synchronous
-     * 
-     * @param rid
-     * @param end
-     * @param data
-     */
-    public void putResponse(long rid, long end, ByteBuffer data) {
-        data.rewind();
-        Insert query = QueryBuilder.insertInto(TABLE_NAME).value(COL_ID, rid).value(COL_RESPONSE, data).value(COL_END, end);
 
         if (session != null) {
             session.execute(query);
@@ -184,8 +184,10 @@ public class CassandraClient {
 
     public void truncatePackageTable() {
         String query = new String("truncate " + TABLE_NAME + ";");
-        session.execute(query);
-        log.info(query + " executed");
+        if (session != null) {
+            session.execute(query);
+            log.info(query + " executed");
+        }
     }
 
     public List<Long> getRequestList() {
@@ -205,4 +207,6 @@ public class CassandraClient {
         sb.append(";");
         session.execute(sb.toString());
     }
+
+
 }

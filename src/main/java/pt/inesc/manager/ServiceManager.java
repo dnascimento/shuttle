@@ -9,16 +9,17 @@ package pt.inesc.manager;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import undo.proto.ToManagerProto;
 import undo.proto.ToManagerProto.NodeRegistryMsg;
-import undo.proto.ToManagerProto.StartEndEntry;
 import undo.proto.ToManagerProto.StartEndMsg;
 import undo.proto.ToManagerProto.TrackEntry;
 import undo.proto.ToManagerProto.TrackMsg;
@@ -37,6 +38,7 @@ public class ServiceManager extends
         this.manager = manager;
         serverSocket = new ServerSocket();
         serverSocket.bind(Manager.MANAGER_ADDR);
+        log.setLevel(Level.ERROR);
     }
 
     @Override
@@ -66,65 +68,78 @@ public class ServiceManager extends
 
         @Override
         public void run() {
-            ToManagerProto.MsgToManager proto;
-            try {
-                proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
-                if (proto == null)
-                    return;
-                // add dependencies (From Database nodes)
-                if (proto.hasTrackMsg()) {
-                    TrackMsg m1 = proto.getTrackMsg();
-                    newList(m1.getEntryList());
-                }
-                // add start-end of each request (from proxy)
-                if (proto.hasStartEndMsg()) {
-                    StartEndMsg m2 = proto.getStartEndMsg();
-                    for (StartEndEntry entry : m2.getMsgList()) {
-                        manager.graph.addStartEnd(entry.getStart(), entry.getEnd());
+            boolean keepAlive = false;
+            do {
+                ToManagerProto.MsgToManager proto;
+                try {
+                    proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
+                    if (proto == null) {
+                        keepAlive = true;
+                        System.out.println("empty");
+                        break;
                     }
-                }
-                //
-                if (proto.hasTrackMsgFromClient()) {
-                    log.info("New msg: TrackMsg from Client Lib");
-                    TrackMsg m3 = proto.getTrackMsgFromClient();
-                    clientDependencies(m3.getEntryList());
-                }
+                    // add dependencies (From Database nodes)
+                    if (proto.hasTrackMsg()) {
+                        log.info("New msg: dependencies");
+                        TrackMsg m1 = proto.getTrackMsg();
+                        newList(m1.getEntryList());
+                    }
+                    // add start-end of each request (from proxy)
+                    if (proto.hasStartEndMsg()) {
+                        log.info("New msg: start-end");
+                        StartEndMsg m2 = proto.getStartEndMsg();
+                        Iterator<Long> startEndList = m2.getDataList().iterator();
+                        while (startEndList.hasNext()) {
+                            manager.graph.addStartEnd(startEndList.next(), startEndList.next());
+                        }
+                        keepAlive = true;
+                    }
+                    //
+                    if (proto.hasTrackMsgFromClient()) {
+                        log.info("New msg: TrackMsg from Client Lib");
+                        TrackMsg m3 = proto.getTrackMsgFromClient();
+                        clientDependencies(m3.getEntryList());
+                    }
 
-                //
-                if (proto.hasNodeRegistry()) {
-                    log.info("New msg: has Node Registry");
-                    NodeRegistryMsg msg = proto.getNodeRegistry();
-                    NodeGroup group;
-                    switch (msg.getGroup()) {
-                    case DB_NODE:
-                        group = NodeGroup.DATABASE;
-                        break;
-                    case PROXY:
-                        group = NodeGroup.PROXY;
-                        break;
-                    case REDO_NODE:
-                        group = NodeGroup.REDO;
-                        break;
-                    default:
-                        log.error("Unknown new node group");
-                        return;
+                    //
+                    if (proto.hasNodeRegistry()) {
+                        log.info("New msg: has Node Registry");
+                        NodeRegistryMsg msg = proto.getNodeRegistry();
+                        NodeGroup group;
+                        switch (msg.getGroup()) {
+                        case DB_NODE:
+                            group = NodeGroup.DATABASE;
+                            break;
+                        case PROXY:
+                            group = NodeGroup.PROXY;
+                            break;
+                        case REDO_NODE:
+                            group = NodeGroup.REDO;
+                            break;
+                        default:
+                            log.error("Unknown new node group");
+                            return;
+                        }
+                        manager.group.newNode(msg.getHostname(), msg.getPort(), group);
                     }
-                    manager.group.newNode(msg.getHostname(), msg.getPort(), group);
-                }
-                if (proto.hasAck()) {
-                    // TODO multiple redo nodes, o wait pode nao estar locked ainda
-                    synchronized (manager.ackWaiter) {
-                        manager.ackWaiter.notify();
+                    if (proto.hasAck()) {
+                        // TODO multiple redo nodes, o wait pode nao estar locked ainda
+                        synchronized (manager.ackWaiter) {
+                            manager.ackWaiter.notify();
+                        }
                     }
+
+                } catch (IOException e) {
+                    log.error("Service Manager", e);
                 }
+            } while (keepAlive);
+            try {
                 socket.close();
+                log.info("Socket closed");
             } catch (IOException e) {
                 log.error("Service Manager", e);
-            } finally {
             }
-
         }
-
 
 
         public void newList(List<TrackEntry> list) {

@@ -49,6 +49,7 @@ public class Manager {
 
     public static void main(String[] args) throws IOException {
         DOMConfigurator.configure("log4j.xml");
+
         Manager manager = new Manager();
         Interface menu = new Interface(manager);
         menu.start();
@@ -206,9 +207,13 @@ public class Manager {
         CleanVoldemort.clean(group.getDatabaseNodes());
     }
 
-    public void resetBranch() throws IOException {
+    public void resetBranch() {
         branches = new BranchTree();
-        group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(0).setCommit(0).build(), NodeGroup.PROXY, false);
+        try {
+            group.unicast(FromManagerProto.ProxyMsg.newBuilder().setBranch(0).setCommit(0).build(), NodeGroup.PROXY, false);
+        } catch (IOException e) {
+            LOGGER.error("Proxy not available");
+        }
     }
 
 

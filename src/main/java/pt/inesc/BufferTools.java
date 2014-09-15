@@ -42,7 +42,10 @@ public class BufferTools {
         int patternLen = pattern.limit();
         int lastIndex = end - patternLen + 1;
         Label: for (int i = startPosition; i < lastIndex; i++) {
-            for (int j = 0; j < patternLen; j++) {
+            if (buffer.get(i) != pattern.get(0)) {
+                continue;
+            }
+            for (int j = 1; j < patternLen; j++) {
                 if (buffer.get(i + j) != pattern.get(j)) {
                     continue Label;
                 }

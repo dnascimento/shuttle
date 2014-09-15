@@ -301,6 +301,7 @@ public class ProxyWorker extends
             ;
 
         // frontendChannel.write(END_OF_MESSAGE).get();
+
         if (!ignore)
             addResponse(responseBuffer, startTS, endTS);
     }

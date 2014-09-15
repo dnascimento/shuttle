@@ -7,10 +7,10 @@
 package pt.inesc.proxy.save;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.Iterator;
 import java.util.LinkedList;
 
 import org.apache.log4j.LogManager;
@@ -18,8 +18,8 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.manager.Manager;
 import undo.proto.ToManagerProto.MsgToManager;
-import undo.proto.ToManagerProto.StartEndEntry;
 import undo.proto.ToManagerProto.StartEndMsg;
+import undo.proto.ToManagerProto.StartEndMsg.Builder;
 
 
 
@@ -33,9 +33,18 @@ public class Saver extends
 
     private static CassandraClient cassandra = new CassandraClient();
     LinkedList<RequestResponseListPair> stack = new LinkedList<RequestResponseListPair>();
+    OutputStream streamToManager;
 
     public Saver() {
-
+        @SuppressWarnings("resource")
+        Socket socketToManager = new Socket();
+        try {
+            socketToManager.connect(Manager.MANAGER_ADDR);
+            socketToManager.getOutputStream();
+        } catch (IOException e) {
+            log.error("Saver: manager not available", e);
+            streamToManager = null;
+        }
     }
 
     @Override
@@ -76,50 +85,40 @@ public class Saver extends
     private void saving() {
         RequestResponseListPair current;
         while ((current = moveLists()) != null) {
-            saveRequests(current.getRequests());
-            saveResponses(current.getResponses());
+            LinkedList<Request> requestsList = current.getRequests();
+            LinkedList<Response> responsesList = current.getResponses();
+            StartEndMsg.Builder startEndMsg = StartEndMsg.newBuilder();
+
+
+            if (responsesList.size() != requestsList.size()) {
+                log.error("Different list sizes");
+            }
+            while (!requestsList.isEmpty()) {
+                Request req = requestsList.removeFirst();
+                Response res = responsesList.removeFirst();
+                cassandra.putRequestResponse(req, res);
+                startEndMsg.addData(res.start);
+                startEndMsg.addData(res.end);
+            }
+
+            try {
+                sendStartEndListToManager(startEndMsg);
+            } catch (Exception e) {
+                log.error(e);
+            }
+
         }
     }
 
-    private void saveRequests(LinkedList<Request> requestsList) {
-        while (!requestsList.isEmpty()) {
-            Request req = requestsList.removeFirst();
-            cassandra.putRequest(req);
-        }
 
-    }
-
-    private void saveResponses(LinkedList<Response> responsesList) {
-        LinkedList<Long> startEndList = new LinkedList<Long>();
-        while (!responsesList.isEmpty()) {
-            Response req = responsesList.removeFirst();
-            cassandra.putResponse(req.start, req.end, req.data);
-            startEndList.add(req.start);
-            startEndList.add(req.end);
+    private void sendStartEndListToManager(Builder startEndMsg) throws UnknownHostException, IOException {
+        if (streamToManager != null) {
+            System.out.println("Socket closed");
+            return;
         }
+        MsgToManager msg = MsgToManager.newBuilder().setStartEndMsg(startEndMsg).build();
         try {
-            sendStartEndListToManager(startEndList);
-        } catch (Exception e) {
-            log.error(e);
-        }
-    }
-
-    private void sendStartEndListToManager(LinkedList<Long> startEndList) throws UnknownHostException, IOException {
-        assert ((startEndList.size() % 2) == 0);
-        StartEndMsg.Builder b = StartEndMsg.newBuilder();
-        Iterator<Long> i = startEndList.iterator();
-        while (i.hasNext()) {
-            StartEndEntry e = StartEndEntry.newBuilder().setStart(i.next()).setEnd(i.next()).build();
-            b.addMsg(e);
-        }
-        StartEndMsg m = b.build();
-        MsgToManager msg = MsgToManager.newBuilder().setStartEndMsg(m).build();
-        Socket s;
-        try {
-            s = new Socket();
-            s.connect(Manager.MANAGER_ADDR);
-            msg.writeDelimitedTo(s.getOutputStream());
-            s.close();
+            msg.writeDelimitedTo(streamToManager);
         } catch (ConnectException e) {
             log.debug("Saver: Manager is off");
         }

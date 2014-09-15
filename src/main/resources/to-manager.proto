@@ -35,13 +35,9 @@ message TrackEntry {
 
 // From Proxy
 message StartEndMsg{
-	repeated StartEndEntry msg = 1;
+	repeated int64 data = 1;
 }
 
-message StartEndEntry{
-	required int64 start = 1;
-	required int64 end = 2;
-}
 
 message SRD{
 	optional int64 rid = 1;
