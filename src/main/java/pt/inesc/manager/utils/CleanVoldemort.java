@@ -1,7 +1,6 @@
 package pt.inesc.manager.utils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.log4j.LogManager;
@@ -18,16 +17,10 @@ public class CleanVoldemort {
 
     static int VOLDEMORT_PORT = 6666;
 
-    public static void clean(String... hosts) {
+    public static void clean(String[] voldemortStores, String... hosts) {
         for (String host : hosts) {
             String voldemortUrl = "tcp://" + host + ":" + VOLDEMORT_PORT;
-            List<String> voldemortStores;
 
-            voldemortStores = new ArrayList<String>(Arrays.asList("test",
-                                                                  "questionStore",
-                                                                  "answerStore",
-                                                                  "commentStore",
-                                                                  "index"));
 
             AdminClient adminClient = new AdminClient(voldemortUrl, new AdminClientConfig(), new ClientConfig());
 

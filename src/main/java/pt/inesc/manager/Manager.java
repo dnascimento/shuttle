@@ -42,7 +42,6 @@ public class Manager {
     public GroupCom group = new GroupCom();
 
     public Object ackWaiter = new Object();
-    private static final String GRAPH_FILE = "graph.obj";
     GraphShuttle graph = new GraphShuttle();
     private static ServiceManager service;
     public BranchTree branches = new BranchTree();
@@ -165,15 +164,15 @@ public class Manager {
 
     }
 
-    public void saveGraph() throws IOException {
-        FileOutputStream fout = new FileOutputStream(GRAPH_FILE);
+    public void saveGraph(String fileName) throws IOException {
+        FileOutputStream fout = new FileOutputStream(fileName);
         ObjectOutputStream oos = new ObjectOutputStream(fout);
         oos.writeObject(graph);
         oos.close();
     }
 
-    public void loadGraph() throws IOException, ClassNotFoundException {
-        FileInputStream fin = new FileInputStream(GRAPH_FILE);
+    public void loadGraph(String fileName) throws IOException, ClassNotFoundException {
+        FileInputStream fin = new FileInputStream(fileName);
         ObjectInputStream ois = new ObjectInputStream(fin);
         graph = (GraphShuttle) ois.readObject();
         ois.close();
@@ -199,12 +198,22 @@ public class Manager {
 
     /* -------------------- Cleans -------------------- */
 
-    public void resetDatabaseAccessLists() throws IOException {
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setResetDependencies(true).build(), NodeGroup.DATABASE, false);
+    public void resetDatabaseAccessLists() {
+        try {
+            group.broadcast(FromManagerProto.ToDataNode.newBuilder().setResetDependencies(true).build(), NodeGroup.DATABASE, false);
+        } catch (Exception e) {
+            LOGGER.error("Database proxy not available: you must access to database at least once to instantiate the proxy");
+        }
     }
 
-    public void cleanVoldemort() {
-        CleanVoldemort.clean(group.getDatabaseNodes());
+
+    /**
+     * Clean all voldemort stores
+     * 
+     * @param voldemortStores
+     */
+    public void cleanVoldemort(String[] voldemortStores) {
+        CleanVoldemort.clean(voldemortStores, group.getDatabaseNodes());
     }
 
     public void resetBranch() {

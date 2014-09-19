@@ -26,6 +26,7 @@ public class SortedMap<V>
     @Override
     public Iterator<V> iterator() {
         if (currentIterator != null && sizeOfLastKeySetIterated == map.size()) {
+            currentIterator.reset();
             return currentIterator;
         }
         currentIterator = new SortedMapIterator(map);
@@ -71,6 +72,10 @@ public class SortedMap<V>
             }
             long key = sortedKeys[pointer++];
             map.remove(key);
+        }
+
+        public void reset() {
+            pointer = 0;
         }
     }
 

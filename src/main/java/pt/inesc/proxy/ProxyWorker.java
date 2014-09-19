@@ -335,7 +335,7 @@ public class ProxyWorker extends
         RequestResponseListPair pair = new RequestResponseListPair(requests, responses);
         requests = new LinkedList<Request>();
         responses = new LinkedList<Response>();
-        saver.save(pair);
+        saver.save(pair, requestBuffers, responseBuffers);
     }
 
 

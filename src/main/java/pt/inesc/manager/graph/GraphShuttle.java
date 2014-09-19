@@ -173,6 +173,12 @@ public class GraphShuttle
             }
             Dependency node = map.get(key);
 
+            if (node == null) {
+                LOGGER.error("[expandNode] Request not in graph: " + key);
+                continue;
+            }
+
+
             // visited
             result.put(key, node);
 
@@ -189,6 +195,7 @@ public class GraphShuttle
                     }
                 }
             }
+
 
             if (mode == ExpandMode.forward || mode == ExpandMode.both) {
                 for (Long next : node.after) {
@@ -286,5 +293,23 @@ public class GraphShuttle
             throw new UnsupportedOperationException("Unknown replay mode");
         }
 
+    }
+
+    /**
+     * For each rid, expand forward and collect the set of requests dependent from this
+     * 
+     * @param rids
+     * @return
+     */
+    public HashMap<Long, Dependency> countAffected(long[] rids) {
+        HashMap<Long, Dependency> result = new HashMap<Long, Dependency>();
+        for (Long rid : rids) {
+            expandNode(rid, ExpandMode.forward, result, 0L);
+        }
+
+        for (Long rid : rids) {
+            result.remove(rid);
+        }
+        return result;
     }
 }

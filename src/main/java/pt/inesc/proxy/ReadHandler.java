@@ -18,9 +18,12 @@ public class ReadHandler
     ByteBuffer buffer;
     LinkedBlockingDeque<ProxyWorker> workersList;
 
-    public ReadHandler(ByteBuffer buffer, LinkedBlockingDeque<ProxyWorker> workersList) {
+    private final DirectBufferPool buffers;
+
+    public ReadHandler(ByteBuffer buffer, LinkedBlockingDeque<ProxyWorker> workersList, DirectBufferPool buffers) {
         this.buffer = buffer;
         this.workersList = workersList;
+        this.buffers = buffers;
     }
 
     @Override
@@ -47,8 +50,9 @@ public class ReadHandler
         if (keepAlive) {
             buffer.clear();
             ch.read(buffer, 100000, TimeUnit.MILLISECONDS, ch, this);
+        } else {
+            buffers.returnBufferSynchronized(buffer);
         }
-
     }
 
     @Override

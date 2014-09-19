@@ -111,8 +111,8 @@ public class Proxy {
                 // accept the next connection
                 listener.accept(workersList, this);
 
-                ByteBuffer buffer = buffers.pop();
-                ch.read(buffer, ch, new ReadHandler(buffer, workersList));
+                ByteBuffer buffer = buffers.popSynchronized();
+                ch.read(buffer, ch, new ReadHandler(buffer, workersList, buffers));
             }
 
             @Override

@@ -11,12 +11,14 @@ import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.LinkedList;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.manager.Manager;
+import pt.inesc.proxy.DirectBufferPool;
 import undo.proto.ToManagerProto.MsgToManager;
 import undo.proto.ToManagerProto.StartEndMsg;
 import undo.proto.ToManagerProto.StartEndMsg.Builder;
@@ -34,6 +36,9 @@ public class Saver extends
     private static CassandraClient cassandra = new CassandraClient();
     LinkedList<RequestResponseListPair> stack = new LinkedList<RequestResponseListPair>();
     OutputStream streamToManager;
+    private final LinkedList<ByteBuffer> cleanBuffersRequests = new LinkedList<ByteBuffer>();
+    private final LinkedList<ByteBuffer> cleanBuffersResponses = new LinkedList<ByteBuffer>();
+
 
     public Saver() {
         @SuppressWarnings("resource")
@@ -65,11 +70,24 @@ public class Saver extends
     /**
      * Add current requests to save list and notify the thread
      * 
+     * @param responseBuffers
+     * @param requestBuffers
      * @param requestsSave
      * @param responsesSave
      */
-    public synchronized void save(RequestResponseListPair pair) {
+    public synchronized void save(RequestResponseListPair pair, DirectBufferPool requestBuffers, DirectBufferPool responseBuffers) {
         stack.addLast(pair);
+        // collect the clean buffers
+        for (ByteBuffer b : cleanBuffersRequests) {
+            requestBuffers.returnBuffer(b);
+        }
+        for (ByteBuffer b : cleanBuffersResponses) {
+            responseBuffers.returnBuffer(b);
+        }
+
+        cleanBuffersRequests.clear();
+        cleanBuffersResponses.clear();
+
         this.notify();
     }
 
@@ -79,10 +97,19 @@ public class Saver extends
         return stack.removeFirst();
     }
 
+    private synchronized void setCleanBuffers(LinkedList<ByteBuffer> request, LinkedList<ByteBuffer> response) {
+        cleanBuffersRequests.addAll(request);
+        cleanBuffersResponses.addAll(response);
+    }
+
     /**
      * Process the pendent requests
      */
     private void saving() {
+        LinkedList<ByteBuffer> buffersRequests = new LinkedList<ByteBuffer>();
+        LinkedList<ByteBuffer> buffersResponses = new LinkedList<ByteBuffer>();
+
+
         RequestResponseListPair current;
         while ((current = moveLists()) != null) {
             LinkedList<Request> requestsList = current.getRequests();
@@ -99,6 +126,10 @@ public class Saver extends
                 cassandra.putRequestResponse(req, res);
                 startEndMsg.addData(res.start);
                 startEndMsg.addData(res.end);
+                req.data.clear();
+                buffersRequests.add(req.data);
+                res.data.clear();
+                buffersResponses.add(res.data);
             }
 
             try {
@@ -106,8 +137,8 @@ public class Saver extends
             } catch (Exception e) {
                 log.error(e);
             }
-
         }
+        setCleanBuffers(buffersRequests, buffersResponses);
     }
 
 

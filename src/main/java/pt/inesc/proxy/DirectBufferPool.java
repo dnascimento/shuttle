@@ -2,10 +2,10 @@ package pt.inesc.proxy;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayDeque;
+import java.util.LinkedList;
 
 public class DirectBufferPool {
-    final ArrayDeque<ByteBuffer> buffers;
+    final LinkedList<ByteBuffer> buffers;
     final int CAPACITY;
     int BUFFER_SIZE;
 
@@ -27,7 +27,7 @@ public class DirectBufferPool {
     private int nonIncreased = 0;
 
     public DirectBufferPool(int CAPACITY, int BUFFER_SIZE) {
-        buffers = new ArrayDeque<ByteBuffer>(CAPACITY);
+        buffers = new LinkedList<ByteBuffer>();
         refill();
         this.CAPACITY = CAPACITY;
         this.BUFFER_SIZE = BUFFER_SIZE;
@@ -46,6 +46,10 @@ public class DirectBufferPool {
             buffers.push(buffer);
         }
 
+    }
+
+    public synchronized ByteBuffer popSynchronized() {
+        return pop();
     }
 
     public ByteBuffer pop() {
@@ -74,6 +78,11 @@ public class DirectBufferPool {
         return b;
     }
 
+    public synchronized void returnBufferSynchronized(ByteBuffer buffer) {
+        returnBuffer(buffer);
+    }
+
+
     public void returnBuffer(ByteBuffer buffer) {
         buffers.push(buffer);
     }
@@ -82,6 +91,8 @@ public class DirectBufferPool {
         voteIncrease++;
         maxIncrease = Math.max(maxIncrease, capacity + TOLERANCE);
     }
+
+
 
 
 }

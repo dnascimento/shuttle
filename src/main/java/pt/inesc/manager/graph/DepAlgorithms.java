@@ -86,6 +86,10 @@ public final class DepAlgorithms {
         // backtrack to get the requests to replay: return the roots.
         HashMap<Long, Dependency> allNodes = baseGraph.expandBack(tainted, baseCommit);
 
+        for (Long a : attackSource) {
+            allNodes.remove(a);
+        }
+
         return new GraphShuttle(allNodes);
     }
 

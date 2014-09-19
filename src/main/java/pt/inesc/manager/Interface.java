@@ -6,12 +6,18 @@
  */
 package pt.inesc.manager;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Scanner;
 
+import pt.inesc.manager.graph.Dependency;
 import pt.inesc.manager.requests.RequestsModifier;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.replay.core.ReplayMode;
@@ -25,6 +31,8 @@ public class Interface extends
         super();
         this.manager = manager;
     }
+
+    String[] voldemortStores = new String[] { "test", "questionStore", "answerStore", "commentStore", "index" };
 
 
     @Override
@@ -138,28 +146,60 @@ public class Interface extends
         System.out.println("b) save");
         System.out.println("c) reset");
         System.out.println("d) count");
+        System.out.println("e) count dependencies");
+        System.out.println("f) count clusters");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
         char[] args = line.toCharArray();
+        String fileName;
         switch (args[0]) {
         case 'a':
-            manager.loadGraph();
+            System.out.println("Enter the filename: ");
+            fileName = s.nextLine();
+            manager.loadGraph(fileName);
             break;
         case 'b':
-            manager.saveGraph();
+            System.out.println("Enter the filename: ");
+            fileName = s.nextLine();
+            manager.saveGraph(fileName);
             break;
         case 'c':
             manager.resetGraph();
             break;
         case 'd':
             System.out.println(manager.graph.countDependencies());
+            break;
+        case 'e':
+            System.out.println("Enter the rids separated by space (or a .txt file)");
+            String command = s.nextLine();
+            if (command.contains(".txt")) {
+                StringBuilder sb = new StringBuilder();
+                BufferedReader in = new BufferedReader(new FileReader(command));
+                while ((line = in.readLine()) != null) {
+                    sb.append(line);
+                }
+                in.close();
+                command = sb.toString();
+            }
+
+            String[] ridString = command.split(" ");
+            long[] rids = new long[ridString.length];
+            for (int i = 0; i < rids.length; i++) {
+                rids[i] = Long.parseLong(ridString[i]);
+            }
+            HashMap<Long, Dependency> result = manager.graph.countAffected(rids);
+            System.out.println("Total: " + result.size());
+            System.out.println(result);
+            break;
+        case 'f':
+            List<List<Long>> clusters = manager.graph.replay(0, ReplayMode.allParallel, null);
+            System.out.println(clusters.size() + " independent clusters");
+            break;
         default:
             return;
         }
     }
-
-
 
     private void branches(Scanner s) throws IOException {
         System.out.println(manager.branches.show());
@@ -181,6 +221,7 @@ public class Interface extends
         System.out.println("d) Database access lists");
         System.out.println("e) Manager graph");
         System.out.println("f) Reset branches");
+        System.out.println("g) Set of Voldemort store");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -196,7 +237,7 @@ public class Interface extends
             if (!all)
                 break;
         case 'c':
-            manager.cleanVoldemort();
+            manager.cleanVoldemort(voldemortStores);
             if (!all)
                 break;
         case 'd':
@@ -210,8 +251,12 @@ public class Interface extends
                 break;
         case 'f':
             manager.resetBranch();
-            if (!all)
-                break;
+            break;
+        case 'g':
+            System.out.println("Enter store names (splitted by space): " + Arrays.toString(voldemortStores));
+            String[] store = s.nextLine().split(" ");
+            manager.cleanVoldemort(store);
+            break;
         default:
             return;
         }
@@ -224,34 +269,34 @@ public class Interface extends
         long commit = pair.v2;
         short branch = pair.v1;
 
-        System.out.println("Enter the recovery mode: \n 0- all in serial \n 1- all in parallel \n 2- selective in serial \n 3 - selective in parallel ");
-        int opt = s.nextInt();
+        System.out.println("Enter the recovery mode: \n 0- all in serial \n 1- all in parallel \n 2- selective in serial \n 3 - selective in parallel, use 10 11 12 13 to see the execution list");
+        int opt = Integer.parseInt(s.nextLine());
+        boolean viewList = false;
+        if (opt >= 10) {
+            viewList = true;
+            opt = opt % 10;
+        }
+
         ArrayList<Long> attackSource = null;
         if (opt == 2 || opt == 3) {
             System.out.println("Enter the intrusion source requests (spaced)");
             String[] entries = s.nextLine().split(" ");
             attackSource = new ArrayList<Long>(entries.length);
             for (int i = 0; i < entries.length; i++) {
-                attackSource.set(i, new Long(entries[i]));
+                attackSource.add(new Long(entries[i]));
             }
         }
 
-        switch (opt) {
-        case 0:
-            manager.replay(commit, branch, ReplayMode.allSerial, attackSource);
-            break;
-        case 1:
-            manager.replay(commit, branch, ReplayMode.allParallel, attackSource);
-            break;
-        case 2:
-            manager.replay(commit, branch, ReplayMode.selectiveSerial, attackSource);
-            break;
-        case 3:
-            manager.replay(commit, branch, ReplayMode.selectiveParallel, attackSource);
-            break;
-        default:
-            System.out.println("Unknown option");
-            break;
+        ReplayMode replayMode = ReplayMode.castFromInt(opt);
+        if (viewList) {
+            List<List<Long>> execLists = manager.graph.replay(commit, replayMode, attackSource);
+            for (List<Long> l : execLists) {
+                for (Long e : l) {
+                    System.out.println(e);
+                }
+            }
+        } else {
+            manager.replay(commit, branch, replayMode, attackSource);
         }
     }
 
