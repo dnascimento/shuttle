@@ -153,6 +153,7 @@ public class ProxyWorker extends
                     }
                 }
 
+
                 // if no content-length specified and header is complete
                 if (size == -1 && BufferTools.headerIsComplete(clientRequestBuffer)) {
                     break;
@@ -247,6 +248,7 @@ public class ProxyWorker extends
                         bufferWasResized = true;
                         responseBuffer = resizeResponseBuffer(responseBuffer);
                     }
+
                     if (headerEnd == -1) {
                         // not found yet, try to find the header
                         headerEnd = BufferTools.indexOf(lastSizeAttemp, responseBuffer.position(), responseBuffer, BufferTools.NEW_LINES);
@@ -272,7 +274,7 @@ public class ProxyWorker extends
                 if (bufferWasResized) {
                     responseBuffers.voteBufferSize(responseBuffer.position());
                 }
-                keepAlive = BufferTools.isKeepAlive(responseBuffer, endOfFirstLine);
+                keepAlive = BufferTools.isKeepAlive(responseBuffer, endOfFirstLine) || BufferTools.isChunkedRequest(responseBuffer);
                 return responseBuffer;
             } catch (IOException e) {
                 if (reconnected) {
@@ -301,7 +303,8 @@ public class ProxyWorker extends
         while ((written += frontendChannel.write(responseBuffer).get(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)) < toWrite)
             ;
 
-        frontendChannel.write(END_OF_MESSAGE).get();
+
+        // frontendChannel.write(END_OF_MESSAGE).get();
 
 
         if (!ignore)

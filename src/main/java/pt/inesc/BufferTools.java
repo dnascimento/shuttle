@@ -18,6 +18,8 @@ public class BufferTools {
     private static final ByteBuffer LAST_CHUNK = ByteBuffer.wrap(new byte[] { 48, 13, 10, 13, 10 });
     public static final ByteBuffer NEW_LINES = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
     public static final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
+    public static final ByteBuffer CHUNKED = ByteBuffer.wrap("Transfer-Encoding: chunked".getBytes());
+
     public static final ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
     private static final byte[] STATUS_304 = "304".getBytes();
     private static final ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
@@ -165,6 +167,10 @@ public class BufferTools {
         return buffer.get(9) == STATUS_304[0] && buffer.get(10) == STATUS_304[1] && buffer.get(11) == STATUS_304[2];
     }
 
+    public static boolean isChunkedRequest(ByteBuffer clientRequestBuffer) {
+        return BufferTools.indexOf(clientRequestBuffer, CHUNKED) != -1;
+    }
+
     public static boolean isKeepAlive(ByteBuffer buffer, int endOfFirstLine) {
         int index = BufferTools.indexOf(buffer, CONNECTION);
         if (index == -1) {
@@ -180,6 +186,7 @@ public class BufferTools {
     }
 
 
+
     @SuppressWarnings("resource")
     public static WritableByteChannel getDebugChannel() throws FileNotFoundException {
         String filename = "debug.txt";
@@ -188,4 +195,5 @@ public class BufferTools {
         temp = new File(filename);
         return new RandomAccessFile(temp, "rw").getChannel();
     }
+
 }
