@@ -29,7 +29,7 @@ import org.apache.log4j.xml.DOMConfigurator;
 public class Proxy {
     public static final int MY_PORT = 11100;
     public static int FRONTEND_PORT = 9000;
-    public static int BACKEND_PORT = 8080;
+    public static int BACKEND_PORT = 10000;
     public static String BACKEND_HOST = "localhost";
 
     private static final int NUMBER_OF_THREADS = 1;

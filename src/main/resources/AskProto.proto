@@ -29,5 +29,7 @@ message Index{
 	repeated string entry = 1;
 }
 
-
-
+message StringMapEntry{
+	repeated string key = 1;
+	repeated string value = 2;
+}

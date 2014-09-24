@@ -47,8 +47,9 @@ public class ReadHandler
         // return worker to list
         workersList.add(worker);
 
+        buffer.clear();
+
         if (keepAlive) {
-            buffer.clear();
             ch.read(buffer, 100000, TimeUnit.MILLISECONDS, ch, this);
         } else {
             buffers.returnBufferSynchronized(buffer);

@@ -239,6 +239,7 @@ public class ProxyWorker extends
             int headerEnd = -1;
             boolean bufferWasResized = false;
             ByteBuffer responseBuffer = responseBuffers.pop();
+
             // Read Answer from server
             try {
                 while (backendSocket.read(responseBuffer) > 0 || (size != -1 && responseBuffer.position() != size)) {
@@ -271,7 +272,7 @@ public class ProxyWorker extends
                 if (bufferWasResized) {
                     responseBuffers.voteBufferSize(responseBuffer.position());
                 }
-
+                keepAlive = BufferTools.isKeepAlive(responseBuffer, endOfFirstLine);
                 return responseBuffer;
             } catch (IOException e) {
                 if (reconnected) {
@@ -300,7 +301,8 @@ public class ProxyWorker extends
         while ((written += frontendChannel.write(responseBuffer).get(WRITE_TIMEOUT, TimeUnit.MILLISECONDS)) < toWrite)
             ;
 
-        // frontendChannel.write(END_OF_MESSAGE).get();
+        frontendChannel.write(END_OF_MESSAGE).get();
+
 
         if (!ignore)
             addResponse(responseBuffer, startTS, endTS);

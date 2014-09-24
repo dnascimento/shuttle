@@ -1,3 +1,5 @@
 /bin
 /requests
 /target
+*.obj
+*.txt
