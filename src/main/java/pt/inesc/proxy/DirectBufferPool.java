@@ -35,6 +35,7 @@ public class DirectBufferPool {
     }
 
     void refill() {
+        System.out.println("refil");
         if (voteIncrease > CAPACITY / VOTE_PERCENTAGE) {
             BUFFER_SIZE = maxIncrease;
         } else {

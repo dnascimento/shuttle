@@ -18,9 +18,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
@@ -45,10 +43,9 @@ public class ProxyWorker extends
         Thread {
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
-    // TODO testing mode, change to bigger value
-    private final int FLUSH_PERIODICITY = 1;
+    private final int FLUSH_PERIODICITY = 7000;
 
-    private static final int N_BUFFERS = 500;
+    private static final int N_BUFFERS = 7000;
 
     /** time between attempt to flush to disk ms */
     private final InetSocketAddress backendAddress;
@@ -80,6 +77,12 @@ public class ProxyWorker extends
 
     private final ByteBuffer END_OF_MESSAGE = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
 
+
+
+    private static final boolean logging = true;
+    private static final boolean stamping = true;
+
+
     public ProxyWorker(InetSocketAddress remoteAddress) {
         saver = new Saver();
         saver.start();
@@ -100,7 +103,6 @@ public class ProxyWorker extends
             }
             backendSocket = SocketChannel.open(backendAddress);
             backendSocket.socket().setKeepAlive(true);
-
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
                 log.error("ERROR: Remote server is DOWN");
@@ -163,7 +165,7 @@ public class ProxyWorker extends
                     break;
                 }
             } while ((frontendChannel.read(clientRequestBuffer).get(READ_TIMEOUT, TimeUnit.MILLISECONDS) > 0));
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (Exception e) {
             log.debug("Drain Client Exception", e);
             if (clientRequestBuffer.position() != 0) {
                 log.error("Client sent some data", e);
@@ -182,30 +184,35 @@ public class ProxyWorker extends
             throw new Exception("Empty client request");
         }
 
-        startTS = System.currentTimeMillis();
-        // log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
-        ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
+        ByteBuffer request;
+        if (stamping) {
+            startTS = System.currentTimeMillis();
+            // log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
+            ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
 
-        // allocate a new bytebuffer with exact size to copy
-        ByteBuffer request = requestBuffers.pop(clientRequestBuffer.limit() + messageIdHeader.capacity());
+            // allocate a new bytebuffer with exact size to copy
+            request = requestBuffers.pop(clientRequestBuffer.limit() + messageIdHeader.capacity());
 
-        clientRequestBuffer.limit(endOfFirstLine);
-        // copy from buffer to request
-        while (clientRequestBuffer.hasRemaining())
-            request.put(clientRequestBuffer);
+            clientRequestBuffer.limit(endOfFirstLine);
+            // copy from buffer to request
+            while (clientRequestBuffer.hasRemaining())
+                request.put(clientRequestBuffer);
 
-        while (messageIdHeader.hasRemaining())
-            request.put(messageIdHeader);
+            while (messageIdHeader.hasRemaining())
+                request.put(messageIdHeader);
 
-        clientRequestBuffer.limit(originalLimit);
-        while (clientRequestBuffer.hasRemaining())
-            request.put(clientRequestBuffer);
+            clientRequestBuffer.limit(originalLimit);
+            while (clientRequestBuffer.hasRemaining())
+                request.put(clientRequestBuffer);
 
-        request.flip();
-        request.rewind();
+            request.flip();
+            request.rewind();
+        } else {
+            request = clientRequestBuffer;
+        }
 
         ignore = matchIgnoreList(request, endOfFirstLine);
-        if (!ignore)
+        if (!ignore && logging)
             addRequest(request, startTS);
 
         return request;
@@ -278,14 +285,15 @@ public class ProxyWorker extends
                 return responseBuffer;
             } catch (IOException e) {
                 if (reconnected) {
-                    log.error("read from backend", e);
+                    log.error("read from backend: reconnection failed", e);
                     // TODO send error to client
                     throw e;
                 } else {
                     reconnected = true;
-                    connect();
-                    sendToBackend(originalRequest);
-                    log.warn("read from backend", e);
+                    log.warn("position: " + responseBuffer.position());
+                    // TODO connect();
+                    // sendToBackend(originalRequest);
+                    log.warn("read from backend, try to reconnect for rid: " + startTS, e);
                 }
             }
         }
@@ -307,7 +315,7 @@ public class ProxyWorker extends
         // frontendChannel.write(END_OF_MESSAGE).get();
 
 
-        if (!ignore)
+        if (!ignore && logging)
             addResponse(responseBuffer, startTS, endTS);
     }
 
@@ -336,7 +344,6 @@ public class ProxyWorker extends
      * Flush the data to server before continue
      */
     private void flushData() {
-        log.debug("Flushing the requests to cassandra");
         RequestResponseListPair pair = new RequestResponseListPair(requests, responses);
         requests = new LinkedList<Request>();
         responses = new LinkedList<Response>();
@@ -470,11 +477,24 @@ public class ProxyWorker extends
             ByteBuffer response = readFromBackend(request);
             sendToClient(response);
 
+            keepAlive = true;
+
             if (!keepAlive) {
                 closeFrontEndChannel();
                 connect();
             }
-            if (requests.size() >= FLUSH_PERIODICITY) {
+            // if not logging, return buffers
+            if (!logging) {
+                if (stamping) {
+                    request.clear();
+                    requestBuffers.returnBuffer(request);
+                }
+                response.clear();
+                responseBuffers.returnBuffer(response);
+            }
+
+            // if logging, flush
+            if (logging && requests.size() >= FLUSH_PERIODICITY) {
                 flushData();
             }
         } catch (Exception e) {

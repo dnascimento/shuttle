@@ -37,7 +37,7 @@ class Gabow {
         visited = new boolean[V];
         stack1 = new Stack<Integer>();
         stack2 = new Stack<Integer>();
-        sccComp = new ArrayList<>();
+        sccComp = new ArrayList<List<Integer>>();
 
         for (int v = 0; v < V; v++)
             if (!visited[v])

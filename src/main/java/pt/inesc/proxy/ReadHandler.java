@@ -17,6 +17,7 @@ public class ReadHandler
     private static final long WAIT_FOR_AVAILABLE_WORKER = 1000;
     ByteBuffer buffer;
     LinkedBlockingDeque<ProxyWorker> workersList;
+    boolean keepAlive = false;
 
     private final DirectBufferPool buffers;
 
@@ -43,27 +44,28 @@ public class ReadHandler
         } while (worker == null);
 
         // handle the request
-        boolean keepAlive = worker.handle(ch, buffer);
+        keepAlive = worker.handle(ch, buffer);
         // return worker to list
         workersList.add(worker);
-
         buffer.clear();
-
         if (keepAlive) {
-            ch.read(buffer, 100000, TimeUnit.MILLISECONDS, ch, this);
+            // keep connection 1000ms waiting for a next contact
+            // TODO este handler aqui da problema se o cliente nao ligar
+            ch.read(buffer, 1000, TimeUnit.MILLISECONDS, ch, this);
         } else {
-            buffers.returnBufferSynchronized(buffer);
+            closeChannel(ch);
         }
+
     }
 
     @Override
     public void failed(Throwable exc, AsynchronousSocketChannel ch) {
+        System.out.println("Failed (keepalive: " + keepAlive + " )" + exc);
         closeChannel(ch);
-
-
     }
 
-    private void closeChannel(AsynchronousSocketChannel ch) {
+    protected void closeChannel(AsynchronousSocketChannel ch) {
+        buffers.returnBufferSynchronized(buffer);
         try {
             ch.close();
         } catch (IOException e) {

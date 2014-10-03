@@ -51,7 +51,6 @@ public class SortedMap<V>
                 sortedKeys[i++] = key;
             }
             Arrays.sort(sortedKeys);
-
         }
 
         @Override

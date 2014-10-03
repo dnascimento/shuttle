@@ -29,7 +29,7 @@ import org.apache.log4j.xml.DOMConfigurator;
 public class Proxy {
     public static final int MY_PORT = 11100;
     public static int FRONTEND_PORT = 9000;
-    public static int BACKEND_PORT = 10000;
+    public static int BACKEND_PORT = 8080;
     public static String BACKEND_HOST = "localhost";
 
     private static final int NUMBER_OF_THREADS = 1;
@@ -38,6 +38,7 @@ public class Proxy {
     // Initial Operating System buffer size
     private static final Integer BUFFER_SIZE = 2 * 1024; // 4K
     private static final int N_BUFFERS = 50;
+    protected static final long READ_TIMEOUT = 1000;
 
     public static Object lockBranchRestrain = new Object();
     public static byte[] branch = shortToByteArray(0);
@@ -73,9 +74,7 @@ public class Proxy {
 
 
         log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
-
-
-
+        Thread.currentThread().setName("Proxy Main");
     }
 
     private LinkedBlockingDeque<ProxyWorker> createWorkersPool(InetSocketAddress remoteAddress) {
@@ -110,16 +109,18 @@ public class Proxy {
             public void completed(AsynchronousSocketChannel ch, LinkedBlockingDeque<ProxyWorker> workersList) {
                 // accept the next connection
                 listener.accept(workersList, this);
+                System.out.println("new connection");
 
                 ByteBuffer buffer = buffers.popSynchronized();
-                ch.read(buffer, ch, new ReadHandler(buffer, workersList, buffers));
+                ch.read(buffer, READ_TIMEOUT, TimeUnit.MILLISECONDS, ch, new ReadHandler(buffer, workersList, buffers));
             }
 
             @Override
             public void failed(Throwable exc, LinkedBlockingDeque<ProxyWorker> att) {
-                // TODO
+                System.out.println("Fail to accept");
             }
         });
+
         group.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
 
     }

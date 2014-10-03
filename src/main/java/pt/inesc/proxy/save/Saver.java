@@ -8,9 +8,7 @@ package pt.inesc.proxy.save;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.ConnectException;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
 
@@ -77,7 +75,8 @@ public class Saver extends
      */
     public synchronized void save(RequestResponseListPair pair, DirectBufferPool requestBuffers, DirectBufferPool responseBuffers) {
         stack.addLast(pair);
-        // collect the clean buffers
+
+        // collect the clean buffers (which have been sent)
         for (ByteBuffer b : cleanBuffersRequests) {
             requestBuffers.returnBuffer(b);
         }
@@ -132,25 +131,22 @@ public class Saver extends
                 buffersResponses.add(res.data);
             }
 
-            try {
-                sendStartEndListToManager(startEndMsg);
-            } catch (Exception e) {
-                log.error(e);
-            }
+            sendStartEndListToManager(startEndMsg);
         }
         setCleanBuffers(buffersRequests, buffersResponses);
     }
 
 
-    private void sendStartEndListToManager(Builder startEndMsg) throws UnknownHostException, IOException {
-        if (streamToManager != null) {
-            System.out.println("Socket closed");
+    private void sendStartEndListToManager(Builder startEndMsg) {
+        if (streamToManager == null) {
             return;
         }
         MsgToManager msg = MsgToManager.newBuilder().setStartEndMsg(startEndMsg).build();
         try {
             msg.writeDelimitedTo(streamToManager);
-        } catch (ConnectException e) {
+        } catch (IOException e) {
+            log.error(e);
+            streamToManager = null;
             log.debug("Saver: Manager is off");
         }
     }
