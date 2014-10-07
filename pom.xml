@@ -131,7 +131,7 @@
 				          <descriptorRef>jar-with-dependencies</descriptorRef>
 				        </descriptorRefs>
 				      </configuration>
-				    </plugin>
+				</plugin>
 
 				<!--This plugin's configuration is used to store Eclipse m2e settings 
 					only. It has no influence on the Maven build itself. -->

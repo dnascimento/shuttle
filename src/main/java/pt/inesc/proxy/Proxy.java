@@ -32,12 +32,12 @@ public class Proxy {
     public static int BACKEND_PORT = 8080;
     public static String BACKEND_HOST = "localhost";
 
-    private static final int NUMBER_OF_THREADS = 1;
+    private static final int NUMBER_OF_THREADS = 25;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
     // Initial Operating System buffer size
-    private static final Integer BUFFER_SIZE = 2 * 1024; // 4K
-    private static final int N_BUFFERS = 50;
+    private static final Integer BUFFER_SIZE = 1 * 1024; // 3K
+    private static final int N_BUFFERS = 10000;
     protected static final long READ_TIMEOUT = 1000;
 
     public static Object lockBranchRestrain = new Object();

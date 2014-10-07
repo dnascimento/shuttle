@@ -2,11 +2,10 @@ package pt.inesc.proxy;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.LinkedList;
+import java.util.ArrayList;
 
 public class DirectBufferPool {
-    final LinkedList<ByteBuffer> buffers;
-    final int CAPACITY;
+    final ArrayList<ByteBuffer> buffers;
     int BUFFER_SIZE;
 
     private static final int VOTE_PERCENTAGE = 2;
@@ -26,27 +25,38 @@ public class DirectBufferPool {
     private int maxIncrease = 0;
     private int nonIncreased = 0;
 
+    // point the current available buffer
+    private int index = -1;
+    private final int CAPACITY;
+
     public DirectBufferPool(int CAPACITY, int BUFFER_SIZE) {
-        buffers = new LinkedList<ByteBuffer>();
-        refill();
-        this.CAPACITY = CAPACITY;
+        buffers = new ArrayList<ByteBuffer>(CAPACITY);
         this.BUFFER_SIZE = BUFFER_SIZE;
+        this.CAPACITY = CAPACITY;
         refill();
     }
 
     void refill() {
-        System.out.println("refil");
-        if (voteIncrease > CAPACITY / VOTE_PERCENTAGE) {
+        System.out.println("refill");
+        // review the buffer size
+        if (voteIncrease > buffers.size() / VOTE_PERCENTAGE) {
             BUFFER_SIZE = maxIncrease;
+            System.out.println("size increased: " + BUFFER_SIZE);
+            voteIncrease = 0;
         } else {
-            if (++nonIncreased == DECREASE)
+            if (++nonIncreased == DECREASE) {
                 BUFFER_SIZE = BUFFER_SIZE / DECREASE_PERCENTAGE;
-        }
-        for (int i = 0; i < CAPACITY; i++) {
-            ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
-            buffers.push(buffer);
+                System.out.println("size decrease: " + BUFFER_SIZE);
+                nonIncreased = 0;
+            }
         }
 
+        // fullfill
+        while (index < CAPACITY) {
+            ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
+            buffers.add(++index, buffer);
+        }
+        index--;
     }
 
     public synchronized ByteBuffer popSynchronized() {
@@ -54,10 +64,10 @@ public class DirectBufferPool {
     }
 
     public ByteBuffer pop() {
-        if (buffers.isEmpty()) {
+        if (index <= -1) {
             refill();
         }
-        return buffers.pop();
+        return buffers.get(index--);
     }
 
     /**
@@ -67,14 +77,15 @@ public class DirectBufferPool {
      * @param minCapacity
      * @return
      */
-    public ByteBuffer pop(int minCapacity) {
-        if (buffers.isEmpty()) {
+    public ByteBuffer pop(int minBufferSize) {
+        if (index == -1) {
             refill();
         }
-        ByteBuffer b = buffers.pop();
-        if (BUFFER_SIZE < minCapacity) {
-            voteBufferSize(minCapacity);
-            return ByteBuffer.allocateDirect(minCapacity).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer b = buffers.get(index--);
+        if (BUFFER_SIZE < minBufferSize) {
+            voteBufferSize(minBufferSize);
+            System.out.println("buffer is too small");
+            return ByteBuffer.allocateDirect(minBufferSize).order(ByteOrder.BIG_ENDIAN);
         }
         return b;
     }
@@ -85,7 +96,11 @@ public class DirectBufferPool {
 
 
     public void returnBuffer(ByteBuffer buffer) {
-        buffers.push(buffer);
+        if (index == (CAPACITY - 1)) {
+            // buffer is full
+            return;
+        }
+        buffers.add(++index, buffer);
     }
 
     public void voteBufferSize(int capacity) {

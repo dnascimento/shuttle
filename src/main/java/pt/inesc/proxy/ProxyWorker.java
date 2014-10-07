@@ -54,7 +54,7 @@ public class ProxyWorker extends
     private long startTS;
     public LinkedList<Request> requests = new LinkedList<Request>();
     public LinkedList<Response> responses = new LinkedList<Response>();
-    private final Saver saver;
+    private Saver saver = null;
     private final ByteBuffer headerBase = createBaseHeader();
 
     private final DirectBufferPool requestBuffers;
@@ -79,13 +79,15 @@ public class ProxyWorker extends
 
 
 
-    private static final boolean logging = true;
-    private static final boolean stamping = true;
+    private static final boolean logging = false;
+    private static final boolean stamping = false;
 
 
     public ProxyWorker(InetSocketAddress remoteAddress) {
-        saver = new Saver();
-        saver.start();
+        if (logging) {
+            saver = new Saver();
+            saver.start();
+        }
         backendAddress = remoteAddress;
         responseBuffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
         requestBuffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
