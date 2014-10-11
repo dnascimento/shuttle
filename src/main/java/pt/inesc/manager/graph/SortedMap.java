@@ -88,4 +88,9 @@ public class SortedMap<V>
     public int size() {
         return map.size();
     }
+
+
+    public HashMap<Long, V> getMap() {
+        return map;
+    }
 }

@@ -148,6 +148,7 @@ public class Interface extends
         System.out.println("d) count");
         System.out.println("e) count dependencies");
         System.out.println("f) count clusters");
+        System.out.println("g) graph size summary");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -195,6 +196,9 @@ public class Interface extends
         case 'f':
             List<List<Long>> clusters = manager.graph.replay(0, ReplayMode.allParallel, null);
             System.out.println(clusters.size() + " independent clusters");
+            break;
+        case 'g':
+            System.out.println(manager.graph.getTotalByteSize());
             break;
         default:
             return;

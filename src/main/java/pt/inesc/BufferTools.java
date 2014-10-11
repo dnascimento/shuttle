@@ -24,6 +24,7 @@ public class BufferTools {
     private static final byte[] STATUS_304 = "304".getBytes();
     private static final ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
     private static final ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
+    private static final ByteBuffer ID = ByteBuffer.wrap(("Id: ").getBytes());
 
 
     private BufferTools() {
@@ -194,6 +195,21 @@ public class BufferTools {
         temp.delete();
         temp = new File(filename);
         return new RandomAccessFile(temp, "rw").getChannel();
+    }
+
+    public static long getId(ByteBuffer buffer) {
+        int pos = indexOf(buffer, ID);
+        if (pos == -1) {
+            return -1;
+        }
+        int i = 0;
+        byte b;
+        List<Byte> lenght = new ArrayList<Byte>();
+        while ((b = buffer.get(pos + ID.capacity() + i++)) != (byte) 13) {
+            lenght.add(b);
+        }
+        long id = Long.parseLong(decodeUTF8(lenght));
+        return id;
     }
 
 }

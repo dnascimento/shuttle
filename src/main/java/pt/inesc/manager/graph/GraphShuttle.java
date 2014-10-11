@@ -6,11 +6,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
+
+import objectexplorer.MemoryMeasurer;
+import objectexplorer.ObjectGraphMeasurer;
+import objectexplorer.ObjectGraphMeasurer.Footprint;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -27,6 +30,7 @@ public class GraphShuttle
 
     public final SortedMap<Dependency> map;
 
+
     public GraphShuttle() {
         map = new SortedMap<Dependency>();
     }
@@ -42,6 +46,8 @@ public class GraphShuttle
             map.put(v.getKey(), v.getValue());
         }
     }
+
+
 
 
 
@@ -233,18 +239,18 @@ public class GraphShuttle
         for (Dependency v : map) {
             sb.append(v);
             sb.append(";");
-            sb.append(printSet(v.before));
+            sb.append(printList(v.before));
             sb.append("-----");
-            sb.append(printSet(v.after));
+            sb.append(printList(v.after));
             sb.append("\n");
         }
         sb.append("\n");
         return sb.toString();
     }
 
-    private String printSet(HashSet<Long> set) {
+    private String printList(ArrayList<Long> before) {
         StringBuilder sb = new StringBuilder();
-        for (Long v : set) {
+        for (Long v : before) {
             sb.append(v);
             sb.append(",");
         }
@@ -311,5 +317,33 @@ public class GraphShuttle
             result.remove(rid);
         }
         return result;
+    }
+
+    public long getMemorySize() {
+        return MemoryMeasurer.measureBytes(map.getMap());
+    }
+
+
+    public String getTotalByteSize() {
+        Footprint footPrint = ObjectGraphMeasurer.measure(map.getMap());
+        long memory = MemoryMeasurer.measureBytes(map.getMap());
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n \n \n \n /************** Graph Total Size ******************\\\n");
+        sb.append("Total: \n" + "    " + footPrint + "\n");
+        sb.append("     memory" + memory + " bytes\n");
+        sb.append("------\n");
+        int before = 0;
+        int after = 0;
+        int count = 0;
+        for (Dependency dep : map) {
+            count++;
+            before += dep.before.size();
+            after += dep.after.size();
+        }
+        sb.append("Total Before: " + before + " \n");
+        sb.append("Total After: " + after + " \n");
+        sb.append("Total entries: " + count + "\n");
+        sb.append("/********************************\\ \n \n \n \n ");
+        return sb.toString();
     }
 }

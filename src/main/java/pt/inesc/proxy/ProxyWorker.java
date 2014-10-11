@@ -43,7 +43,7 @@ public class ProxyWorker extends
         Thread {
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
-    private final int FLUSH_PERIODICITY = 7000;
+    private final int FLUSH_PERIODICITY = 1;
 
     private static final int N_BUFFERS = 7000;
 
@@ -79,8 +79,8 @@ public class ProxyWorker extends
 
 
 
-    private static final boolean logging = false;
-    private static final boolean stamping = false;
+    private static final boolean logging = true;
+    private static final boolean stamping = true;
 
 
     public ProxyWorker(InetSocketAddress remoteAddress) {
@@ -307,6 +307,12 @@ public class ProxyWorker extends
         // send anwser to client
         long endTS = System.currentTimeMillis();
         responseBuffer.flip(); // make buffer readable
+
+
+        // TODO find the ID on header
+        long id = BufferTools.getId(responseBuffer);
+
+
         int toWrite = responseBuffer.limit();
         int written = 0;
 

@@ -1,7 +1,0 @@
-HTTP/1.1 304 Not Modified
-Connection: keep-alive
-X-Powered-By: Undertow 1
-Server: Wildfly 8
-Content-Length: 0
-Date: Wed, 16 Jul 2014 13:41:05 GMT
-

@@ -7,7 +7,7 @@
 package pt.inesc.manager.graph;
 
 import java.io.Serializable;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Dependency
@@ -18,14 +18,15 @@ public class Dependency
     /** request start timestamp. It is also the ID */
     public long start;
 
+
     /** request end timestamp */
     public long end;
 
     /** IDs which this entry depends from */
-    public final HashSet<Long> before = new HashSet<Long>();
+    public final ArrayList<Long> before = new ArrayList<Long>();
 
     /** IDs dependent from entry */
-    public final HashSet<Long> after = new HashSet<Long>();
+    public final ArrayList<Long> after = new ArrayList<Long>();
 
     public boolean visited;
 

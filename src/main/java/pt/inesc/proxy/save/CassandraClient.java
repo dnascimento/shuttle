@@ -8,6 +8,7 @@ package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.log4j.LogManager;
@@ -208,5 +209,50 @@ public class CassandraClient {
         session.execute(sb.toString());
     }
 
+
+    public void calculateSize() {
+        String query = "select * from " + TABLE_NAME + " LIMIT " + Integer.MAX_VALUE;
+        ResultSet rs = session.execute(query);
+        long totalKeys = 0;
+        long totalIds = 0;
+        long totalRequests = 0;
+        long totalResponses = 0;
+        long count = 0;
+
+        Iterator<Row> iter = rs.iterator();
+        while (iter.hasNext()) {
+            if (rs.getAvailableWithoutFetching() == 100 && !rs.isFullyFetched())
+                rs.fetchMoreResults();
+            Row row = iter.next();
+            count++;
+
+            row.getLong(COL_ID);
+            row.getLong(COL_END);
+            totalIds += 16;
+
+            totalRequests += row.getBytes(COL_REQUEST).limit() - row.getBytes(COL_REQUEST).position();
+            totalResponses += row.getBytes(COL_RESPONSE).limit() - row.getBytes(COL_RESPONSE).position();
+            List<String> keys = row.getList(COL_KEYS, String.class);
+            for (String key : keys) {
+                totalKeys += key.getBytes().length;
+            }
+
+
+        }
+
+
+        System.out.println("Total cassandra size (bytes): " + (totalKeys + totalIds + totalRequests + totalResponses));
+        System.out.println("Keys: " + totalKeys);
+        System.out.println("Ids: " + totalIds);
+        System.out.println("Requests: " + totalRequests);
+        System.out.println("Response: " + totalResponses);
+        System.out.println("Number of rows: " + count);
+    }
+
+    public static void main(String[] args) {
+        CassandraClient c = new CassandraClient();
+        c.calculateSize();
+        c.close();
+    }
 
 }
