@@ -83,8 +83,12 @@ public class ReplayWorker extends
                 } else {
                     // execute request
                     Request request = cassandra.getRequest(reqId);
-                    executingCounter.incrementAndGet();
-                    writePackage(request);
+                    if (request == null) {
+                        compensateRequest(reqId);
+                    } else {
+                        executingCounter.incrementAndGet();
+                        writePackage(request);
+                    }
                     totalRequests++;
                 }
             } catch (Exception e) {

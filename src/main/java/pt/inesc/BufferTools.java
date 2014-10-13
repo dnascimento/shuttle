@@ -79,9 +79,10 @@ public class BufferTools {
      * @param end
      * @param buffer2
      * @return
+     * @throws Exception
      */
-    public static int extractMessageTotalSize(int start, int end, ByteBuffer buffer) {
-        int pos = indexOf(start, end, buffer, CONTENT_LENGTH);
+    public static int extractMessageTotalSize(int start, int headerEnd, ByteBuffer buffer) {
+        int pos = indexOf(start, headerEnd, buffer, CONTENT_LENGTH);
         if (pos == -1) {
             return -1;
         }
@@ -92,7 +93,7 @@ public class BufferTools {
             lenght.add(b);
         }
         int contentLenght = Integer.parseInt(decodeUTF8(lenght));
-        contentLenght += indexOf(buffer, NEW_LINES);
+        contentLenght += headerEnd;
         // 4 newlines bytes
         contentLenght += 4;
         return contentLenght;
@@ -210,6 +211,10 @@ public class BufferTools {
         }
         long id = Long.parseLong(decodeUTF8(lenght));
         return id;
+    }
+
+    public static int getHeaderEnd(int lastSizeAttemp, int position, ByteBuffer clientRequestBuffer) {
+        return indexOf(lastSizeAttemp, clientRequestBuffer.position(), clientRequestBuffer, NEW_LINES);
     }
 
 }

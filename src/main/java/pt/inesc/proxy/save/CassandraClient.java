@@ -123,6 +123,9 @@ public class CassandraClient {
         ResultSet result = session.execute(sb.toString());
         for (Row row : result.all()) {
             ByteBuffer data = row.getBytes(COL_REQUEST);
+            if (data == null) {
+                return null;
+            }
             long end = row.getLong(COL_END);
             return new Request(data, rid, end);
         }

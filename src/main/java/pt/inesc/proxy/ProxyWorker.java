@@ -71,7 +71,7 @@ public class ProxyWorker extends
     private static final ArrayList<Pattern> listOfIgnorePatterns = loadIgnoreList();
     private static final Integer BUFFER_SIZE = 4 * 1024; // 2K
 
-    private static final long READ_TIMEOUT = 1000;
+    private static final long READ_TIMEOUT = 5000;
 
     private static final long WRITE_TIMEOUT = 1000;
 
@@ -137,6 +137,8 @@ public class ProxyWorker extends
     ByteBuffer drainFromClient(ByteBuffer clientRequestBuffer) throws Exception {
         int lastSizeAttemp = 0;
         int size = -1;
+        int headerEnd = -1;
+
         ReqType reqType = null;
 
         // Loop while data is available
@@ -148,16 +150,20 @@ public class ProxyWorker extends
                 if (clientRequestBuffer.remaining() == 0) {
                     clientRequestBuffer = resizeRequestBuffer(clientRequestBuffer);
                 }
-                // try to find the content-length specification
-                if (size == -1) {
-                    size = BufferTools.extractMessageTotalSize(lastSizeAttemp, clientRequestBuffer.position(), clientRequestBuffer);
+
+                if (headerEnd == -1) {
+                    // not found yet, try to find the header
+                    headerEnd = BufferTools.getHeaderEnd(lastSizeAttemp, clientRequestBuffer.position(), clientRequestBuffer);
                     lastSizeAttemp = clientRequestBuffer.position() - BufferTools.CONTENT_LENGTH.capacity();
+                    if (headerEnd == -1)
+                        continue;
+                    // header received
+                    size = BufferTools.extractMessageTotalSize(0, headerEnd, clientRequestBuffer);
                     if (clientRequestBuffer.position() == size) {
                         break;
                     }
+
                 }
-
-
                 // if no content-length specified and header is complete
                 if (size == -1 && BufferTools.headerIsComplete(clientRequestBuffer)) {
                     break;
@@ -175,10 +181,8 @@ public class ProxyWorker extends
             throw e;
         }
         clientRequestBuffer.flip();
-
         endOfFirstLine = BufferTools.indexOf(clientRequestBuffer, BufferTools.SEPARATOR);
         keepAlive = BufferTools.isKeepAlive(clientRequestBuffer, endOfFirstLine);
-
 
         int originalLimit = clientRequestBuffer.limit();
         if (endOfFirstLine == -1 && originalLimit == 0) {
@@ -260,7 +264,7 @@ public class ProxyWorker extends
 
                     if (headerEnd == -1) {
                         // not found yet, try to find the header
-                        headerEnd = BufferTools.indexOf(lastSizeAttemp, responseBuffer.position(), responseBuffer, BufferTools.NEW_LINES);
+                        headerEnd = BufferTools.getHeaderEnd(lastSizeAttemp, responseBuffer.position(), responseBuffer);
                         lastSizeAttemp = responseBuffer.position() - BufferTools.CONTENT_LENGTH.capacity();
                         if (headerEnd == -1)
                             continue;
