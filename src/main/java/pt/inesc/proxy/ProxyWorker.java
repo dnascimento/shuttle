@@ -43,13 +43,12 @@ public class ProxyWorker extends
         Thread {
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
+    /** time between attempt to flush to disk ms */
     private final int FLUSH_PERIODICITY = 1;
 
     private static final int N_BUFFERS = 7000;
 
-    /** time between attempt to flush to disk ms */
     private final InetSocketAddress backendAddress;
-    private SocketChannel backendSocket = null;
     private AsynchronousSocketChannel frontendChannel = null;
     private long startTS;
     public LinkedList<Request> requests = new LinkedList<Request>();
@@ -60,11 +59,13 @@ public class ProxyWorker extends
     private final DirectBufferPool requestBuffers;
     private final DirectBufferPool responseBuffers;
 
-    private int endOfFirstLine;
 
     private boolean ignore;
 
     private boolean keepAlive;
+
+    private SocketChannel backend;
+
 
 
     private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
@@ -72,12 +73,7 @@ public class ProxyWorker extends
     private static final Integer BUFFER_SIZE = 4 * 1024; // 2K
 
     private static final long READ_TIMEOUT = 5000;
-
     private static final long WRITE_TIMEOUT = 1000;
-
-    private final ByteBuffer END_OF_MESSAGE = ByteBuffer.wrap(new byte[] { 13, 10, 13, 10 });
-
-
 
     private static final boolean logging = true;
     private static final boolean stamping = true;
@@ -100,11 +96,12 @@ public class ProxyWorker extends
     private void connect() {
         try {
             // Open socket to server and hold it
-            if (backendSocket != null) {
-                backendSocket.close();
+            if (backend != null) {
+                backend.close();
             }
-            backendSocket = SocketChannel.open(backendAddress);
-            backendSocket.socket().setKeepAlive(true);
+            backend = SocketChannel.open(backendAddress);
+            backend.socket().setKeepAlive(true);
+            // backend.configureBlocking(false);
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
                 log.error("ERROR: Remote server is DOWN");
@@ -114,8 +111,6 @@ public class ProxyWorker extends
             connect();
         }
     }
-
-
 
 
 
@@ -138,6 +133,8 @@ public class ProxyWorker extends
         int lastSizeAttemp = 0;
         int size = -1;
         int headerEnd = -1;
+        int endOfFirstLine;
+
 
         ReqType reqType = null;
 
@@ -232,7 +229,7 @@ public class ProxyWorker extends
         while (true) {
             request.rewind();
             try {
-                while ((written += backendSocket.write(request)) < toWrite)
+                while ((written += backend.write(request)) < toWrite)
                     ;
                 return;
             } catch (IOException e) {
@@ -256,7 +253,7 @@ public class ProxyWorker extends
 
             // Read Answer from server
             try {
-                while (backendSocket.read(responseBuffer) > 0 || (size != -1 && responseBuffer.position() != size)) {
+                while (backend.read(responseBuffer) > 0 || (size != -1 && responseBuffer.position() != size)) {
                     if (responseBuffer.remaining() == 0) {
                         bufferWasResized = true;
                         responseBuffer = resizeResponseBuffer(responseBuffer);
@@ -287,7 +284,7 @@ public class ProxyWorker extends
                 if (bufferWasResized) {
                     responseBuffers.voteBufferSize(responseBuffer.position());
                 }
-                keepAlive = BufferTools.isKeepAlive(responseBuffer, endOfFirstLine) || BufferTools.isChunkedRequest(responseBuffer);
+                keepAlive = BufferTools.isKeepAlive(responseBuffer, headerEnd) || BufferTools.isChunkedRequest(responseBuffer);
                 return responseBuffer;
             } catch (IOException e) {
                 if (reconnected) {

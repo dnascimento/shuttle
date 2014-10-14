@@ -1,6 +1,6 @@
 #!/bin/sh
 if [ "$#" -ne 3 ]; then
-    echo "Ilegal number of args: <frontend-port> <backend-port> <backend-address>"
+    echo "Ilegal number of args: <frontend-port> <backend> <port>"
     exit
 fi
 

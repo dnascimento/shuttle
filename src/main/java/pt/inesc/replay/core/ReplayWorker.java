@@ -11,11 +11,11 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.ReplayNode;
@@ -46,7 +46,7 @@ public class ReplayWorker extends
     protected final VoldemortUnlocker unlocker;
 
 
-    private final AtomicInteger executingCounter = new AtomicInteger(0);
+    private final MonitorWaiter executingCounter = new MonitorWaiter();
     protected final RedoChannelPool pool;
 
 
@@ -73,11 +73,7 @@ public class ReplayWorker extends
             try {
                 if (reqId == -1) {
                     // wait for all to execute
-                    synchronized (executingCounter) {
-                        if (executingCounter.get() == 0) {
-                            executingCounter.wait();
-                        }
-                    }
+                    executingCounter.waitUntilZero();
                     logger.info("continue");
                     continue;
                 } else {
@@ -86,7 +82,7 @@ public class ReplayWorker extends
                     if (request == null) {
                         compensateRequest(reqId);
                     } else {
-                        executingCounter.incrementAndGet();
+                        executingCounter.increment();
                         writePackage(request);
                     }
                     totalRequests++;

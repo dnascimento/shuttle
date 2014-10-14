@@ -28,13 +28,7 @@ public class HandlerRead
         } else {
             processRead(aux);
             if (aux.sentCounter != null) {
-                int remain = aux.sentCounter.decrementAndGet();
-                if (remain == 0) {
-                    // wake thread
-                    synchronized (aux.sentCounter) {
-                        aux.sentCounter.notify();
-                    }
-                }
+                aux.sentCounter.decrement();
             }
         }
     }

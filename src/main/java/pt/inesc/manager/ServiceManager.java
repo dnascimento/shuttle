@@ -17,12 +17,11 @@ import java.util.concurrent.Executors;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
+import pt.inesc.SharedProperties;
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.NodeRegistryMsg;
-import undo.proto.ToManagerProto.StartEndMsg;
-import undo.proto.ToManagerProto.TrackEntry;
-import undo.proto.ToManagerProto.TrackMsg;
+import undo.proto.ToManagerProto.MsgToManager;
+import undo.proto.ToManagerProto.MsgToManager.TrackEntry;
 
 // Retrieves the requests from database
 public class ServiceManager extends
@@ -37,8 +36,8 @@ public class ServiceManager extends
         super();
         this.manager = manager;
         serverSocket = new ServerSocket();
-        serverSocket.bind(Manager.MANAGER_ADDR);
-        log.setLevel(Level.ERROR);
+        serverSocket.bind(SharedProperties.MANAGER_ADDRESS);
+        log.setLevel(Level.DEBUG);
     }
 
     @Override
@@ -81,13 +80,13 @@ public class ServiceManager extends
                     // add dependencies (From Database nodes)
                     if (proto.hasTrackMsg()) {
                         log.info("New msg: dependencies");
-                        TrackMsg m1 = proto.getTrackMsg();
+                        MsgToManager.TrackMsg m1 = proto.getTrackMsg();
                         newList(m1.getEntryList());
                     }
                     // add start-end of each request (from proxy)
                     if (proto.hasStartEndMsg()) {
                         log.info("New msg: start-end");
-                        StartEndMsg m2 = proto.getStartEndMsg();
+                        MsgToManager.StartEndMsg m2 = proto.getStartEndMsg();
                         Iterator<Long> startEndList = m2.getDataList().iterator();
                         while (startEndList.hasNext()) {
                             manager.graph.addStartEnd(startEndList.next(), startEndList.next());
@@ -97,14 +96,14 @@ public class ServiceManager extends
                     //
                     if (proto.hasTrackMsgFromClient()) {
                         log.info("New msg: TrackMsg from Client Lib");
-                        TrackMsg m3 = proto.getTrackMsgFromClient();
+                        MsgToManager.TrackMsg m3 = proto.getTrackMsgFromClient();
                         clientDependencies(m3.getEntryList());
                     }
 
                     //
                     if (proto.hasNodeRegistry()) {
                         log.info("New msg: has Node Registry");
-                        NodeRegistryMsg msg = proto.getNodeRegistry();
+                        MsgToManager.NodeRegistryMsg msg = proto.getNodeRegistry();
                         NodeGroup group;
                         switch (msg.getGroup()) {
                         case DB_NODE:
@@ -123,10 +122,12 @@ public class ServiceManager extends
                         manager.group.newNode(msg.getHostname(), msg.getPort(), group);
                     }
                     if (proto.hasAck()) {
-                        // TODO multiple redo nodes, o wait pode nao estar locked ainda
-                        synchronized (manager.ackWaiter) {
-                            manager.ackWaiter.notify();
+                        MsgToManager.AckMsg m = proto.getAck();
+                        System.out.println("Node " + m.getHostname() + ":" + m.getPort() + " done");
+                        for (String e : m.getExceptionList()) {
+                            System.err.println(e);
                         }
+                        manager.ackWaiter.decrement();
                     }
 
                 } catch (IOException e) {
@@ -181,4 +182,7 @@ public class ServiceManager extends
             return sb.toString();
         }
     }
+
+
+
 }

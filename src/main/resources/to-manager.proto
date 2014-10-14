@@ -11,58 +11,63 @@ message MsgToManager{
 	optional NodeRegistryMsg nodeRegistry = 4;
 	optional AckMsg ack = 5;
 	repeated EntryAccessList entryAccessList = 6;
-}
+	optional AckProxy ackProxy = 7;
 
 
-message EntryAccessList{
-	required bytes key = 1;
-	repeated int64 rid = 2;
-}
-
-
-//From data-nodes and client nodes
-message TrackMsg{
-  repeated TrackEntry entry = 1;
-  optional string nodeId = 2;
-}
-
-message TrackEntry {
-  required int64 rid = 1;
-  repeated int64 dependency = 2;
-}
-
-
-
-// From Proxy
-message StartEndMsg{
-	repeated int64 data = 1;
-}
-
-
-message SRD{
-	optional int64 rid = 1;
-	optional int32 branch = 2;
-	optional bool restrain = 3;
-	optional bool redo = 4;
-}
-
-//From Redo Nodes
-message AckMsg{
-	optional int32 port = 1;
-	optional string hostname = 2;
-	repeated string exception = 3;
-}
-
-
-//From ALL
-message NodeRegistryMsg{
-	enum NodeGroup{
-		PROXY = 1;
-		DB_NODE = 2;
-		REDO_NODE = 3;
+	message EntryAccessList{
+		required bytes key = 1;
+		repeated int64 rid = 2;
 	}
-	required NodeGroup group = 1;
-	required int32 port = 2;
-	required string hostname = 3;
-}
 
+
+	//From data-nodes and client nodes
+	message TrackMsg{
+	  repeated TrackEntry entry = 1;
+	  optional string nodeId = 2;
+	}
+
+	message TrackEntry {
+	  required int64 rid = 1;
+	  repeated int64 dependency = 2;
+	}
+
+
+
+	// From Proxy
+	message StartEndMsg{
+		repeated int64 data = 1;
+	}
+
+
+	message SRD{
+		optional int64 rid = 1;
+		optional int32 branch = 2;
+		optional bool restrain = 3;
+		optional bool redo = 4;
+	}
+
+	//From Redo Nodes
+	message AckMsg{
+		optional int32 port = 1;
+		optional string hostname = 2;
+		repeated string exception = 3;
+	}
+
+
+	message AckProxy{
+		required int64 currentId = 1;
+	}
+
+
+	//From ALL
+	message NodeRegistryMsg{
+		enum NodeGroup{
+			PROXY = 1;
+			DB_NODE = 2;
+			REDO_NODE = 3;
+		}
+		required NodeGroup group = 1;
+		required int32 port = 2;
+		required string hostname = 3;
+	}
+}

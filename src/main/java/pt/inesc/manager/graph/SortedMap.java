@@ -12,8 +12,8 @@ public class SortedMap<V>
     private static final long serialVersionUID = 1L;
 
     private final HashMap<Long, V> map = new HashMap<Long, V>();
-    private SortedMapIterator currentIterator = null;
-    private int sizeOfLastKeySetIterated = 0;
+    private transient SortedMapIterator currentIterator = null;
+    private int sizeOfLastKeySetIterated = -1;
 
     public void put(Long key, V value) {
         map.put(key, value);
@@ -23,8 +23,7 @@ public class SortedMap<V>
         return map.get(key);
     }
 
-    @Override
-    public Iterator<V> iterator() {
+    public SortedMapIterator getIterator() {
         if (currentIterator != null && sizeOfLastKeySetIterated == map.size()) {
             currentIterator.reset();
             return currentIterator;
@@ -32,6 +31,20 @@ public class SortedMap<V>
         currentIterator = new SortedMapIterator(map);
         sizeOfLastKeySetIterated = map.size();
         return currentIterator;
+    }
+
+
+
+    public long getBiggestKey() {
+        return getIterator().getBiggestKey();
+    }
+
+
+
+
+    @Override
+    public Iterator<V> iterator() {
+        return getIterator();
     }
 
     public class SortedMapIterator
@@ -51,6 +64,15 @@ public class SortedMap<V>
                 sortedKeys[i++] = key;
             }
             Arrays.sort(sortedKeys);
+        }
+
+
+        public V getBiggestValue() {
+            return map.get(sortedKeys[sortedKeys.length - 1]);
+        }
+
+        public Long getBiggestKey() {
+            return sortedKeys[sortedKeys.length - 1];
         }
 
         @Override
@@ -93,4 +115,6 @@ public class SortedMap<V>
     public HashMap<Long, V> getMap() {
         return map;
     }
+
+
 }

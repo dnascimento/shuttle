@@ -28,6 +28,8 @@ message ExecList{
 	required int32 branch = 2;
 	required bool start = 3;
 	required string replayMode = 4;
+	required string targetHost = 5;
+	required int32 targetPort = 6;
 }
 
 

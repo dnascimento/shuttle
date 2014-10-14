@@ -24,16 +24,16 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
-import pt.inesc.manager.Manager;
+import pt.inesc.SharedProperties;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.replay.core.ReplayWorker;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ExecList;
 import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.AckMsg;
-import undo.proto.ToManagerProto.NodeRegistryMsg;
-import undo.proto.ToManagerProto.NodeRegistryMsg.NodeGroup;
-
+import undo.proto.ToManagerProto.MsgToManager;
+import undo.proto.ToManagerProto.MsgToManager.AckMsg;
+import undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg;
+import undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup;
 
 
 /**
@@ -42,8 +42,6 @@ import undo.proto.ToManagerProto.NodeRegistryMsg.NodeGroup;
  */
 public class ReplayNode extends
         Thread {
-    public static final int MY_PORT = 11500;
-    public static final InetSocketAddress TARGET_LOAD_BALANCER_ADDR = new InetSocketAddress("localhost", 8080);
     private static final Logger log = LogManager.getLogger(ReplayNode.class.getName());
     private static final int N_WORKERS = 1;
     protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
@@ -59,7 +57,7 @@ public class ReplayNode extends
 
     public ReplayNode() throws Exception {
         try {
-            myServerSocket = new ServerSocket(MY_PORT);
+            myServerSocket = new ServerSocket(SharedProperties.REPLAY_PORT);
             registryToManger();
         } catch (BindException e) {
             throw new Exception("Replay Node already running in same port...");
@@ -92,12 +90,12 @@ public class ReplayNode extends
     private void registryToManger() {
         Socket s = new Socket();
         try {
-            s.connect(Manager.MANAGER_ADDR);
-            NodeRegistryMsg c = ToManagerProto.NodeRegistryMsg.newBuilder()
-                                                              .setHostname("localhost")
-                                                              .setPort(MY_PORT)
-                                                              .setGroup(NodeGroup.REDO_NODE)
-                                                              .build();
+            s.connect(SharedProperties.MANAGER_ADDRESS);
+            NodeRegistryMsg c = NodeRegistryMsg.newBuilder()
+                                               .setHostname(SharedProperties.MY_HOST)
+                                               .setPort(SharedProperties.REPLAY_PORT)
+                                               .setGroup(NodeGroup.REDO_NODE)
+                                               .build();
             ToManagerProto.MsgToManager.newBuilder().setNodeRegistry(c).build().writeDelimitedTo(s.getOutputStream());
 
             s.close();
@@ -130,8 +128,8 @@ public class ReplayNode extends
         threadPool = Executors.newFixedThreadPool(N_WORKERS);
     }
 
-    public void newRequest(List<Long> execList, short branch, ReplayMode replayMode) throws Exception {
-        workers.add(new ReplayWorker(execList, TARGET_LOAD_BALANCER_ADDR, branch));
+    public void newRequest(List<Long> execList, short branch, ReplayMode replayMode, String targetHost, int targetPort) throws Exception {
+        workers.add(new ReplayWorker(execList, new InetSocketAddress(targetHost, targetPort), branch));
     }
 
     private void newConnection(Socket socket) throws Exception {
@@ -142,7 +140,7 @@ public class ReplayNode extends
             log.warn("Retrieved an empty execution list");
         } else {
             ReplayMode replayMode = ReplayMode.valueOf(request.getReplayMode());
-            newRequest(execList, (short) request.getBranch(), replayMode);
+            newRequest(execList, (short) request.getBranch(), replayMode, request.getTargetHost(), request.getTargetPort());
         }
         if (request.getStart()) {
             startOrder();
@@ -157,8 +155,8 @@ public class ReplayNode extends
     private void sendAck() {
         Socket s = new Socket();
         try {
-            s.connect(Manager.MANAGER_ADDR);
-            AckMsg.Builder c = ToManagerProto.AckMsg.newBuilder().setHostname("localhost").setPort(MY_PORT);
+            s.connect(SharedProperties.MANAGER_ADDRESS);
+            AckMsg.Builder c = MsgToManager.AckMsg.newBuilder().setHostname(SharedProperties.MY_HOST).setPort(SharedProperties.REPLAY_PORT);
             c.addAllException(errors);
             ToManagerProto.MsgToManager.newBuilder().setAck(c).build().writeDelimitedTo(s.getOutputStream());
 

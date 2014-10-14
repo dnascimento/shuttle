@@ -15,11 +15,9 @@ import java.util.LinkedList;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.manager.Manager;
+import pt.inesc.SharedProperties;
 import pt.inesc.proxy.DirectBufferPool;
 import undo.proto.ToManagerProto.MsgToManager;
-import undo.proto.ToManagerProto.StartEndMsg;
-import undo.proto.ToManagerProto.StartEndMsg.Builder;
 
 
 
@@ -42,7 +40,7 @@ public class Saver extends
         @SuppressWarnings("resource")
         Socket socketToManager = new Socket();
         try {
-            socketToManager.connect(Manager.MANAGER_ADDR);
+            socketToManager.connect(SharedProperties.MANAGER_ADDRESS);
             socketToManager.getOutputStream();
         } catch (IOException e) {
             log.error("Saver: manager not available", e);
@@ -113,7 +111,7 @@ public class Saver extends
         while ((current = moveLists()) != null) {
             LinkedList<Request> requestsList = current.getRequests();
             LinkedList<Response> responsesList = current.getResponses();
-            StartEndMsg.Builder startEndMsg = StartEndMsg.newBuilder();
+            MsgToManager.StartEndMsg.Builder startEndMsg = MsgToManager.StartEndMsg.newBuilder();
 
 
             if (responsesList.size() != requestsList.size()) {
@@ -130,14 +128,13 @@ public class Saver extends
                 res.data.clear();
                 buffersResponses.add(res.data);
             }
-
-            sendStartEndListToManager(startEndMsg);
+            sendStartEndListToManager(startEndMsg.build());
         }
         setCleanBuffers(buffersRequests, buffersResponses);
     }
 
 
-    private void sendStartEndListToManager(Builder startEndMsg) {
+    private void sendStartEndListToManager(MsgToManager.StartEndMsg startEndMsg) {
         if (streamToManager == null) {
             return;
         }

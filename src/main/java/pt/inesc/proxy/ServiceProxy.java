@@ -12,12 +12,13 @@ import java.net.Socket;
 
 import org.apache.log4j.Logger;
 
-import pt.inesc.manager.Manager;
+import pt.inesc.SharedProperties;
 import undo.proto.FromManagerProto;
 import undo.proto.FromManagerProto.ProxyMsg;
 import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.NodeRegistryMsg;
-import undo.proto.ToManagerProto.NodeRegistryMsg.NodeGroup;
+import undo.proto.ToManagerProto.MsgToManager;
+import undo.proto.ToManagerProto.MsgToManager.AckProxy;
+import undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup;
 
 
 public class ServiceProxy extends
@@ -29,8 +30,8 @@ public class ServiceProxy extends
 
     public ServiceProxy(Proxy p) throws IOException {
         this.proxy = p;
-        serverSocket = new ServerSocket(Proxy.MY_PORT);
-        registryToManger();
+        serverSocket = new ServerSocket(SharedProperties.PROXY_PORT);
+        registryToManager();
     }
 
     @Override
@@ -55,16 +56,15 @@ public class ServiceProxy extends
     }
 
 
-    private void registryToManger() {
+    private void registryToManager() {
         Socket s = new Socket();
         try {
-            s.connect(Manager.MANAGER_ADDR);
-            NodeRegistryMsg c = ToManagerProto.NodeRegistryMsg.newBuilder()
-                                                              .setHostname("localhost")
-                                                              .setPort(Proxy.MY_PORT)
-                                                              .setGroup(NodeGroup.PROXY)
-                                                              .build();
-
+            s.connect(SharedProperties.MANAGER_ADDRESS);
+            MsgToManager.NodeRegistryMsg c = MsgToManager.NodeRegistryMsg.newBuilder()
+                                                                         .setHostname(SharedProperties.MY_HOST)
+                                                                         .setPort(SharedProperties.PROXY_PORT)
+                                                                         .setGroup(NodeGroup.PROXY)
+                                                                         .build();
             ToManagerProto.MsgToManager.newBuilder().setNodeRegistry(c).build().writeDelimitedTo(s.getOutputStream());
             s.close();
         } catch (IOException e) {
@@ -89,9 +89,11 @@ public class ServiceProxy extends
         if (msg.hasBranch() || msg.hasRestrain()) {
             short branch = (short) msg.getBranch();
             boolean restrain = msg.getRestrain();
-            proxy.setBranchAndRestrain(branch, restrain);
+            long currentInstant = proxy.setBranchAndRestrain(branch, restrain);
+            ToManagerProto.MsgToManager.newBuilder()
+                                       .setAckProxy(AckProxy.newBuilder().setCurrentId(currentInstant))
+                                       .build()
+                                       .writeDelimitedTo(socket.getOutputStream());
         }
     }
-
-
 }

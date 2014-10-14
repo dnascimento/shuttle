@@ -10,17 +10,14 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.Iterator;
+import java.util.List;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.manager.branchTree.BranchNode;
-import pt.inesc.proxy.Proxy;
-import pt.inesc.replay.ReplayNode;
-import undo.proto.FromManagerProto;
-import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.AckMsg;
+import pt.inesc.SharedProperties;
+import undo.proto.ToManagerProto.MsgToManager;
 
 import com.google.protobuf.Message;
 
@@ -28,18 +25,21 @@ public class GroupCom {
     private final Logger log = LogManager.getLogger(GroupCom.class.getName());
 
     public enum NodeGroup {
-        PROXY, DATABASE, REDO;
+        PROXY, DATABASE, REDO, APPLICATION_SERVER;
     }
 
     ArrayList<InetSocketAddress> databaseList = new ArrayList<InetSocketAddress>();
-    ArrayList<InetSocketAddress> redoList = new ArrayList<InetSocketAddress>();
+    ArrayList<InetSocketAddress> replayInstancesList = new ArrayList<InetSocketAddress>();
     ArrayList<InetSocketAddress> proxyList = new ArrayList<InetSocketAddress>();
+    ArrayList<InetSocketAddress> applicationServers = new ArrayList<InetSocketAddress>();
+
 
     public GroupCom() {
         // Default instances:
-        proxyList.add(new InetSocketAddress("localhost", Proxy.MY_PORT));
-        redoList.add(new InetSocketAddress("localhost", ReplayNode.MY_PORT));
-        databaseList.add(new InetSocketAddress("localhost", 11200));
+        applicationServers.add(SharedProperties.LOAD_BALANCER_ADDRESS);
+        proxyList.add(new InetSocketAddress("localhost", SharedProperties.PROXY_PORT));
+        replayInstancesList.add(new InetSocketAddress("localhost", SharedProperties.REPLAY_PORT));
+        databaseList.add(new InetSocketAddress("localhost", SharedProperties.DATABASE_PORT));
     }
 
     /**
@@ -49,13 +49,22 @@ public class GroupCom {
      * @param port
      * @param group
      */
-    public void newNode(String host, int port, NodeGroup group) {
-        log.info("New node: " + host + ":" + port + " group: " + group);
+    public void newNode(String host, int port, NodeGroup type) {
+        log.info("New node: " + host + ":" + port + " group: " + type);
         InetSocketAddress addr = new InetSocketAddress(host, port);
-        if (!getGroup(group).contains(addr))
-            getGroup(group).add(addr);
-        else
+
+        List<InetSocketAddress> group = getGroup(type);
+        if (group.contains(addr)) {
             log.info("The node is known");
+            return;
+        }
+        // remove the localhost predefinition
+        Iterator<InetSocketAddress> it = group.iterator();
+        while (it.hasNext()) {
+            if (it.next().getHostString().equals("localhost"))
+                it.remove();
+        }
+        group.add(addr);
     }
 
     /**
@@ -63,36 +72,70 @@ public class GroupCom {
      * 
      * @throws IOException
      */
-    public void broadcast(Message msg, NodeGroup group, boolean ack) throws IOException {
+    public void broadcast(Message msg, NodeGroup group) throws Exception {
         // TODO may be optimized to use a socket pool or assync channels...
         for (InetSocketAddress addr : getGroup(group)) {
-            sendMsg(msg, addr, ack);
+            send(msg, addr);
         }
     }
 
-    public void unicast(Message msg, NodeGroup group, boolean ack) throws IOException {
+
+    /**
+     * Broadcast message
+     * 
+     * @throws IOException
+     */
+    public void broadcastWithAck(Message msg, NodeGroup group) throws Exception {
+        // TODO may be optimized to use a socket pool or assync channels...
+        for (InetSocketAddress addr : getGroup(group)) {
+            MsgToManager.AckMsg ack = sendWithResponse(msg, addr).getAck();
+            for (String s : ack.getExceptionList()) {
+                System.err.println(s);
+            }
+        }
+    }
+
+    public MsgToManager sendWithResponse(Message msg, NodeGroup group) throws Exception {
         ArrayList<InetSocketAddress> g = getGroup(group);
         if (g.isEmpty()) {
             throw new IOException("No nodes in group " + group);
         }
-        // TODO optimize for node preference
-        sendMsg(msg, g.get(0), ack);
+        return sendWithResponse(msg, g.get(0));
     }
 
-    private void sendMsg(Message msg, InetSocketAddress addr, boolean ack) throws IOException {
+    public void send(Message msg, NodeGroup group) throws Exception {
+        ArrayList<InetSocketAddress> g = getGroup(group);
+        if (g.isEmpty()) {
+            throw new IOException("No nodes in group " + group);
+        }
+        send(msg, g.get(0));
+    }
+
+    public void send(Message msg, InetSocketAddress addr) throws Exception {
         Socket s = new Socket();
         s.connect(addr);
         msg.writeDelimitedTo(s.getOutputStream());
         s.getOutputStream().flush();
-        if (ack) {
-            AckMsg ackMsg = ToManagerProto.AckMsg.parseDelimitedFrom(s.getInputStream());
-            if (ackMsg.getExceptionCount() > 0) {
-                log.error(ackMsg.getExceptionList());
-                // TODO ack processing better
-            }
-        }
         s.close();
     }
+
+
+    public MsgToManager sendWithResponse(Message msg, InetSocketAddress addr) throws Exception {
+        Socket s = new Socket();
+        s.connect(addr);
+        msg.writeDelimitedTo(s.getOutputStream());
+        s.getOutputStream().flush();
+        MsgToManager response = MsgToManager.parseDelimitedFrom(s.getInputStream());
+        s.close();
+        return response;
+
+    }
+
+
+
+
+
+
 
     private ArrayList<InetSocketAddress> getGroup(NodeGroup group) {
         switch (group) {
@@ -101,12 +144,19 @@ public class GroupCom {
         case PROXY:
             return proxyList;
         case REDO:
-            return redoList;
+            return replayInstancesList;
+        case APPLICATION_SERVER:
+            return applicationServers;
         default:
-            log.error("Unknown getGroup");
-            return null;
+            throw new RuntimeException("Unknown getGroup: " + group);
         }
     }
+
+
+    public int countReplayNodes() {
+        return replayInstancesList.size();
+    }
+
 
     public String[] getDatabaseNodes() {
         ArrayList<InetSocketAddress> addressList = getGroup(NodeGroup.DATABASE);
@@ -115,14 +165,5 @@ public class GroupCom {
             result[i] = addressList.get(i).getHostString();
         }
         return result;
-    }
-
-    public void sendNewRedoBranch(LinkedList<BranchNode> path) throws Exception {
-        FromManagerProto.ToDataNode.Builder b = FromManagerProto.ToDataNode.newBuilder();
-        for (BranchNode n : path) {
-            b.addPathBranch(n.branch);
-            b.addPathCommit(n.commit);
-        }
-        broadcast(b.build(), NodeGroup.DATABASE, true);
     }
 }

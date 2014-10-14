@@ -279,27 +279,31 @@ public class GraphShuttle
         return counterBefore;
     }
 
-    public synchronized List<List<Long>> replay(long baseCommit, ReplayMode mode, List<Long> attackSource) {
+    public synchronized ExecListWrapper replay(long baseCommit, ReplayMode mode, List<Long> attackSource) {
         List<List<Long>> result = new ArrayList<List<Long>>(1);
+
+        long latestRequest = getLatestRequest();
 
         switch (mode) {
         case allParallel:
             result = DepAlgorithms.replayParallel(baseCommit, this);
-            return result;
+            break;
         case allSerial:
             result.add(DepAlgorithms.replaySerial(baseCommit, this));
-            return result;
-
+            break;
         case selectiveParallel:
-            return DepAlgorithms.replaySelectiveParallel(baseCommit, attackSource, this);
+            result = DepAlgorithms.replaySelectiveParallel(baseCommit, attackSource, this);
         case selectiveSerial:
             result.add(DepAlgorithms.replaySelectiveSerial(baseCommit, attackSource, this));
-            return result;
+            break;
         default:
             throw new UnsupportedOperationException("Unknown replay mode");
         }
+        return new ExecListWrapper(result, latestRequest);
 
     }
+
+
 
     /**
      * For each rid, expand forward and collect the set of requests dependent from this
@@ -317,6 +321,11 @@ public class GraphShuttle
             result.remove(rid);
         }
         return result;
+    }
+
+
+    private long getLatestRequest() {
+        return map.getBiggestKey();
     }
 
     public long getMemorySize() {
@@ -346,4 +355,5 @@ public class GraphShuttle
         sb.append("/********************************\\ \n \n \n \n ");
         return sb.toString();
     }
+
 }

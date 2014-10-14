@@ -26,12 +26,9 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
-public class Proxy {
-    public static final int MY_PORT = 11100;
-    public static int FRONTEND_PORT = 9000;
-    public static int BACKEND_PORT = 8080;
-    public static String BACKEND_HOST = "localhost";
+import pt.inesc.SharedProperties;
 
+public class Proxy {
     private static final int NUMBER_OF_THREADS = 25;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
@@ -52,8 +49,10 @@ public class Proxy {
     private final LinkedBlockingDeque<ProxyWorker> workers;
     private final DirectBufferPool buffers;
 
-    public Proxy(int localPort, String remoteHost, int remotePort) throws IOException {
-        this.localPort = localPort;
+    public Proxy(int frontendPort, String remoteHost, int remotePort) throws IOException {
+        log.setLevel(Level.DEBUG);
+        this.localPort = frontendPort;
+        InetSocketAddress backendAddress = new InetSocketAddress(remoteHost, remotePort);
 
         new ServiceProxy(this).start();
         ProxyThreadFactory threadFactory = new ProxyThreadFactory();
@@ -61,19 +60,15 @@ public class Proxy {
         pool = new ThreadPoolExecutor(NUMBER_OF_THREADS, NUMBER_OF_THREADS, Long.MAX_VALUE, TimeUnit.MILLISECONDS,
                 new LinkedBlockingDeque<Runnable>(), threadFactory);
 
-
         group = AsynchronousChannelGroup.withThreadPool(pool);
-
         asynchronousServerSocketChannel = AsynchronousServerSocketChannel.open(group);
         asynchronousServerSocketChannel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
 
-        InetSocketAddress backendAddress = new InetSocketAddress(remoteHost, remotePort);
         workers = createWorkersPool(backendAddress);
 
         buffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
 
-
-        log.info("Proxy listen frontend: " + localPort + " backend: " + remotePort);
+        log.info("Proxy listen frontend: " + localPort + " backend: " + backendAddress);
         Thread.currentThread().setName("Proxy Main");
     }
 
@@ -89,21 +84,21 @@ public class Proxy {
     public static void main(String[] args) throws IOException, InterruptedException, ExecutionException {
         DOMConfigurator.configure("log4j.xml");
         log.setLevel(Level.DEBUG);
-        if (args.length > 0) {
-            if (args.length < 3) {
-                log.error("usage: <frontend-port> <backend-port> <backend-address>");
-                return;
-            }
-            FRONTEND_PORT = Integer.parseInt(args[0]);
-            BACKEND_PORT = Integer.parseInt(args[1]);
-            BACKEND_HOST = args[2];
+        if (args.length < 3) {
+            log.error("usage: <frontend:port> <backend:port>");
+            return;
         }
-        new Proxy(FRONTEND_PORT, BACKEND_HOST, BACKEND_PORT).run();
+        int frontendPort = Integer.parseInt(args[0]);
+        String backend = args[1];
+        int backendPort = Integer.parseInt(args[2]);
+
+        new Proxy(frontendPort, backend, backendPort).run();
     }
 
 
     public void run() throws IOException, InterruptedException, ExecutionException {
-        final AsynchronousServerSocketChannel listener = asynchronousServerSocketChannel.bind(new InetSocketAddress(localPort));
+        final AsynchronousServerSocketChannel listener = asynchronousServerSocketChannel.bind(new InetSocketAddress(
+                SharedProperties.MY_HOST, localPort));
         listener.accept(workers, new CompletionHandler<AsynchronousSocketChannel, LinkedBlockingDeque<ProxyWorker>>() {
             @Override
             public void completed(AsynchronousSocketChannel ch, LinkedBlockingDeque<ProxyWorker> workersList) {
@@ -126,17 +121,20 @@ public class Proxy {
     }
 
 
-    public void setBranchAndRestrain(short branch, boolean restrain) {
-        log.info("new branch: " + branch + " restrain: " + restrain);
+    public long setBranchAndRestrain(short branch, boolean restrain) {
+        log.info("branch: " + branch + " restrain: " + restrain);
         byte[] b = null;
         if (branch != -1) {
             b = shortToByteArray(branch);
         }
+        long currentId;
         synchronized (Proxy.lockBranchRestrain) {
             if (b != null)
                 Proxy.branch = b;
             Proxy.restrain = restrain;
+            currentId = System.currentTimeMillis();
         }
+        return currentId;
     }
 
     /**

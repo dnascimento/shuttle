@@ -173,10 +173,10 @@ public class BufferTools {
         return BufferTools.indexOf(clientRequestBuffer, CHUNKED) != -1;
     }
 
-    public static boolean isKeepAlive(ByteBuffer buffer, int endOfFirstLine) {
+    public static boolean isKeepAlive(ByteBuffer buffer, int endOfHeader) {
         int index = BufferTools.indexOf(buffer, CONNECTION);
         if (index == -1) {
-            return isHTTP1(buffer, endOfFirstLine);
+            return isHTTP1(buffer, endOfHeader);
         }
         int letter = buffer.get(index + CONNECTION.capacity() + 1);
         // if 2nd char is a "e": Keep-Alive

@@ -194,7 +194,7 @@ public class Interface extends
             System.out.println(result);
             break;
         case 'f':
-            List<List<Long>> clusters = manager.graph.replay(0, ReplayMode.allParallel, null);
+            List<List<Long>> clusters = manager.graph.replay(0, ReplayMode.allParallel, null).list;
             System.out.println(clusters.size() + " independent clusters");
             break;
         case 'g':
@@ -293,7 +293,7 @@ public class Interface extends
 
         ReplayMode replayMode = ReplayMode.castFromInt(opt);
         if (viewList) {
-            List<List<Long>> execLists = manager.graph.replay(commit, replayMode, attackSource);
+            List<List<Long>> execLists = manager.graph.replay(commit, replayMode, attackSource).list;
             for (List<Long> l : execLists) {
                 for (Long e : l) {
                     System.out.println(e);

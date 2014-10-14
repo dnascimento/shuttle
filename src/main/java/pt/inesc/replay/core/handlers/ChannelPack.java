@@ -8,8 +8,8 @@ package pt.inesc.replay.core.handlers;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
-import java.util.concurrent.atomic.AtomicInteger;
 
+import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.core.RedoChannelPool;
@@ -22,13 +22,13 @@ public class ChannelPack {
     public CassandraClient cassandra;
     public RedoChannelPool pool;
     public ByteBuffer buffer;
-    public final AtomicInteger sentCounter;
+    public final MonitorWaiter sentCounter;
 
     public ChannelPack(AsynchronousSocketChannel channel,
             ByteBuffer buffer,
             CassandraClient cassandra,
             RedoChannelPool redoChannelPool,
-            AtomicInteger sentCounter) {
+            MonitorWaiter sentCounter) {
         this.buffer = buffer;
         this.channel = channel;
         this.cassandra = cassandra;

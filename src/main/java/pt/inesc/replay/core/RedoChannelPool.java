@@ -9,11 +9,11 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.replay.core.handlers.ChannelPack;
 
@@ -26,7 +26,7 @@ public class RedoChannelPool {
     AsynchronousChannelGroup group;
     private static final int BUFFER_SIZE = 512 * 1024;
 
-    private AtomicInteger sentCounter;
+    private MonitorWaiter sentCounter;
 
     private RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra) throws Exception {
         this.remoteHost = remoteHost;
@@ -37,9 +37,9 @@ public class RedoChannelPool {
 
 
 
-    public RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra, AtomicInteger sentCounter) throws Exception {
+    public RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra, MonitorWaiter executingCounter) throws Exception {
         this(remoteHost, cassandra);
-        this.sentCounter = sentCounter;
+        this.sentCounter = executingCounter;
 
         for (int i = 0; i < INIT_NUMBER_OF_THREADS_AND_CHANNELS; i++) {
             createPackChannel();
