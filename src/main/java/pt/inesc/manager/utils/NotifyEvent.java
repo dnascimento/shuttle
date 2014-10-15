@@ -30,12 +30,16 @@ public class NotifyEvent extends
     @Override
     public void run() {
         try {
-            sleep(alertMoment - System.currentTimeMillis());
+            sleep((alertMoment - getTimeStamp()) / 1000);
         } catch (InterruptedException e) {
             log.error(e);
         }
         log.warn("ALERT->" + msg);
     }
 
+
+    private static long getTimeStamp() {
+        return System.currentTimeMillis() / 1000;
+    }
 
 }

@@ -17,7 +17,7 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.SharedProperties;
 import pt.inesc.proxy.DirectBufferPool;
-import undo.proto.ToManagerProto.MsgToManager;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
 
 
 

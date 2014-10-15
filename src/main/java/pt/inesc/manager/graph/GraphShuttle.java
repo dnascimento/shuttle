@@ -30,6 +30,9 @@ public class GraphShuttle
 
     public final SortedMap<Dependency> map;
 
+    public GraphShuttle(int initSize) {
+        map = new SortedMap<Dependency>(initSize);
+    }
 
     public GraphShuttle() {
         map = new SortedMap<Dependency>();

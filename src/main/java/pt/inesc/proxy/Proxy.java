@@ -54,6 +54,7 @@ public class Proxy {
         this.localPort = frontendPort;
         InetSocketAddress backendAddress = new InetSocketAddress(remoteHost, remotePort);
 
+
         new ServiceProxy(this).start();
         ProxyThreadFactory threadFactory = new ProxyThreadFactory();
 
@@ -85,7 +86,7 @@ public class Proxy {
         DOMConfigurator.configure("log4j.xml");
         log.setLevel(Level.DEBUG);
         if (args.length < 3) {
-            log.error("usage: <frontend:port> <backend:port>");
+            log.error("usage: <frontend:port> <backend> <backend:port>");
             return;
         }
         int frontendPort = Integer.parseInt(args[0]);
@@ -132,10 +133,15 @@ public class Proxy {
             if (b != null)
                 Proxy.branch = b;
             Proxy.restrain = restrain;
-            currentId = System.currentTimeMillis();
+            currentId = getTimeStamp();
         }
         return currentId;
     }
+
+    private static long getTimeStamp() {
+        return System.currentTimeMillis() / 1000;
+    }
+
 
     /**
      * Convert a short to byte array including the leading zeros and using 1 byte per char
@@ -172,6 +178,6 @@ public class Proxy {
             branch = shortToByteArray(newBranch);
             timeTravel = 0;
         }
-
     }
+
 }

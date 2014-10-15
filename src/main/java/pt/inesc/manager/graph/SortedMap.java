@@ -11,9 +11,17 @@ public class SortedMap<V>
 
     private static final long serialVersionUID = 1L;
 
-    private final HashMap<Long, V> map = new HashMap<Long, V>();
+    private final HashMap<Long, V> map;
     private transient SortedMapIterator currentIterator = null;
     private int sizeOfLastKeySetIterated = -1;
+
+    public SortedMap() {
+        map = new HashMap<Long, V>();
+    }
+
+    public SortedMap(int initSize) {
+        map = new HashMap<Long, V>(initSize);
+    }
 
     public void put(Long key, V value) {
         map.put(key, value);

@@ -189,7 +189,7 @@ public class ProxyWorker extends
 
         ByteBuffer request;
         if (stamping) {
-            startTS = System.currentTimeMillis();
+            startTS = getTimestamp();
             // log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
             ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
 
@@ -306,7 +306,7 @@ public class ProxyWorker extends
 
     public void sendToClient(ByteBuffer responseBuffer) throws Exception {
         // send anwser to client
-        long endTS = System.currentTimeMillis();
+        long endTS = getTimestamp();
         responseBuffer.flip(); // make buffer readable
 
 
@@ -523,6 +523,9 @@ public class ProxyWorker extends
             log.error(e);
         }
         frontendChannel = null;
+    }
 
+    private long getTimestamp() {
+        return System.nanoTime() / 1000;
     }
 }

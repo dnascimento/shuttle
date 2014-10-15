@@ -18,7 +18,6 @@ import voldemort.undoTracker.KeyAccess;
 import voldemort.utils.ByteArray;
 
 import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.ResultSet;
@@ -34,8 +33,8 @@ import com.google.common.io.BaseEncoding;
 public class CassandraClient {
     private static final Logger log = LogManager.getLogger(CassandraClient.class.getName());
 
-    private static final int CONCURRENCY = 20;
-    private static final int MAX_CONNECTIONS = 10;
+    // private static final int CONCURRENCY = 20;
+    // private static final int MAX_CONNECTIONS = 10;
     private static final String TABLE_NAME = "requests";
     private static final String NODE = "localhost";
     private static final String KEYSPACE = "requestStore";
@@ -61,11 +60,12 @@ public class CassandraClient {
 
     public CassandraClient() {
         PoolingOptions pools = new PoolingOptions();
-        pools.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, CONCURRENCY);
-        pools.setCoreConnectionsPerHost(HostDistance.LOCAL, MAX_CONNECTIONS);
-        pools.setMaxConnectionsPerHost(HostDistance.LOCAL, MAX_CONNECTIONS);
-        pools.setCoreConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
-        pools.setMaxConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
+        // pools.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL,
+        // CONCURRENCY);
+        // pools.setCoreConnectionsPerHost(HostDistance.LOCAL, MAX_CONNECTIONS);
+        // pools.setMaxConnectionsPerHost(HostDistance.LOCAL, MAX_CONNECTIONS);
+        // pools.setCoreConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
+        // pools.setMaxConnectionsPerHost(HostDistance.REMOTE, MAX_CONNECTIONS);
 
         cluster = new Cluster.Builder().addContactPoints(NODE)
                                        .withPoolingOptions(pools)

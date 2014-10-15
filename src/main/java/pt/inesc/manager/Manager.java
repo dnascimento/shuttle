@@ -11,7 +11,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.InetSocketAddress;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -34,14 +38,15 @@ import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.manager.utils.NotifyEvent;
 import pt.inesc.replay.core.ReplayMode;
-import undo.proto.FromManagerProto;
-import undo.proto.FromManagerProto.ExecList;
-import undo.proto.FromManagerProto.ProxyMsg;
-import undo.proto.FromManagerProto.ToDataNode;
-import undo.proto.ToManagerProto.MsgToManager;
+import pt.inesc.undo.proto.FromManagerProto;
+import pt.inesc.undo.proto.FromManagerProto.ExecList;
+import pt.inesc.undo.proto.FromManagerProto.ProxyMsg;
+import pt.inesc.undo.proto.FromManagerProto.ToDataNode;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
 
 public class Manager {
     private static final Logger LOGGER = LogManager.getLogger(Manager.class.getName());
+    private static int MAX_CONCURRENT_CLIENTS_PER_REPLAY_NODE = 30;
 
     public final GroupCom group;
 
@@ -51,6 +56,14 @@ public class Manager {
     public BranchTree branches = new BranchTree();
 
     public static void main(String[] args) throws Exception {
+        ClassLoader cl = ClassLoader.getSystemClassLoader();
+
+        URL[] urls = ((URLClassLoader) cl).getURLs();
+
+        for (URL url : urls) {
+            System.out.println(url.getFile());
+        }
+
         DOMConfigurator.configure("log4j.xml");
         LOGGER.setLevel(Level.DEBUG);
         Manager manager = new Manager();
@@ -80,17 +93,18 @@ public class Manager {
     public void replay(long parentCommit, short parentBranch, ReplayMode replayMode, List<Long> attackSource) throws Exception {
         // get requests to send
         LOGGER.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE);
-
-        enableRestrain();
 
         short newBranch = branches.fork(parentCommit, parentBranch);
         LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
+
         // notify the database nodes about the path of the redo branch
+        LOGGER.warn("Sending new path: " + path);
         sendNewRedoBranch(path);
 
         // Get execution list
+        LOGGER.warn("Get the excution list");
         ExecListWrapper execListWrapper = graph.replay(parentCommit, replayMode, attackSource);
+        LOGGER.warn("Got the excution list");
 
         long biggest = execListWrapper.latestRequest;
 
@@ -98,7 +112,6 @@ public class Manager {
         // and set as target
         // infrastructrure.startReplay()
         LOGGER.warn("Will replay" + countRequests(execListWrapper.list) + " requests");
-
 
         orderNodesToReplay(execListWrapper.list, parentBranch, replayMode);
 
@@ -174,6 +187,11 @@ public class Manager {
 
         int execListsToReplay = 0;
         // inform the slaves which requests will be replayed
+        List<InetSocketAddress> replayInstances = group.getReplayInstances();
+
+        execLists = setUpperLimitOfConcurrentThreads(execLists, replayInstances.size());
+
+        int i = 0;
         for (List<Long> execList : execLists) {
             if (execList == null || execList.size() == 0)
                 continue;
@@ -186,8 +204,9 @@ public class Manager {
                                                     .setTargetHost(SharedProperties.LOAD_BALANCER_ADDRESS.getHostName())
                                                     .setTargetPort(SharedProperties.LOAD_BALANCER_ADDRESS.getPort())
                                                     .build();
-            // TODO split through various nodes
-            group.send(msg, NodeGroup.REDO);
+
+
+            group.send(msg, replayInstances.get(i++ % replayInstances.size()));
         }
         if (execListsToReplay == 0) {
             LOGGER.warn("No requests to replay");
@@ -206,6 +225,32 @@ public class Manager {
         // wait for ack
         ackWaiter.waitUntilZero();
         return true;
+    }
+
+    /**
+     * Checks if the number of exec lists is not bigger than the expected maximum number
+     * of concurrent replay threads. If so, it trims the number of lists by merging lists
+     * 
+     * @param execLists
+     * @param nReplayNodes
+     * @return
+     */
+    private List<List<Long>> setUpperLimitOfConcurrentThreads(List<List<Long>> execLists, int nReplayNodes) {
+        int maxNumberOfLists = MAX_CONCURRENT_CLIENTS_PER_REPLAY_NODE * nReplayNodes;
+        if (execLists.size() < maxNumberOfLists) {
+            return execLists;
+        }
+        ArrayList<List<Long>> finalList = new ArrayList<List<Long>>();
+        int i = 0;
+        for (List<Long> list : execLists) {
+            if (i < maxNumberOfLists) {
+                finalList.add(list);
+            } else {
+                List<Long> previousList = finalList.get(i % maxNumberOfLists);
+                previousList.addAll(list);
+            }
+        }
+        return finalList;
     }
 
     private long enableRestrain() throws Exception {
@@ -319,7 +364,9 @@ public class Manager {
         }
     }
 
-
+    public void showDatabaseStats() throws Exception {
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setShowStats(true).build(), NodeGroup.DATABASE);
+    }
 
 
 }

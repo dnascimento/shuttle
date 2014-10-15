@@ -1,6 +1,6 @@
 package voldemort;
 
-option java_package = "undo.proto";
+option java_package = "pt.inesc.undo.proto";
 option java_outer_classname = "FromManagerProto";
 option optimize_for = SPEED;
 
@@ -13,6 +13,7 @@ message ToDataNode{
 	repeated int32 pathBranch = 4;
 	repeated int64 pathCommit = 5;
 	optional EntryAccessesMsg entryAccessesMsg = 6;
+	optional bool showStats = 7;
 
 	message EntryAccessesMsg{
 		repeated bytes keys = 1;

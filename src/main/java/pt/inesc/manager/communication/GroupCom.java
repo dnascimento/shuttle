@@ -17,7 +17,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.SharedProperties;
-import undo.proto.ToManagerProto.MsgToManager;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
 
 import com.google.protobuf.Message;
 
@@ -165,5 +165,9 @@ public class GroupCom {
             result[i] = addressList.get(i).getHostString();
         }
         return result;
+    }
+
+    public List<InetSocketAddress> getReplayInstances() {
+        return replayInstancesList;
     }
 }

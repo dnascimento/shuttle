@@ -13,12 +13,12 @@ import java.net.Socket;
 import org.apache.log4j.Logger;
 
 import pt.inesc.SharedProperties;
-import undo.proto.FromManagerProto;
-import undo.proto.FromManagerProto.ProxyMsg;
-import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.MsgToManager;
-import undo.proto.ToManagerProto.MsgToManager.AckProxy;
-import undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup;
+import pt.inesc.undo.proto.FromManagerProto;
+import pt.inesc.undo.proto.FromManagerProto.ProxyMsg;
+import pt.inesc.undo.proto.ToManagerProto;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager.AckProxy;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup;
 
 
 public class ServiceProxy extends

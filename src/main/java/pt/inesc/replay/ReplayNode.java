@@ -27,13 +27,13 @@ import org.apache.log4j.xml.DOMConfigurator;
 import pt.inesc.SharedProperties;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.replay.core.ReplayWorker;
-import undo.proto.FromManagerProto;
-import undo.proto.FromManagerProto.ExecList;
-import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.MsgToManager;
-import undo.proto.ToManagerProto.MsgToManager.AckMsg;
-import undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg;
-import undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager.AckMsg;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup;
+import pt.inesc.undo.proto.FromManagerProto;
+import pt.inesc.undo.proto.FromManagerProto.ExecList;
+import pt.inesc.undo.proto.ToManagerProto;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
 
 
 /**

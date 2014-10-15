@@ -19,9 +19,9 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.SharedProperties;
 import pt.inesc.manager.communication.GroupCom.NodeGroup;
-import undo.proto.ToManagerProto;
-import undo.proto.ToManagerProto.MsgToManager;
-import undo.proto.ToManagerProto.MsgToManager.TrackEntry;
+import pt.inesc.undo.proto.ToManagerProto;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
+import pt.inesc.undo.proto.ToManagerProto.MsgToManager.TrackEntry;
 
 // Retrieves the requests from database
 public class ServiceManager extends

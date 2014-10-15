@@ -94,9 +94,10 @@ public class Interface extends
 
     private void advanced(Scanner s) throws Exception {
         System.out.println("a) Timetravel proxy");
-        System.out.println("d) Show dependency map");
-        System.out.println("e) Create new branch");
-        System.out.println("f) Change to branch");
+        System.out.println("b) Show dependency map");
+        System.out.println("c) Create new branch");
+        System.out.println("d) Change to branch");
+        System.out.println("e) Show database stats");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -110,26 +111,28 @@ public class Interface extends
             String dateString = new SimpleDateFormat("H:m:S").format(new Date(instant));
             System.out.println("Traveling to: " + dateString);
             break;
-        case 'd':
+        case 'b':
             System.out.println(manager.graph);
             break;
-        case 'e':
+        case 'c':
             Pair<Short, Long> pair = collectBranchAndCommit(s);
             if (pair == null)
                 return;
             manager.newBranch(pair.v2, pair.v1);
-        case 'f':
+            break;
+        case 'd':
             System.out.println("Enter the branch number:");
             short branch = s.nextShort();
             manager.changeToBranch(branch);
+            break;
+        case 'e':
+            manager.showDatabaseStats();
+            break;
         default:
             return;
         }
 
     }
-
-
-
 
     private void commit(Scanner s) throws Exception {
         System.out.println("Enter commit instant (time (secounds) from now):");
