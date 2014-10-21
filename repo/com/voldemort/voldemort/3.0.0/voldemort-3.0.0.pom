@@ -7,17 +7,17 @@
   <url>http://www.project-voldemort.com</url>
   <description>Voldemort Maven descriptor</description>
   <dependencies>
-    <dependency>
+<!--     <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
       <version>1.4.0</version>
       <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+              <exclusion>
+                  <groupId>*</groupId>
+                  <artifactId>*</artifactId>
+              </exclusion>
+          </exclusions>
+    </dependency> -->
     <dependency>
       <groupId>com.voldemort</groupId>
       <artifactId>azkaban-common</artifactId>
@@ -228,6 +228,12 @@
       <groupId>com.sna-projects.krati</groupId>
       <artifactId>krati-avro</artifactId>
       <version>0.4.6</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.jboss.netty</groupId>
+          <artifactId>netty</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.thrift</groupId>
@@ -252,7 +258,7 @@
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty</artifactId>
-      <version>3.5.8.Final</version>
+      <version>3.9.0.Final</version>
     </dependency>
     <dependency>
       <groupId>com.thoughtworks.paranamer</groupId>
@@ -263,17 +269,23 @@
       <groupId>com.linkedin.pegasus</groupId>
       <artifactId>pegasus-common</artifactId>
       <version>1.15.18</version>
+      <exclusions>
+          <exclusion>
+              <groupId>*</groupId>
+              <artifactId>*</artifactId>
+          </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
       <version>2.5.0</version>
     </dependency>
-    <dependency>
+<!--     <dependency>
       <groupId>com.linkedin.pegasus</groupId>
       <artifactId>r2</artifactId>
       <version>1.15.18</version>
-    </dependency>
+    </dependency> -->
     <dependency>
       <groupId>org.scala-lang</groupId>
       <artifactId>scala-library</artifactId>

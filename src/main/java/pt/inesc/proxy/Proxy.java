@@ -29,13 +29,14 @@ import org.apache.log4j.xml.DOMConfigurator;
 import pt.inesc.SharedProperties;
 
 public class Proxy {
-    private static final int NUMBER_OF_THREADS = 25;
+    private static final int NUMBER_OF_THREADS = 10;
     private final int localPort;
     private static final Logger log = Logger.getLogger(Proxy.class.getName());
     // Initial Operating System buffer size
-    private static final Integer BUFFER_SIZE = 1 * 1024; // 3K
+    private static final Integer BUFFER_SIZE = 3 * 1024; // 3K
     private static final int N_BUFFERS = 10000;
     protected static final long READ_TIMEOUT = 1000;
+    protected static final long ACCEPT_TIMEOUT = 1000;
 
     public static Object lockBranchRestrain = new Object();
     public static byte[] branch = shortToByteArray(0);
@@ -50,7 +51,6 @@ public class Proxy {
     private final DirectBufferPool buffers;
 
     public Proxy(int frontendPort, String remoteHost, int remotePort) throws IOException {
-        log.setLevel(Level.DEBUG);
         this.localPort = frontendPort;
         InetSocketAddress backendAddress = new InetSocketAddress(remoteHost, remotePort);
 
@@ -67,7 +67,7 @@ public class Proxy {
 
         workers = createWorkersPool(backendAddress);
 
-        buffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
+        buffers = new DirectBufferPool("proxyMain", N_BUFFERS, BUFFER_SIZE);
 
         log.info("Proxy listen frontend: " + localPort + " backend: " + backendAddress);
         Thread.currentThread().setName("Proxy Main");
@@ -84,7 +84,7 @@ public class Proxy {
 
     public static void main(String[] args) throws IOException, InterruptedException, ExecutionException {
         DOMConfigurator.configure("log4j.xml");
-        log.setLevel(Level.DEBUG);
+        log.setLevel(Level.ALL);
         if (args.length < 3) {
             log.error("usage: <frontend:port> <backend> <backend:port>");
             return;
@@ -100,15 +100,27 @@ public class Proxy {
     public void run() throws IOException, InterruptedException, ExecutionException {
         final AsynchronousServerSocketChannel listener = asynchronousServerSocketChannel.bind(new InetSocketAddress(
                 SharedProperties.MY_HOST, localPort));
+
         listener.accept(workers, new CompletionHandler<AsynchronousSocketChannel, LinkedBlockingDeque<ProxyWorker>>() {
             @Override
             public void completed(AsynchronousSocketChannel ch, LinkedBlockingDeque<ProxyWorker> workersList) {
+                log.info("new connection");
                 // accept the next connection
-                listener.accept(workersList, this);
-                System.out.println("new connection");
-
-                ByteBuffer buffer = buffers.popSynchronized();
+                ByteBuffer buffer = buffers.pop();
                 ch.read(buffer, READ_TIMEOUT, TimeUnit.MILLISECONDS, ch, new ReadHandler(buffer, workersList, buffers));
+
+                // fetch a object to handle this request
+                ProxyWorker worker = null;
+                do {
+                    try {
+                        worker = workersList.poll(ACCEPT_TIMEOUT, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        log.error(e);
+                    }
+                } while (worker == null);
+                // accept only when a worker is available
+                workersList.add(worker);
+                listener.accept(workersList, this);
             }
 
             @Override
@@ -118,9 +130,7 @@ public class Proxy {
         });
 
         group.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-
     }
-
 
     public long setBranchAndRestrain(short branch, boolean restrain) {
         log.info("branch: " + branch + " restrain: " + restrain);

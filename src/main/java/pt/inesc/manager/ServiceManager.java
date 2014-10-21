@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 import pt.inesc.SharedProperties;
@@ -37,7 +36,6 @@ public class ServiceManager extends
         this.manager = manager;
         serverSocket = new ServerSocket();
         serverSocket.bind(SharedProperties.MANAGER_ADDRESS);
-        log.setLevel(Level.DEBUG);
     }
 
     @Override
@@ -73,7 +71,7 @@ public class ServiceManager extends
                 try {
                     proto = ToManagerProto.MsgToManager.parseDelimitedFrom(socket.getInputStream());
                     if (proto == null) {
-                        keepAlive = true;
+                        // keepAlive = true;
                         System.out.println("empty");
                         break;
                     }
@@ -91,7 +89,7 @@ public class ServiceManager extends
                         while (startEndList.hasNext()) {
                             manager.graph.addStartEnd(startEndList.next(), startEndList.next());
                         }
-                        keepAlive = true;
+                        // keepAlive = true;
                     }
                     //
                     if (proto.hasTrackMsgFromClient()) {

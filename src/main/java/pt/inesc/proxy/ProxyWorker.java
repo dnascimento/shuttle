@@ -1,4 +1,5 @@
 /*
+ * 
  * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
  * 
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
@@ -12,21 +13,19 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
+import java.net.SocketTimeoutException;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 
 import pt.inesc.BufferTools;
-import pt.inesc.proxy.save.Request;
-import pt.inesc.proxy.save.RequestResponseListPair;
-import pt.inesc.proxy.save.Response;
+import pt.inesc.proxy.save.RequestResponsePair;
 import pt.inesc.proxy.save.Saver;
 
 
@@ -44,15 +43,14 @@ public class ProxyWorker extends
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
     /** time between attempt to flush to disk ms */
-    private final int FLUSH_PERIODICITY = 1;
+    private final int FLUSH_PERIODICITY = 4000;
 
-    private static final int N_BUFFERS = 7000;
+    private static final int N_BUFFERS = 4000;
 
     private final InetSocketAddress backendAddress;
     private AsynchronousSocketChannel frontendChannel = null;
     private long startTS;
-    public LinkedList<Request> requests = new LinkedList<Request>();
-    public LinkedList<Response> responses = new LinkedList<Response>();
+    public ArrayList<RequestResponsePair> requestResponse = new ArrayList<RequestResponsePair>(FLUSH_PERIODICITY);
     private Saver saver = null;
     private final ByteBuffer headerBase = createBaseHeader();
 
@@ -70,13 +68,15 @@ public class ProxyWorker extends
 
     private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
     private static final ArrayList<Pattern> listOfIgnorePatterns = loadIgnoreList();
-    private static final Integer BUFFER_SIZE = 4 * 1024; // 2K
+    private static final Integer BUFFER_SIZE = 6 * 1024; // 2K
 
     private static final long READ_TIMEOUT = 5000;
     private static final long WRITE_TIMEOUT = 1000;
 
     private static final boolean logging = true;
     private static final boolean stamping = true;
+
+    private static final double MULTIPLICATION_FACTOR = getMultiplicationFactor();
 
 
     public ProxyWorker(InetSocketAddress remoteAddress) {
@@ -85,8 +85,8 @@ public class ProxyWorker extends
             saver.start();
         }
         backendAddress = remoteAddress;
-        responseBuffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
-        requestBuffers = new DirectBufferPool(N_BUFFERS, BUFFER_SIZE);
+        responseBuffers = new DirectBufferPool("responseBuffers", N_BUFFERS, BUFFER_SIZE);
+        requestBuffers = new DirectBufferPool("requestBuffers", N_BUFFERS, BUFFER_SIZE);
         connect();
     }
 
@@ -101,6 +101,7 @@ public class ProxyWorker extends
             }
             backend = SocketChannel.open(backendAddress);
             backend.socket().setKeepAlive(true);
+            backend.socket().setSoTimeout(10);
             // backend.configureBlocking(false);
         } catch (IOException e) {
             if (e.getMessage().equals("Connection refused")) {
@@ -134,7 +135,6 @@ public class ProxyWorker extends
         int size = -1;
         int headerEnd = -1;
         int endOfFirstLine;
-
 
         ReqType reqType = null;
 
@@ -215,8 +215,6 @@ public class ProxyWorker extends
         }
 
         ignore = matchIgnoreList(request, endOfFirstLine);
-        if (!ignore && logging)
-            addRequest(request, startTS);
 
         return request;
     }
@@ -250,6 +248,10 @@ public class ProxyWorker extends
             int headerEnd = -1;
             boolean bufferWasResized = false;
             ByteBuffer responseBuffer = responseBuffers.pop();
+            responseBuffer.clear();
+            // ByteBuffer responseBuffer =
+            // ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
+
 
             // Read Answer from server
             try {
@@ -286,6 +288,10 @@ public class ProxyWorker extends
                 }
                 keepAlive = BufferTools.isKeepAlive(responseBuffer, headerEnd) || BufferTools.isChunkedRequest(responseBuffer);
                 return responseBuffer;
+            } catch (SocketTimeoutException e1) {
+                log.error("TIMEOUT!!!: request:\n " + BufferTools.printContent(originalRequest));
+
+
             } catch (IOException e) {
                 if (reconnected) {
                     log.error("read from backend: reconnection failed", e);
@@ -303,8 +309,7 @@ public class ProxyWorker extends
     }
 
 
-
-    public void sendToClient(ByteBuffer responseBuffer) throws Exception {
+    public void sendToClient(ByteBuffer originalRequest, ByteBuffer responseBuffer) throws Exception {
         // send anwser to client
         long endTS = getTimestamp();
         responseBuffer.flip(); // make buffer readable
@@ -325,9 +330,8 @@ public class ProxyWorker extends
 
 
         if (!ignore && logging)
-            addResponse(responseBuffer, startTS, endTS);
+            requestResponse.add(new RequestResponsePair(originalRequest, originalRequest, startTS, endTS));
     }
-
 
     private ReqType getRequestType(ByteBuffer buffer) {
         byte letter = buffer.get(0);
@@ -353,12 +357,11 @@ public class ProxyWorker extends
      * Flush the data to server before continue
      */
     private void flushData() {
-        RequestResponseListPair pair = new RequestResponseListPair(requests, responses);
-        requests = new LinkedList<Request>();
-        responses = new LinkedList<Response>();
-        saver.save(pair, requestBuffers, responseBuffers);
-    }
+        ArrayList<RequestResponsePair> previous = requestResponse;
 
+        requestResponse = new ArrayList<RequestResponsePair>(FLUSH_PERIODICITY);
+        saver.save(previous, requestBuffers, responseBuffers);
+    }
 
 
 
@@ -371,13 +374,7 @@ public class ProxyWorker extends
      * @param request
      * @return the ID (number in queue)
      */
-    public void addRequest(ByteBuffer request, long start) {
-        requests.add(new Request(request, start));
-    }
 
-    public void addResponse(ByteBuffer response, long start, long end) {
-        responses.add(new Response(response, start, end));
-    }
 
 
     private ByteBuffer resizeResponseBuffer(ByteBuffer buffer) {
@@ -407,9 +404,9 @@ public class ProxyWorker extends
             byte[] ts = new Long(startTS + Proxy.timeTravel).toString().getBytes();
             headerBase.position(5);
             headerBase.put(ts);
-            headerBase.position(22);
+            headerBase.position(25);
             headerBase.put(Proxy.branch);
-            headerBase.position(31);
+            headerBase.position(34);
             if (Proxy.restrain) {
                 headerBase.put((byte) 't');
             } else {
@@ -421,9 +418,9 @@ public class ProxyWorker extends
     }
 
     private ByteBuffer createBaseHeader() {
-        ByteBuffer header = ByteBuffer.allocate(40);
+        ByteBuffer header = ByteBuffer.allocate(43);
         header.put("\nID: ".getBytes());
-        header.put("0000000000000".getBytes());
+        header.put("0000000000000000".getBytes());
         header.put("\nB: ".getBytes());
         header.put(Proxy.branch); // 5bytes
         // not restraint
@@ -484,14 +481,11 @@ public class ProxyWorker extends
             ByteBuffer request = drainFromClient(buffer);
             sendToBackend(request);
             ByteBuffer response = readFromBackend(request);
-            sendToClient(response);
+            sendToClient(request, response);
 
             keepAlive = true;
 
-            if (!keepAlive) {
-                closeFrontEndChannel();
-                connect();
-            }
+
             // if not logging, return buffers
             if (!logging) {
                 if (stamping) {
@@ -503,8 +497,15 @@ public class ProxyWorker extends
             }
 
             // if logging, flush
-            if (logging && requests.size() >= FLUSH_PERIODICITY) {
+            if (logging && requestResponse.size() >= FLUSH_PERIODICITY) {
+                // ch.close();
                 flushData();
+                // keepAlive = false;
+            }
+
+            if (!keepAlive) {
+                closeFrontEndChannel();
+                connect();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -526,6 +527,28 @@ public class ProxyWorker extends
     }
 
     private long getTimestamp() {
-        return System.nanoTime() / 1000;
+        return (long) (System.nanoTime() * MULTIPLICATION_FACTOR);
+    }
+
+
+    private static double getMultiplicationFactor() {
+        long x = System.nanoTime();
+        int digits = countDigits(x);
+        // target is 16 digits
+        double diff = Math.pow(10, 16 - digits);
+        x = (long) (x * diff);
+        if (countDigits(x) != 16) {
+            throw new RuntimeException("The timestamp has not 16 digits");
+        }
+        return diff;
+    }
+
+    private static int countDigits(long v) {
+        int i = 1;
+        while (v >= 10) {
+            v = v / 10;
+            i++;
+        }
+        return i;
     }
 }

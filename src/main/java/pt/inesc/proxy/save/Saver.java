@@ -7,9 +7,9 @@
 package pt.inesc.proxy.save;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 import org.apache.log4j.LogManager;
@@ -27,26 +27,16 @@ public class Saver extends
         Request, Response
     }
 
+    private static final long TIMEOUT_PERIOD = 10000;
+
     private static Logger log = LogManager.getLogger(Saver.class.getName());
 
     private static CassandraClient cassandra = new CassandraClient();
-    LinkedList<RequestResponseListPair> stack = new LinkedList<RequestResponseListPair>();
-    OutputStream streamToManager;
+    LinkedList<ArrayList<RequestResponsePair>> stack = new LinkedList<ArrayList<RequestResponsePair>>();
     private final LinkedList<ByteBuffer> cleanBuffersRequests = new LinkedList<ByteBuffer>();
     private final LinkedList<ByteBuffer> cleanBuffersResponses = new LinkedList<ByteBuffer>();
 
 
-    public Saver() {
-        @SuppressWarnings("resource")
-        Socket socketToManager = new Socket();
-        try {
-            socketToManager.connect(SharedProperties.MANAGER_ADDRESS);
-            socketToManager.getOutputStream();
-        } catch (IOException e) {
-            log.error("Saver: manager not available", e);
-            streamToManager = null;
-        }
-    }
 
     @Override
     public void run() {
@@ -54,7 +44,7 @@ public class Saver extends
         while (true) {
             synchronized (this) {
                 try {
-                    this.wait();
+                    this.wait(TIMEOUT_PERIOD);
                     saving();
                 } catch (InterruptedException e) {
                     log.error(e);
@@ -71,16 +61,14 @@ public class Saver extends
      * @param requestsSave
      * @param responsesSave
      */
-    public synchronized void save(RequestResponseListPair pair, DirectBufferPool requestBuffers, DirectBufferPool responseBuffers) {
-        stack.addLast(pair);
+    public synchronized void save(ArrayList<RequestResponsePair> previous, DirectBufferPool requestBuffers, DirectBufferPool responseBuffers) {
+        stack.addLast(previous);
 
         // collect the clean buffers (which have been sent)
-        for (ByteBuffer b : cleanBuffersRequests) {
-            requestBuffers.returnBuffer(b);
-        }
-        for (ByteBuffer b : cleanBuffersResponses) {
-            responseBuffers.returnBuffer(b);
-        }
+        requestBuffers.returnBuffer(cleanBuffersRequests);
+
+        responseBuffers.returnBuffer(cleanBuffersResponses);
+
 
         cleanBuffersRequests.clear();
         cleanBuffersResponses.clear();
@@ -88,7 +76,7 @@ public class Saver extends
         this.notify();
     }
 
-    private synchronized RequestResponseListPair moveLists() {
+    private synchronized ArrayList<RequestResponsePair> moveLists() {
         if (stack.isEmpty())
             return null;
         return stack.removeFirst();
@@ -107,44 +95,36 @@ public class Saver extends
         LinkedList<ByteBuffer> buffersResponses = new LinkedList<ByteBuffer>();
 
 
-        RequestResponseListPair current;
+        ArrayList<RequestResponsePair> current;
         while ((current = moveLists()) != null) {
-            LinkedList<Request> requestsList = current.getRequests();
-            LinkedList<Response> responsesList = current.getResponses();
             MsgToManager.StartEndMsg.Builder startEndMsg = MsgToManager.StartEndMsg.newBuilder();
+            for (RequestResponsePair e : current) {
+                cassandra.putRequestResponse(e.request, e.response, e.start, e.end);
+                startEndMsg.addData(e.start);
+                startEndMsg.addData(e.end);
+                e.request.clear();
 
-
-            if (responsesList.size() != requestsList.size()) {
-                log.error("Different list sizes");
-            }
-            while (!requestsList.isEmpty()) {
-                Request req = requestsList.removeFirst();
-                Response res = responsesList.removeFirst();
-                cassandra.putRequestResponse(req, res);
-                startEndMsg.addData(res.start);
-                startEndMsg.addData(res.end);
-                req.data.clear();
-                buffersRequests.add(req.data);
-                res.data.clear();
-                buffersResponses.add(res.data);
+                buffersRequests.add(e.request);
+                // e.response.clear();
+                buffersResponses.add(e.response);
             }
             sendStartEndListToManager(startEndMsg.build());
         }
         setCleanBuffers(buffersRequests, buffersResponses);
     }
 
-
     private void sendStartEndListToManager(MsgToManager.StartEndMsg startEndMsg) {
-        if (streamToManager == null) {
-            return;
-        }
         MsgToManager msg = MsgToManager.newBuilder().setStartEndMsg(startEndMsg).build();
+
+        Socket socketToManager = new Socket();
         try {
-            msg.writeDelimitedTo(streamToManager);
+            socketToManager.connect(SharedProperties.MANAGER_ADDRESS);
+
+            msg.writeDelimitedTo(socketToManager.getOutputStream());
+            socketToManager.close();
+            System.out.println("Dependencies sent");
         } catch (IOException e) {
-            log.error(e);
-            streamToManager = null;
-            log.debug("Saver: Manager is off");
+            log.error("Saver: manager not available", e);
         }
     }
 }

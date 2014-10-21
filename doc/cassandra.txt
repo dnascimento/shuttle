@@ -4,7 +4,7 @@ CREATE KEYSPACE requeststore WITH replication = {
   'replication_factor': '1'
 };
 
-USE requeststore;
+USE requestStore;
 
 CREATE TABLE requests (
   id bigint,

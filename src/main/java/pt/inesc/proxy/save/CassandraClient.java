@@ -35,8 +35,9 @@ public class CassandraClient {
 
     // private static final int CONCURRENCY = 20;
     // private static final int MAX_CONNECTIONS = 10;
+    private static final String NODE = "cassandra";
+
     private static final String TABLE_NAME = "requests";
-    private static final String NODE = "localhost";
     private static final String KEYSPACE = "requestStore";
     private static final String COL_ID = "id";
     private static final String COL_REQUEST = "request";
@@ -82,17 +83,19 @@ public class CassandraClient {
     }
 
 
-    public void putRequestResponse(Request req, Response res) {
-        req.data.rewind();
-        res.data.rewind();
+    public void putRequestResponse(ByteBuffer request, ByteBuffer response, long start, long end) {
+        request.rewind();
+        response.rewind();
 
         Insert query = QueryBuilder.insertInto(TABLE_NAME)
-                                   .value(COL_ID, res.start)
-                                   .value(COL_REQUEST, req.data)
-                                   .value(COL_RESPONSE, res.data)
-                                   .value(COL_END, res.end);
+                                   .value(COL_ID, start)
+                                   .value(COL_REQUEST, request)
+                                   .value(COL_RESPONSE, response)
+                                   .value(COL_END, end);
         if (session != null) {
             session.execute(query);
+        } else {
+            System.err.println("session is null: cassandra client");
         }
     }
 
@@ -187,6 +190,7 @@ public class CassandraClient {
     }
 
     public void truncatePackageTable() {
+        // truncate requests;
         String query = new String("truncate " + TABLE_NAME + ";");
         if (session != null) {
             session.execute(query);
@@ -213,7 +217,7 @@ public class CassandraClient {
     }
 
 
-    public void calculateSize() {
+    public String calculateSize() {
         String query = "select * from " + TABLE_NAME + " LIMIT " + Integer.MAX_VALUE;
         ResultSet rs = session.execute(query);
         long totalKeys = 0;
@@ -233,28 +237,38 @@ public class CassandraClient {
             row.getLong(COL_END);
             totalIds += 16;
 
-            totalRequests += row.getBytes(COL_REQUEST).limit() - row.getBytes(COL_REQUEST).position();
-            totalResponses += row.getBytes(COL_RESPONSE).limit() - row.getBytes(COL_RESPONSE).position();
+            ByteBuffer request = row.getBytes(COL_REQUEST);
+            ByteBuffer response = row.getBytes(COL_RESPONSE);
+
+            if (request != null) {
+                totalRequests += request.limit() - request.position();
+            }
+            if (response != null) {
+                totalResponses += response.limit() - response.position();
+            } else {
+                System.out.println("Null response");
+            }
+
             List<String> keys = row.getList(COL_KEYS, String.class);
             for (String key : keys) {
                 totalKeys += key.getBytes().length;
             }
-
-
         }
 
+        StringBuilder sb = new StringBuilder();
 
-        System.out.println("Total cassandra size (bytes): " + (totalKeys + totalIds + totalRequests + totalResponses));
-        System.out.println("Keys: " + totalKeys);
-        System.out.println("Ids: " + totalIds);
-        System.out.println("Requests: " + totalRequests);
-        System.out.println("Response: " + totalResponses);
-        System.out.println("Number of rows: " + count);
+        sb.append("Total cassandra size (bytes): " + (totalKeys + totalIds + totalRequests + totalResponses));
+        sb.append("Keys: " + totalKeys);
+        sb.append("Ids: " + totalIds);
+        sb.append("Requests: " + totalRequests);
+        sb.append("Response: " + totalResponses);
+        sb.append("Number of rows: " + count);
+        return sb.toString();
     }
 
     public static void main(String[] args) {
         CassandraClient c = new CassandraClient();
-        c.calculateSize();
+        System.out.println(c.calculateSize());
         c.close();
     }
 

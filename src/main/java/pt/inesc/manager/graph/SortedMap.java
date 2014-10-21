@@ -65,13 +65,15 @@ public class SortedMap<V>
         public SortedMapIterator(HashMap<Long, V> map) {
             this.map = map;
             Set<Long> keys = map.keySet();
-
+            System.out.println("Coping " + keys.size() + " keys to sort");
             sortedKeys = new long[keys.size()];
             int i = 0;
             for (Long key : keys) {
                 sortedKeys[i++] = key;
             }
+            System.out.println("Will sort the keys");
             Arrays.sort(sortedKeys);
+            System.out.println("Keys sorted");
         }
 
 

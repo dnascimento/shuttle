@@ -1,358 +1,360 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<groupId>undo</groupId>
-	<artifactId>undo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>undo</name>
-	<repositories>
-		<repository>
-			<id>central</id>
-			<name>Maven Repository Switchboard</name>
-			<layout>default</layout>
-			<url>http://repo1.maven.org/maven2</url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</repository> 
-		<repository>
-			<id>repo</id>
-			<url>file://${project.basedir}/repo</url>
-		</repository>
-	</repositories>
-	<dependencies>
+	<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+		<modelVersion>4.0.0</modelVersion>
+		<groupId>undo</groupId>
+		<artifactId>undo</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<name>undo</name>
+		<repositories>
+			<repository>
+				<id>central</id>
+				<name>Maven Repository Switchboard</name>
+				<layout>default</layout>
+				<url>http://repo1.maven.org/maven2</url>
+				<snapshots>
+					<enabled>false</enabled>
+				</snapshots>
+			</repository> 
+			<repository>
+				<id>repo</id>
+				<url>file://${project.basedir}/repo</url>
+			</repository>
+		</repositories>
+		<dependencies>
 	  	<dependency>
 			<groupId>com.voldemort</groupId>
 			<artifactId>voldemort</artifactId>
 			<version>3.0.0</version> 
+			<exclusions>
+				<exclusion>
+					<groupId>org.jboss.netty</groupId>
+					<artifactId>netty</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
-		<!-- voldemort -->
-		<dependency>
-	 		<groupId>com.voldemort</groupId>
-	 		<artifactId>azkaban-common</artifactId>
-	 		<version>0.05</version>
-	   	</dependency>
+			<!-- voldemort -->
+			<dependency>
+		 		<groupId>com.voldemort</groupId>
+		 		<artifactId>azkaban-common</artifactId>
+		 		<version>0.05</version>
+		   	</dependency>
 
-	 		<dependency>
-	 			<groupId>com.voldemort</groupId>
-	 			<artifactId>catalina-ant</artifactId>
-	 			<version>6.0</version>
-	 		</dependency>
+		 		<dependency>
+		 			<groupId>com.voldemort</groupId>
+		 			<artifactId>catalina-ant</artifactId>
+		 			<version>6.0</version>
+		 		</dependency>
 
-	     <dependency>
-	       <groupId>com.voldemort</groupId>
-	       <artifactId>libthirft</artifactId>
-	       <version>0.5.0</version>
-	     </dependency>
-	     <dependency>
-	       <groupId>com.voldemort</groupId>
-	       <artifactId>tehuti</artifactId>
-	       <version>0.5</version>
-	     </dependency>
-	     <dependency>
-	       <groupId>com.voldemort</groupId>
-	       <artifactId>tusk</artifactId>
-	       <version>0.0.2</version>
-	     </dependency>
-		<!-- end voldemort -->
+		     <dependency>
+		       <groupId>com.voldemort</groupId>
+		       <artifactId>libthirft</artifactId>
+		       <version>0.5.0</version>
+		     </dependency>
+		     <dependency>
+		       <groupId>com.voldemort</groupId>
+		       <artifactId>tehuti</artifactId>
+		       <version>0.5</version>
+		     </dependency>
+		     <dependency>
+		       <groupId>com.voldemort</groupId>
+		       <artifactId>tusk</artifactId>
+		       <version>0.0.2</version>
+		     </dependency>
+			<!-- end voldemort -->
+
+			
+
+			<dependency>
+				<groupId>org.xerial.snappy</groupId>
+				<artifactId>snappy-java</artifactId>
+				<version>1.1.0</version>
+			</dependency>
+			<dependency>
+				<groupId>net.jpountz.lz4</groupId>
+				<artifactId>lz4</artifactId>
+				<version>1.2.0</version>
+			</dependency>
+			<dependency>
+				<groupId>net.sf.jung</groupId>
+				<artifactId>jung2</artifactId>
+				<version>2.0.1</version>
+				<type>pom</type>
+			</dependency>
+			<dependency>
+				<groupId>commons-lang</groupId>
+				<artifactId>commons-lang</artifactId>
+				<version>2.6</version>
+			</dependency>
+			<dependency>
+				<groupId>com.datastax.cassandra</groupId>
+				<artifactId>cassandra-driver-core</artifactId>
+				<version>2.0.1</version>
+			</dependency>
+			<dependency>
+				<groupId>com.google</groupId>
+				<artifactId>measure.memory</artifactId>
+				<version>0.1</version>
+			</dependency>
+			<dependency>
+				<groupId>com.google.protobuf</groupId>
+				<artifactId>protobuf-java</artifactId>
+				<version>2.5.0</version>
+			</dependency>
 		<dependency>
-			<groupId>io.netty</groupId>
-			<artifactId>netty</artifactId>
-			<version>3.9.0.Final</version>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>16.0.1</version>
 		</dependency>
-		
 
+		<!-- graph viewer start -->
 		<dependency>
-			<groupId>org.xerial.snappy</groupId>
-			<artifactId>snappy-java</artifactId>
-			<version>1.1.0</version>
-		</dependency>
-		<dependency>
-			<groupId>net.jpountz.lz4</groupId>
-			<artifactId>lz4</artifactId>
-			<version>1.2.0</version>
+			<groupId>net.sf.jung</groupId>
+			<artifactId>jung-graph-impl</artifactId>
+			<version>2.0.1</version>
 		</dependency>
 		<dependency>
 			<groupId>net.sf.jung</groupId>
-			<artifactId>jung2</artifactId>
+			<artifactId>jung-visualization</artifactId>
 			<version>2.0.1</version>
-			<type>pom</type>
-		</dependency>
-		<dependency>
-			<groupId>commons-lang</groupId>
-			<artifactId>commons-lang</artifactId>
-			<version>2.6</version>
-		</dependency>
-		<dependency>
-			<groupId>com.datastax.cassandra</groupId>
-			<artifactId>cassandra-driver-core</artifactId>
-			<version>2.0.1</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google</groupId>
-			<artifactId>measure.memory</artifactId>
-			<version>0.1</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.protobuf</groupId>
-			<artifactId>protobuf-java</artifactId>
-			<version>2.5.0</version>
-		</dependency>
-	<dependency>
-		<groupId>com.google.guava</groupId>
-		<artifactId>guava</artifactId>
-		<version>16.0.1</version>
-	</dependency>
+			</dependency>
+		 <!-- graph viewer end-->
 
-	<!-- graph viewer start -->
-	<dependency>
-		<groupId>net.sf.jung</groupId>
-		<artifactId>jung-graph-impl</artifactId>
-		<version>2.0.1</version>
-	</dependency>
-	<dependency>
-		<groupId>net.sf.jung</groupId>
-		<artifactId>jung-visualization</artifactId>
-		<version>2.0.1</version>
-		</dependency>
-	 <!-- graph viewer end-->
+	  
+	    <dependency>
+	      <groupId>commons-cli</groupId>
+	      <artifactId>commons-cli</artifactId>
+	      <version>1.2</version>
+	    </dependency>
 
-  
-    <dependency>
-      <groupId>commons-cli</groupId>
-      <artifactId>commons-cli</artifactId>
-      <version>1.2</version>
-    </dependency>
+	    <dependency>
+	      <groupId>commons-codec</groupId>
+	      <artifactId>commons-codec</artifactId>
+	      <version>1.7</version>
+	    </dependency>
 
-    <dependency>
-      <groupId>commons-codec</groupId>
-      <artifactId>commons-codec</artifactId>
-      <version>1.7</version>
-    </dependency>
+	    <dependency>
+	      <groupId>commons-io</groupId>
+	      <artifactId>commons-io</artifactId>
+	      <version>2.4</version>
+	    </dependency>
 
-    <dependency>
-      <groupId>commons-io</groupId>
-      <artifactId>commons-io</artifactId>
-      <version>2.4</version>
-    </dependency>
+	    <dependency>
+	      <groupId>org.apache.commons</groupId>
+	      <artifactId>commons-lang3</artifactId>
+	      <version>3.1</version>
+	    </dependency>
+	    
+	    <dependency>
+	      <groupId>org.apache.commons</groupId>
+	      <artifactId>commons-exec</artifactId>
+	      <version>1.2</version>
+	      <scope>test</scope>
+	    </dependency>
 
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.1</version>
-    </dependency>
-    
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-exec</artifactId>
-      <version>1.2</version>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.11</version>
-      <scope>test</scope>
-    </dependency>
+	    <dependency>
+	      <groupId>junit</groupId>
+	      <artifactId>junit</artifactId>
+	      <version>4.11</version>
+	      <scope>test</scope>
+	    </dependency>
 
 
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
-      <version>1.2.17</version>
-      <optional>true</optional>
-    </dependency>
+	    <dependency>
+	      <groupId>log4j</groupId>
+	      <artifactId>log4j</artifactId>
+	      <version>1.2.17</version>
+	      <optional>true</optional>
+	    </dependency>
 
-    <dependency>
-      <groupId>org.apache.httpcomponents</groupId>
-      <artifactId>httpclient</artifactId>
-      <version>4.2.3</version>
-      <scope>test</scope>
-    </dependency>
+	    <dependency>
+	      <groupId>org.apache.httpcomponents</groupId>
+	      <artifactId>httpclient</artifactId>
+	      <version>4.2.3</version>
+	      <scope>test</scope>
+	    </dependency>
 
-    <dependency>
-      <groupId>com.barchart.udt</groupId>
-      <artifactId>barchart-udt-bundle</artifactId>
-      <version>2.3.0</version>
-    </dependency>
+	    <dependency>
+	      <groupId>com.barchart.udt</groupId>
+	      <artifactId>barchart-udt-bundle</artifactId>
+	      <version>2.3.0</version>
+	    </dependency>
 
-	</dependencies>
-	<build> 
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-antrun-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>generate-sources</id>
-						<phase>generate-sources</phase>
-						<configuration>
-							<tasks>
-								<echo message="Generating Google Protocol Buffers"/>
-								<property location="src/main/resources/" name="proto.path"/>
-								<property location="target/generated-sources" name="proto.out"/>
-								<pathconvert pathsep=" " property="proto.sources">
-									<path id="proto-files">
-										<fileset dir="${proto.path}"/>
-									</path>
-								</pathconvert>
-								<mkdir dir="target/generated-sources"/>
-								<exec executable="/usr/bin/protoc" failonerror="true">
-									<arg value="-I=${proto.path}"/>
-									<arg value="--java_out=${proto.out}"/>
-									<arg line="${proto.sources}"/>
-								</exec>
-							</tasks>
-							<sourceRoot>target/generated-sources</sourceRoot>
-						</configuration>
-						<goals>
-							<goal>run</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-		<pluginManagement>
+		</dependencies>
+		<build> 
 			<plugins>
-					<plugin>
-					      <groupId>org.apache.maven.plugins</groupId>
-					      <artifactId>maven-compiler-plugin</artifactId>
-					      <version>3.1</version>
-					      <configuration>
-					          <source>1.7</source>
-					          <target>1.7</target>
-					      </configuration>
-					  </plugin>
-					  <plugin>
-					    <!-- Build an executable JAR -->
-					    <groupId>org.apache.maven.plugins</groupId>
-					    <artifactId>maven-jar-plugin</artifactId>
-					    <version>2.4</version>
-					    <configuration>
-					      <archive>
-					        <manifest>
-					          <addClasspath>true</addClasspath>
-					          <mainClass>pt.inesc.proxy.Proxy</mainClass>
-					        </manifest>
-					      </archive>
-					    </configuration>
-					  </plugin>
-					<plugin>
-				      <artifactId>maven-assembly-plugin</artifactId>
-				      <version>2.4</version>
-				      <configuration>
-				        <archive>
-				          <manifest>
-				          	<addClasspath>true</addClasspath>
-				            <mainClass>pt.inesc.proxy.Proxy</mainClass>
-				          </manifest>
-				        </archive>
-				        <descriptorRefs>
-				          <descriptorRef>jar-with-dependencies</descriptorRef>
-				        </descriptorRefs>
-				      </configuration>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-antrun-plugin</artifactId>
+					<executions>
+						<execution>
+							<id>generate-sources</id>
+							<phase>generate-sources</phase>
+							<configuration>
+								<tasks>
+									<echo message="Generating Google Protocol Buffers"/>
+									<property location="src/main/resources/" name="proto.path"/>
+									<property location="target/generated-sources" name="proto.out"/>
+									<pathconvert pathsep=" " property="proto.sources">
+										<path id="proto-files">
+											<fileset dir="${proto.path}"/>
+										</path>
+									</pathconvert>
+									<mkdir dir="target/generated-sources"/>
+									<exec executable="/usr/bin/protoc" failonerror="true">
+										<arg value="-I=${proto.path}"/>
+										<arg value="--java_out=${proto.out}"/>
+										<arg line="${proto.sources}"/>
+									</exec>
+								</tasks>
+								<sourceRoot>target/generated-sources</sourceRoot>
+							</configuration>
+							<goals>
+								<goal>run</goal>
+							</goals>
+						</execution>
+					</executions>
 				</plugin>
 			</plugins>
-		</pluginManagement>
-	</build>
-	<profiles> 
-		<profile>
-			<id>proxy</id>
-			<build>
+			<pluginManagement>
 				<plugins>
-					<plugin>
-						<groupId>org.codehaus.mojo</groupId>
-						<artifactId>exec-maven-plugin</artifactId>
-						<version>1.2.1</version>
-						<executions>
-							<execution>
-								<phase>test</phase>
-								<goals>
-									<goal>java</goal>
-								</goals>
-								<configuration>
-									<mainClass>pt.inesc.proxy.Proxy</mainClass>
-								</configuration>
-							</execution>
-						</executions>
+						<plugin>
+						      <groupId>org.apache.maven.plugins</groupId>
+						      <artifactId>maven-compiler-plugin</artifactId>
+						      <version>3.1</version>
+						      <configuration>
+						          <source>1.7</source>
+						          <target>1.7</target>
+						      </configuration>
+						  </plugin>
+						  <plugin>
+						    <!-- Build an executable JAR -->
+						    <groupId>org.apache.maven.plugins</groupId>
+						    <artifactId>maven-jar-plugin</artifactId>
+						    <version>2.4</version>
+						    <configuration>
+						      <archive>
+						        <manifest>
+						          <addClasspath>true</addClasspath>
+						          <mainClass>pt.inesc.proxy.Proxy</mainClass>
+						        </manifest>
+						      </archive>
+						    </configuration>
+						  </plugin>
+						<plugin>
+					      <artifactId>maven-assembly-plugin</artifactId>
+					      <version>2.4</version>
+					      <configuration>
+					        <archive>
+					          <manifest>
+					          	<addClasspath>true</addClasspath>
+					            <mainClass>pt.inesc.proxy.Proxy</mainClass>
+					          </manifest>
+					        </archive>
+					        <descriptorRefs>
+					          <descriptorRef>jar-with-dependencies</descriptorRef>
+					        </descriptorRefs>
+					      </configuration>
 					</plugin>
 				</plugins>
-			</build>
-		</profile> 
-		<profile>
-			<id>manager</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.codehaus.mojo</groupId>
-						<artifactId>exec-maven-plugin</artifactId>
-						<version>1.2.1</version>
-						<executions>
-							<execution>
-								<phase>test</phase>
-								<goals>
-									<goal>java</goal>
-								</goals>
-								<configuration>
-									<mainClass>pt.inesc.manager.Manager</mainClass>
-								</configuration>
-							</execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile> 
-		<profile>
-			<id>replay</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.codehaus.mojo</groupId>
-						<artifactId>exec-maven-plugin</artifactId>
-						<version>1.2.1</version>
-						<executions>
-							<execution>
-								<phase>test</phase>
-								<goals>
-									<goal>java</goal>
-								</goals>
-								<configuration>
-									<mainClass>pt.inesc.replay.ReplayNode</mainClass>
-								</configuration>
-							</execution>
-						</executions>
-					</plugin>
+			</pluginManagement>
+		</build>
+		<profiles> 
+			<profile>
+				<id>proxy</id>
+				<build>
+					<plugins>
+						<plugin>
+							<groupId>org.codehaus.mojo</groupId>
+							<artifactId>exec-maven-plugin</artifactId>
+							<version>1.2.1</version>
+							<executions>
+								<execution>
+									<phase>test</phase>
+									<goals>
+										<goal>java</goal>
+									</goals>
+									<configuration>
+										<mainClass>pt.inesc.proxy.Proxy</mainClass>
+									</configuration>
+								</execution>
+							</executions>
+						</plugin>
+					</plugins>
+				</build>
+			</profile> 
+			<profile>
+				<id>manager</id>
+				<build>
+					<plugins>
+						<plugin>
+							<groupId>org.codehaus.mojo</groupId>
+							<artifactId>exec-maven-plugin</artifactId>
+							<version>1.2.1</version>
+							<executions>
+								<execution>
+									<phase>test</phase>
+									<goals>
+										<goal>java</goal>
+									</goals>
+									<configuration>
+										<mainClass>pt.inesc.manager.Manager</mainClass>
+									</configuration>
+								</execution>
+							</executions>
+						</plugin>
+					</plugins>
+				</build>
+			</profile> 
+			<profile>
+				<id>replay</id>
+				<build>
+					<plugins>
+						<plugin>
+							<groupId>org.codehaus.mojo</groupId>
+							<artifactId>exec-maven-plugin</artifactId>
+							<version>1.2.1</version>
+							<executions>
+								<execution>
+									<phase>test</phase>
+									<goals>
+										<goal>java</goal>
+									</goals>
+									<configuration>
+										<mainClass>pt.inesc.replay.ReplayNode</mainClass>
+									</configuration>
+								</execution>
+							</executions>
+						</plugin>
 
-					<plugin>
-		                <groupId>org.dstovall</groupId>
-		                <artifactId>onejar-maven-plugin</artifactId>
-		                <version>1.4.4</version>
-		                <executions>
-		                    <execution>
-		                        <configuration>
-		                            <onejarVersion>0.97</onejarVersion>
-		                            <attachToBuild>true</attachToBuild>
-		                            <classifier>onejar</classifier>
-		                        </configuration>
-		                        <goals>
-		                            <goal>one-jar</goal>
-		                        </goals>
-		                    </execution>
-		                </executions>
-		            </plugin>
-				</plugins>
-			</build>
-		</profile> 
-	</profiles>
+						<plugin>
+			                <groupId>org.dstovall</groupId>
+			                <artifactId>onejar-maven-plugin</artifactId>
+			                <version>1.4.4</version>
+			                <executions>
+			                    <execution>
+			                        <configuration>
+			                            <onejarVersion>0.97</onejarVersion>
+			                            <attachToBuild>true</attachToBuild>
+			                            <classifier>onejar</classifier>
+			                        </configuration>
+			                        <goals>
+			                            <goal>one-jar</goal>
+			                        </goals>
+			                    </execution>
+			                </executions>
+			            </plugin>
+					</plugins>
+				</build>
+			</profile> 
+		</profiles>
 
 
 
-	<pluginRepositories>
-	    <pluginRepository>
-	        <id>onejar-maven-plugin.googlecode.com</id>
-	        <url>http://onejar-maven-plugin.googlecode.com/svn/mavenrepo</url>
-	    </pluginRepository>
-	</pluginRepositories>
-</project>
+		<pluginRepositories>
+		    <pluginRepository>
+		        <id>onejar-maven-plugin.googlecode.com</id>
+		        <url>http://onejar-maven-plugin.googlecode.com/svn/mavenrepo</url>
+		    </pluginRepository>
+		</pluginRepositories>
+	</project>

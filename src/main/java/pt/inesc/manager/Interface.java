@@ -98,6 +98,7 @@ public class Interface extends
         System.out.println("c) Create new branch");
         System.out.println("d) Change to branch");
         System.out.println("e) Show database stats");
+        System.out.println("g) Measure cassandra");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -127,6 +128,9 @@ public class Interface extends
             break;
         case 'e':
             manager.showDatabaseStats();
+            break;
+        case 'g':
+            System.out.println(new CassandraClient().calculateSize());
             break;
         default:
             return;

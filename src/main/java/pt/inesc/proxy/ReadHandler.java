@@ -65,7 +65,7 @@ public class ReadHandler
     }
 
     protected void closeChannel(AsynchronousSocketChannel ch) {
-        buffers.returnBufferSynchronized(buffer);
+        buffers.returnBuffer(buffer);
         try {
             ch.close();
         } catch (IOException e) {

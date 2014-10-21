@@ -113,7 +113,7 @@ public class Manager {
         // infrastructrure.startReplay()
         LOGGER.warn("Will replay" + countRequests(execListWrapper.list) + " requests");
 
-        orderNodesToReplay(execListWrapper.list, parentBranch, replayMode);
+        orderNodesToReplay(execListWrapper.list, newBranch, replayMode);
 
         LOGGER.warn("Replay completed");
 
@@ -128,7 +128,7 @@ public class Manager {
 
         truncateList(execListWrapper.list, smallestIdWithRestrain);
         LOGGER.warn("Will replay the remaining" + countRequests(execListWrapper.list) + " requests");
-        orderNodesToReplay(execListWrapper.list, parentBranch, replayMode);
+        orderNodesToReplay(execListWrapper.list, newBranch, replayMode);
 
         LOGGER.warn("Requests performed during the replay are replayed");
 
@@ -182,7 +182,7 @@ public class Manager {
     }
 
 
-    private boolean orderNodesToReplay(List<List<Long>> execLists, int parentBranch, ReplayMode replayMode) throws Exception {
+    private boolean orderNodesToReplay(List<List<Long>> execLists, short parentBranch, ReplayMode replayMode) throws Exception {
         ackWaiter.set(group.countReplayNodes());
 
         int execListsToReplay = 0;
@@ -243,7 +243,7 @@ public class Manager {
         ArrayList<List<Long>> finalList = new ArrayList<List<Long>>();
         int i = 0;
         for (List<Long> list : execLists) {
-            if (i < maxNumberOfLists) {
+            if (i++ < maxNumberOfLists) {
                 finalList.add(list);
             } else {
                 List<Long> previousList = finalList.get(i % maxNumberOfLists);
@@ -367,6 +367,8 @@ public class Manager {
     public void showDatabaseStats() throws Exception {
         group.broadcast(FromManagerProto.ToDataNode.newBuilder().setShowStats(true).build(), NodeGroup.DATABASE);
     }
+
+
 
 
 }

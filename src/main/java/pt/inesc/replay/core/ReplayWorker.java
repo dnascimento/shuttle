@@ -15,6 +15,7 @@ import java.util.List;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.BufferTools;
 import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
@@ -112,14 +113,16 @@ public class ReplayWorker extends
         int initPosition = data.position();
         int startOfId = indexOf(data.position(), data.limit(), data, ID_MARK) + ID_MARK.capacity();
         byte[] ts = new Long(rid).toString().getBytes();
+
         data.position(startOfId);
         data.put(ts);
-        data.position(startOfId + 17);
+        data.position(startOfId + 20);
         data.put(branchBytes);
         // restrain is always false
-        data.position(startOfId + 34);
+        data.position(startOfId + 37);
         data.put((byte) 't');
         data.position(initPosition);
+        System.out.println(BufferTools.printContent(data));
     }
 
     /**

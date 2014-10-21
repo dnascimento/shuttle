@@ -37,9 +37,9 @@ public class GroupCom {
     public GroupCom() {
         // Default instances:
         applicationServers.add(SharedProperties.LOAD_BALANCER_ADDRESS);
-        proxyList.add(new InetSocketAddress("localhost", SharedProperties.PROXY_PORT));
-        replayInstancesList.add(new InetSocketAddress("localhost", SharedProperties.REPLAY_PORT));
-        databaseList.add(new InetSocketAddress("localhost", SharedProperties.DATABASE_PORT));
+        proxyList.add(new InetSocketAddress("proxy", SharedProperties.PROXY_PORT));
+        replayInstancesList.add(new InetSocketAddress("replay", SharedProperties.REPLAY_PORT));
+        databaseList.add(new InetSocketAddress("database", SharedProperties.DATABASE_PORT));
     }
 
     /**

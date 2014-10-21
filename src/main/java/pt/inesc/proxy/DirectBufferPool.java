@@ -2,10 +2,11 @@ package pt.inesc.proxy;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Stack;
 
 public class DirectBufferPool {
-    final ArrayList<ByteBuffer> buffers;
+    final Stack<ByteBuffer> buffers;
     int BUFFER_SIZE;
 
     private static final int VOTE_PERCENTAGE = 2;
@@ -14,11 +15,12 @@ public class DirectBufferPool {
      * if after DECREASE renews, there were no request to increase, try to decrease
      * DECREASE_PERCENTAGE. It deletes the memory of big responses
      */
-    private static final int DECREASE = 200;
+    private static final int DECREASE = 2000;
     private static final int DECREASE_PERCENTAGE = 10;
 
     // add TOLERANCE bytes to the requested size
     private static final int TOLERANCE = 50;
+    private final String label;
 
 
     private int voteIncrease = 0;
@@ -26,48 +28,43 @@ public class DirectBufferPool {
     private int nonIncreased = 0;
 
     // point the current available buffer
-    private int index = -1;
     private final int CAPACITY;
 
-    public DirectBufferPool(int CAPACITY, int BUFFER_SIZE) {
-        buffers = new ArrayList<ByteBuffer>(CAPACITY);
+    public DirectBufferPool(String label, int CAPACITY, int BUFFER_SIZE) {
+        buffers = new Stack<ByteBuffer>();
+        this.label = label;
         this.BUFFER_SIZE = BUFFER_SIZE;
         this.CAPACITY = CAPACITY;
         refill();
     }
 
-    void refill() {
-        System.out.println("refill");
+    private void refill() {
+        System.out.println(label + ": refill");
         // review the buffer size
         if (voteIncrease > buffers.size() / VOTE_PERCENTAGE) {
             BUFFER_SIZE = maxIncrease;
-            System.out.println("size increased: " + BUFFER_SIZE);
+            System.out.println(label + ": size increased: " + BUFFER_SIZE);
             voteIncrease = 0;
         } else {
             if (++nonIncreased == DECREASE) {
                 BUFFER_SIZE = BUFFER_SIZE / DECREASE_PERCENTAGE;
-                System.out.println("size decrease: " + BUFFER_SIZE);
+                System.out.println(label + ": size decrease: " + BUFFER_SIZE);
                 nonIncreased = 0;
             }
         }
 
         // fullfill
-        while (index < CAPACITY) {
+        while (buffers.size() < CAPACITY) {
             ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
-            buffers.add(++index, buffer);
+            buffers.push(buffer);
         }
-        index--;
     }
 
-    public synchronized ByteBuffer popSynchronized() {
-        return pop();
-    }
-
-    public ByteBuffer pop() {
-        if (index <= -1) {
+    public synchronized ByteBuffer pop() {
+        if (buffers.isEmpty()) {
             refill();
         }
-        return buffers.get(index--);
+        return buffers.pop();
     }
 
     /**
@@ -77,33 +74,37 @@ public class DirectBufferPool {
      * @param minCapacity
      * @return
      */
-    public ByteBuffer pop(int minBufferSize) {
-        if (index == -1) {
+    public synchronized ByteBuffer pop(int minBufferSize) {
+        if (buffers.isEmpty()) {
             refill();
         }
-        ByteBuffer b = buffers.get(index--);
-        if (BUFFER_SIZE < minBufferSize) {
+        ByteBuffer b = buffers.pop();
+        if (b.capacity() < minBufferSize) {
             voteBufferSize(minBufferSize);
-            System.out.println("buffer is too small");
+            System.out.println(label + ": buffer is too small, discarding the poped");
             return ByteBuffer.allocateDirect(minBufferSize).order(ByteOrder.BIG_ENDIAN);
         }
         return b;
     }
 
-    public synchronized void returnBufferSynchronized(ByteBuffer buffer) {
-        returnBuffer(buffer);
-    }
 
 
-    public void returnBuffer(ByteBuffer buffer) {
-        if (index == (CAPACITY - 1)) {
-            // buffer is full
-            return;
+
+    public synchronized void returnBuffer(LinkedList<ByteBuffer> cleanBuffersRequests) {
+        System.out.println(label + "return buffer");
+        for (ByteBuffer b : cleanBuffersRequests) {
+            buffers.push(b);
         }
-        buffers.add(++index, buffer);
     }
 
-    public void voteBufferSize(int capacity) {
+
+    public synchronized void returnBuffer(ByteBuffer buffer) {
+        System.out.println(label + "return buffer");
+        buffers.push(buffer);
+
+    }
+
+    public synchronized void voteBufferSize(int capacity) {
         voteIncrease++;
         maxIncrease = Math.max(maxIncrease, capacity + TOLERANCE);
     }
