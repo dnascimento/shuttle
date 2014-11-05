@@ -16,11 +16,12 @@ import org.apache.log4j.Logger;
 import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.replay.core.handlers.ChannelPack;
+import pt.inesc.replay.core.handlers.HandlerRead;
 
 public class RedoChannelPool {
     private static Logger logger = LogManager.getLogger(RedoChannelPool.class.getName());
     private final InetSocketAddress remoteHost;
-    private static final int INIT_NUMBER_OF_THREADS_AND_CHANNELS = 1;
+    private static final int INIT_NUMBER_OF_THREADS_AND_CHANNELS = 50;
     private final CassandraClient cassandra;
     LinkedList<ChannelPack> availableChannels = new LinkedList<ChannelPack>();
     AsynchronousChannelGroup group;
@@ -59,8 +60,6 @@ public class RedoChannelPool {
 
     public synchronized void returnChannel(ChannelPack channelPack) {
         try {
-            channelPack.channel.close();
-            channelPack.channel = createChannel();
             availableChannels.add(channelPack);
         } catch (Exception e) {
             logger.error(e);
@@ -73,6 +72,7 @@ public class RedoChannelPool {
 
 
     private AsynchronousSocketChannel createChannel() throws Exception {
+        System.out.println("Creating new channel");
         AsynchronousSocketChannel socketChannel = AsynchronousSocketChannel.open(group);
         socketChannel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
         socketChannel.connect(remoteHost).get();
@@ -82,8 +82,10 @@ public class RedoChannelPool {
     private ChannelPack createPackChannel() throws Exception {
         AsynchronousSocketChannel socketChannel = createChannel();
         ByteBuffer buffer = allocateBuffer();
-        ChannelPack pack = new ChannelPack(socketChannel, buffer, cassandra, this, sentCounter);
+        ChannelPack pack = new ChannelPack(socketChannel, this);
         availableChannels.add(pack);
+        // start reading from the channel
+        socketChannel.read(buffer, socketChannel, new HandlerRead(cassandra, buffer, sentCounter));
         return pack;
     }
 

@@ -8,45 +8,69 @@ package pt.inesc.replay.core.handlers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
+import java.util.ArrayList;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import pt.inesc.BufferTools;
+import pt.inesc.manager.utils.MonitorWaiter;
+import pt.inesc.proxy.save.CassandraClient;
+
 public class HandlerRead
-        implements CompletionHandler<Integer, ChannelPack> {
+        implements CompletionHandler<Integer, AsynchronousSocketChannel> {
     private static final Logger log = LogManager.getLogger(HandlerRead.class.getName());
 
+    private final CassandraClient cassandra;
+    private final ByteBuffer buffer;
+    private final MonitorWaiter sentCounter;
+    public static final ByteBuffer RESPONSE = ByteBuffer.wrap("HTTP".getBytes());
 
+
+
+    public HandlerRead(CassandraClient cassandra, ByteBuffer buffer, MonitorWaiter sentCounter) {
+        super();
+        this.cassandra = cassandra;
+        this.buffer = buffer;
+        this.sentCounter = sentCounter;
+    }
 
     @Override
-    public void completed(Integer bytesRead, ChannelPack aux) {
-        if (aux.buffer.remaining() == 0) {
+    public void completed(Integer bytesRead, AsynchronousSocketChannel channel) {
+        if (buffer.remaining() == 0) {
             // More to read
-            resizeBuffer(aux.buffer);
-            aux.channel.read(aux.buffer, aux, new HandlerRead());
+            resizeBuffer(buffer);
+            System.out.println("Buffer is too small");
+            channel.read(buffer, channel, this);
         } else {
-            processRead(aux);
-            if (aux.sentCounter != null) {
-                aux.sentCounter.decrement();
+            buffer.flip(); // make buffer readable
+            buffer.rewind();
+
+            System.out.println(BufferTools.printContent(buffer));
+
+            // search for all responses within the buffer
+            ArrayList<Long> ids = BufferTools.getIds(buffer);
+            for (Long rid : ids) {
+                int left = sentCounter.decrement(rid);
+                System.out.println("Read: " + rid + ", left: " + left);
             }
+
+            // handle next read
+            buffer.clear();
+            channel.read(buffer, channel, this);
         }
     }
 
-
     @Override
-    public void failed(Throwable exc, ChannelPack channel) {
-        log.error("Read fail", exc);
-        // //TODO se isto for frequente mais vale fechar e abrir sempre
-        // //Reconnect and re-write
-        // java.io.IOException
+    public void failed(Throwable exc, AsynchronousSocketChannel channel) {
+        log.error("Read request failed", exc);
+        // TODO Handle this exception
     }
 
-    private void processRead(ChannelPack aux) {
-        ByteBuffer originalResponse = aux.cassandra.getResponse(aux.request.rid);
-        ByteBuffer buffer = aux.buffer;
-        buffer.flip(); // make buffer readable
-        buffer.rewind();
+    private void processRead(ChannelPack aux, long rid) {
+        ByteBuffer originalResponse = cassandra.getResponse(rid);
         if (originalResponse != null) {
             try {
                 String diff = ResponseComparator.compare(originalResponse, buffer);
@@ -56,8 +80,6 @@ public class HandlerRead
                 log.error(e);
             }
         }
-        // prepare for next read
-        aux.renew();
     }
 
     private void resizeBuffer(ByteBuffer buffer) {
@@ -65,8 +87,4 @@ public class HandlerRead
         newBuffer.put(buffer);
         buffer = newBuffer;
     }
-
-
-
-
 }

@@ -15,7 +15,6 @@ import java.util.List;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.BufferTools;
 import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
@@ -33,6 +32,29 @@ import com.google.common.collect.ArrayListMultimap;
 
 public class ReplayWorker extends
         Thread {
+
+    private int requestRate = 10;
+    private int requestRateSent = 0;
+    private long currentSecound = 0;
+    private long delay;
+    /**
+     * Show the current request rate every x seconds
+     */
+    private static final int SHOW_RATE_PERIOD = 1;
+    /** Max number of requests pendent before adapt the throughput */
+    private static final int MAX_QUEUE_SIZE = 500;
+    private static final int MIN_QUEUE_SIZE = 100;
+    private static final int ABSOLUT_LIMIT_QUEUE_SIZE = 600;
+    private static final int THROUGHPUT_ADJUSTMENT = 15;
+    private static final long MAX_DELAY = 1000;
+
+    private int showRate = SHOW_RATE_PERIOD;
+    /**
+     * If the requests send is much bigger than the target rate, for instance if the queue
+     * is huge, then the delay can be huge. We set a maximum value for delay
+     */
+
+
     protected static Logger logger = LogManager.getLogger(ReplayWorker.class.getName());
 
     protected final List<Long> executionArray;
@@ -53,6 +75,7 @@ public class ReplayWorker extends
 
     public ReplayWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
         super();
+        System.out.println("New replay worker");
         this.executionArray = execList;
         logger.info("New Worker");
         cassandra = new CassandraClient();
@@ -62,20 +85,26 @@ public class ReplayWorker extends
         unlocker = new VoldemortUnlocker();
 
         pool = new RedoChannelPool(remoteHost, cassandra, executingCounter);
+
+
+        // define throughput:
+        delay = (long) (((double) 1 / requestRate) * 1000);
+
+
     }
 
 
     @Override
     public void run() {
         logger.info("Start time:" + new Date().getTime());
-
         // if the request start is smaller than the biggest executing end, then, wait.
         for (long reqId : executionArray) {
             try {
                 if (reqId == -1) {
                     // wait for all to execute
+                    System.out.println("Wait until zero: ");
                     executingCounter.waitUntilZero();
-                    logger.info("continue");
+                    logger.info("continue: " + totalRequests + " out of: " + executionArray.size());
                     continue;
                 } else {
                     // execute request
@@ -83,7 +112,8 @@ public class ReplayWorker extends
                     if (request == null) {
                         compensateRequest(reqId);
                     } else {
-                        executingCounter.increment();
+                        int pendentRequests = executingCounter.increment(reqId);
+                        throughputControl(pendentRequests);
                         writePackage(request);
                     }
                     totalRequests++;
@@ -92,6 +122,11 @@ public class ReplayWorker extends
                 errors.add("Erro in req: " + reqId + " " + e);
                 logger.error("Erro", e);
             }
+        }
+        try {
+            executingCounter.waitUntilZero();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
 
         logger.info("Redo end");
@@ -122,7 +157,7 @@ public class ReplayWorker extends
         data.position(startOfId + 37);
         data.put((byte) 't');
         data.position(initPosition);
-        System.out.println(BufferTools.printContent(data));
+        // System.out.println(BufferTools.printContent(data));
     }
 
     /**
@@ -186,10 +221,67 @@ public class ReplayWorker extends
     private void writePackage(Request request) throws Exception {
         ChannelPack pack = pool.getChannel();
         // ProxyWorker.printContent(data);
+        System.out.println("Start request: "+request.rid);
         setNewHeader(request.data, request.rid);
-        pack.reset(request.data.limit() - request.data.position(), request);
+        pack.set(request.data.limit() - request.data.position(), request);
         pack.channel.write(request.data, pack, new HandlerWrite());
     }
 
 
+    /**
+     * The delay controls the throughput, at end of each second, the throughput is
+     * compared and the delay is adapted.
+     * 
+     * @param pendentRequests
+     */
+    private void throughputControl(int pendentRequests) {
+        // delay the request to control the throughput
+        if (delay > 0) {
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+
+
+        long now = System.currentTimeMillis() / 1000;
+        if (currentSecound == 0) {
+            currentSecound = now;
+        }
+
+        if (now != currentSecound) {
+            currentSecound = now;
+
+            // update request rate every second
+            if (pendentRequests > MAX_QUEUE_SIZE) {
+                requestRate -= THROUGHPUT_ADJUSTMENT;
+                requestRate = (requestRate <= 0) ? 1 : requestRate;
+            }
+            if (pendentRequests < MIN_QUEUE_SIZE) {
+                requestRate += THROUGHPUT_ADJUSTMENT;
+            }
+
+            // calculate the new delay
+            delay = (long) (((double) 1 / requestRate) * 1000);
+            delay = (delay > MAX_DELAY) ? MAX_DELAY : delay;
+            delay = (delay <= 0) ? 0 : delay;
+
+            requestRateSent = 0;
+
+
+            if (showRate-- == 0) {
+                showRate = SHOW_RATE_PERIOD;
+                System.out.println("Real rate: " + requestRateSent + " targetRate: " + requestRate + " delay: " + delay + " total: "
+                        + totalRequests + " pendent: " + pendentRequests);
+            }
+        }
+        requestRateSent++;
+
+        // Delay the requests if the limit is exceded
+        if (pendentRequests > ABSOLUT_LIMIT_QUEUE_SIZE) {
+            delay = MAX_DELAY;
+        }
+    }
 }

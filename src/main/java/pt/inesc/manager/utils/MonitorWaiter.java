@@ -1,39 +1,76 @@
 package pt.inesc.manager.utils;
 
+import java.util.HashSet;
+import java.util.Iterator;
+
+
+
+
 public class MonitorWaiter {
 
-    int pendent = 0;
+    class ShowCounter extends
+            Thread {
+        MonitorWaiter t;
 
-    public synchronized int set(int value) {
-        pendent = value;
-        return pendent;
+
+        public ShowCounter(MonitorWaiter t) {
+            super();
+            this.t = t;
+        }
+
+
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    sleep(10000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.out.println(t.getStatus());
+            }
+        }
     }
 
-    public synchronized int increment(int value) {
-        pendent += value;
-        return pendent;
+
+    public MonitorWaiter() {
+        new ShowCounter(this).start();
     }
 
-    public int increment() {
-        return this.increment(1);
+
+    int counter = 0;
+    HashSet<Long> pendent = new HashSet<Long>();
+
+    public synchronized int increment(long rid) {
+        counter++;
+        pendent.add(rid);
+        return counter;
+    }
+
+    public String getStatus() {
+        StringBuilder sb = new StringBuilder();
+        Iterator<Long> it = pendent.iterator();
+        while (it.hasNext()) {
+            sb.append(it.next());
+            sb.append(",");
+        }
+        return sb.toString();
     }
 
     public synchronized void waitUntilZero() throws InterruptedException {
-        if (pendent == 0) {
+        if (counter == 0) {
             return;
         }
         this.wait();
     }
 
-    public synchronized int decrement(int value) {
-        pendent -= value;
-        if (pendent == 0) {
+    public synchronized int decrement(long rid) {
+        counter--;
+        pendent.remove(rid);
+        if (counter == 0) {
             this.notifyAll();
         }
-        return pendent;
+        return counter;
     }
 
-    public int decrement() {
-        return this.decrement(1);
-    }
 }

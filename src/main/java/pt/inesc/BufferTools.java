@@ -25,6 +25,7 @@ public class BufferTools {
     private static final ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
     private static final ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
     private static final ByteBuffer ID = ByteBuffer.wrap(("Id: ").getBytes());
+    private static final int ID_SIZE = 16;
 
 
     private BufferTools() {
@@ -119,6 +120,11 @@ public class BufferTools {
         return printContent(buffer, start, end);
     }
 
+    /**
+     * Print with the specifications
+     * 
+     * @param buffer
+     */
     public static void println(ByteBuffer buffer) {
         int position = buffer.position();
 
@@ -217,4 +223,46 @@ public class BufferTools {
         return indexOf(lastSizeAttemp, clientRequestBuffer.position(), clientRequestBuffer, NEW_LINES);
     }
 
+    public static boolean startsWith(ByteBuffer buffer, ByteBuffer pattern) {
+        int patternLen = pattern.limit();
+        for (int j = 0; j < patternLen; j++) {
+            if (buffer.get(j) != pattern.get(j))
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * Search all possible message header ids
+     * 
+     * @param buffer
+     * @return
+     */
+    public static ArrayList<Long> getIds(ByteBuffer buffer) {
+        ArrayList<Long> ids = new ArrayList<Long>();
+
+        for (int i = buffer.position(); i < buffer.limit(); i++) {
+            // match the ID:
+            int pos = indexOf(i, buffer.limit(), buffer, ID);
+            if (pos == -1) {
+                // no more ids
+                return ids;
+            }
+            // extract the ID value
+            int j = 0;
+            byte b;
+            List<Byte> lenght = new ArrayList<Byte>();
+            while ((b = buffer.get(pos + ID.capacity() + j++)) != (byte) 13) {
+                lenght.add(b);
+            }
+            String idString = decodeUTF8(lenght);
+            if (idString.length() != ID_SIZE) {
+                throw new RuntimeException("Extracted a wrong ID: " + printContent(buffer));
+            }
+            ids.add(Long.parseLong(idString));
+            // continue
+            i = pos + j;
+        }
+        return ids;
+    }
 }

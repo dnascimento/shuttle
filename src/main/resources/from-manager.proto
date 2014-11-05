@@ -14,7 +14,7 @@ message ToDataNode{
 	repeated int64 pathCommit = 5;
 	optional EntryAccessesMsg entryAccessesMsg = 6;
 	optional bool showStats = 7;
-
+	optional bool showMap = 8;
 	message EntryAccessesMsg{
 		repeated bytes keys = 1;
 		required int64 baseRid = 2;

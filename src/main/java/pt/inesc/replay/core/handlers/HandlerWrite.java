@@ -23,7 +23,8 @@ public class HandlerWrite
         if (bytesWritten != aux.bytesToProcess) {
             logger.error("The socket did not write everything");
         }
-        aux.channel.read(aux.buffer, aux, new HandlerRead());
+        // logger.info("request written: " + aux.request.rid);
+        aux.returnChannel();
     }
 
     @Override

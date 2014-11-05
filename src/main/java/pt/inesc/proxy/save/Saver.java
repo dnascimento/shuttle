@@ -17,6 +17,7 @@ import org.apache.log4j.Logger;
 
 import pt.inesc.SharedProperties;
 import pt.inesc.proxy.DirectBufferPool;
+import pt.inesc.proxy.ProxyWorker;
 import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
 
 
@@ -27,6 +28,9 @@ public class Saver extends
         Request, Response
     }
 
+    /**
+     * At least, every TIMEOUT_PERIOD milliseconds, fetch the dependencies.
+     */
     private static final long TIMEOUT_PERIOD = 10000;
 
     private static Logger log = LogManager.getLogger(Saver.class.getName());
@@ -36,7 +40,13 @@ public class Saver extends
     private final LinkedList<ByteBuffer> cleanBuffersRequests = new LinkedList<ByteBuffer>();
     private final LinkedList<ByteBuffer> cleanBuffersResponses = new LinkedList<ByteBuffer>();
 
+    private boolean TIMEOUT = true;
+    private final ProxyWorker worker;
 
+
+    public Saver(ProxyWorker worker) {
+        this.worker = worker;
+    }
 
     @Override
     public void run() {
@@ -44,7 +54,12 @@ public class Saver extends
         while (true) {
             synchronized (this) {
                 try {
+                    TIMEOUT = true;
                     this.wait(TIMEOUT_PERIOD);
+                    if (TIMEOUT) {
+                        log.info("Saver timeout");
+                        worker.flushData();
+                    }
                     saving();
                 } catch (InterruptedException e) {
                     log.error(e);
@@ -72,7 +87,7 @@ public class Saver extends
 
         cleanBuffersRequests.clear();
         cleanBuffersResponses.clear();
-
+        TIMEOUT = false;
         this.notify();
     }
 
@@ -105,7 +120,6 @@ public class Saver extends
                 e.request.clear();
 
                 buffersRequests.add(e.request);
-                // e.response.clear();
                 buffersResponses.add(e.response);
             }
             sendStartEndListToManager(startEndMsg.build());

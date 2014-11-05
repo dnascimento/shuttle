@@ -13,7 +13,6 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -43,7 +42,7 @@ import pt.inesc.undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup
 public class ReplayNode extends
         Thread {
     private static final Logger log = LogManager.getLogger(ReplayNode.class.getName());
-    private static final int N_WORKERS = 1;
+    private static final int N_WORKERS = 30;
     protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
     private List<String> errors = new LinkedList<String>();
     private ArrayList<ReplayWorker> workers = new ArrayList<ReplayWorker>();
@@ -105,10 +104,11 @@ public class ReplayNode extends
     }
 
     public void startOrder() {
-        Date startDate = new Date();
-        for (ReplayWorker worker : workers) {
-            threadPool.execute(worker);
-        }
+           long start = System.currentTimeMillis();
+           System.out.println("Start:"+start);
+           for (ReplayWorker worker : workers) {
+               threadPool.execute(worker);
+           }
 
         threadPool.shutdown();
         try {
@@ -117,14 +117,17 @@ public class ReplayNode extends
             errors.add("REDO FAIL: " + e.toString());
         }
 
-        long duration = new Date().getTime() - startDate.getTime();
+        long end = System.currentTimeMillis();
+        System.out.println("END:"+System.currentTimeMillis());
+        long duration = end - start;
         log.info("All threads are done");
-        log.info("Duration = " + duration);
+        log.info("Duration (ms) = " + duration);
         log.info("Total requests = " + totalRequests);
         log.info("Request rate = " + (((double) totalRequests) / duration * 1000) + " req/sec");
         sendAck();
         errors = new LinkedList<String>();
         workers = new ArrayList<ReplayWorker>();
+        totalRequests = 0;
         threadPool = Executors.newFixedThreadPool(N_WORKERS);
     }
 

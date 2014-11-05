@@ -359,4 +359,13 @@ public class GraphShuttle
         return sb.toString();
     }
 
+    public String listAllEntries() {
+        StringBuilder sb = new StringBuilder();
+        for (Dependency dep : map) {
+            sb.append(dep.start);
+            sb.append(",");
+        }
+        return sb.toString();
+    }
+
 }

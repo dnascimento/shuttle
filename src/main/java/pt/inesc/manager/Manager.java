@@ -26,6 +26,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
+import org.mortbay.log.Log;
 
 import pt.inesc.SharedProperties;
 import pt.inesc.manager.branchTree.BranchNode;
@@ -35,7 +36,7 @@ import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import pt.inesc.manager.graph.ExecListWrapper;
 import pt.inesc.manager.graph.GraphShuttle;
 import pt.inesc.manager.utils.CleanVoldemort;
-import pt.inesc.manager.utils.MonitorWaiter;
+import pt.inesc.manager.utils.MonitorW;
 import pt.inesc.manager.utils.NotifyEvent;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.undo.proto.FromManagerProto;
@@ -50,7 +51,7 @@ public class Manager {
 
     public final GroupCom group;
 
-    public MonitorWaiter ackWaiter = new MonitorWaiter();
+    public MonitorW ackWaiter = new MonitorW();
     public GraphShuttle graph = new GraphShuttle();
     private static ServiceManager service;
     public BranchTree branches = new BranchTree();
@@ -111,7 +112,7 @@ public class Manager {
         // TODO invoke the infrastructure to start the replay nodes, get their addresses
         // and set as target
         // infrastructrure.startReplay()
-        LOGGER.warn("Will replay" + countRequests(execListWrapper.list) + " requests");
+        LOGGER.warn("Will replay " + countRequests(execListWrapper.list) + " requests");
 
         orderNodesToReplay(execListWrapper.list, newBranch, replayMode);
 
@@ -191,6 +192,20 @@ public class Manager {
 
         execLists = setUpperLimitOfConcurrentThreads(execLists, replayInstances.size());
 
+        StringBuilder sb = new StringBuilder();
+        for (List<Long> execList : execLists) {
+            if (execList == null || execList.size() == 0)
+                continue;
+            sb.append("[");
+            for (Long l : execList) {
+                sb.append(l);
+                sb.append(",");
+            }
+            sb.append("]\n");
+
+        }
+        Log.info("replay list: " + sb.toString());
+
         int i = 0;
         for (List<Long> execList : execLists) {
             if (execList == null || execList.size() == 0)
@@ -204,7 +219,6 @@ public class Manager {
                                                     .setTargetHost(SharedProperties.LOAD_BALANCER_ADDRESS.getHostName())
                                                     .setTargetPort(SharedProperties.LOAD_BALANCER_ADDRESS.getPort())
                                                     .build();
-
 
             group.send(msg, replayInstances.get(i++ % replayInstances.size()));
         }
@@ -366,6 +380,12 @@ public class Manager {
 
     public void showDatabaseStats() throws Exception {
         group.broadcast(FromManagerProto.ToDataNode.newBuilder().setShowStats(true).build(), NodeGroup.DATABASE);
+    }
+
+
+    public void showDatabaseMap() throws Exception {
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setShowMap(true).build(), NodeGroup.DATABASE);
+
     }
 
 

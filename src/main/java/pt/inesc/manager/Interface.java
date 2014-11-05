@@ -98,7 +98,8 @@ public class Interface extends
         System.out.println("c) Create new branch");
         System.out.println("d) Change to branch");
         System.out.println("e) Show database stats");
-        System.out.println("g) Measure cassandra");
+        System.out.println("f) Measure cassandra");
+        System.out.println("g) Show database dependency lists");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -129,8 +130,11 @@ public class Interface extends
         case 'e':
             manager.showDatabaseStats();
             break;
-        case 'g':
+        case 'f':
             System.out.println(new CassandraClient().calculateSize());
+            break;
+        case 'g':
+            manager.showDatabaseMap();
             break;
         default:
             return;
@@ -156,6 +160,7 @@ public class Interface extends
         System.out.println("e) count dependencies");
         System.out.println("f) count clusters");
         System.out.println("g) graph size summary");
+        System.out.println("h) list graph entries");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -207,6 +212,8 @@ public class Interface extends
         case 'g':
             System.out.println(manager.graph.getTotalByteSize());
             break;
+        case 'h':
+            System.out.println(manager.graph.listAllEntries());
         default:
             return;
         }

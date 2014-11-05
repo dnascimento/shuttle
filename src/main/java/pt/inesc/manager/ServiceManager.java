@@ -83,7 +83,6 @@ public class ServiceManager extends
                     }
                     // add start-end of each request (from proxy)
                     if (proto.hasStartEndMsg()) {
-                        log.info("New msg: start-end");
                         MsgToManager.StartEndMsg m2 = proto.getStartEndMsg();
                         Iterator<Long> startEndList = m2.getDataList().iterator();
                         while (startEndList.hasNext()) {
@@ -134,7 +133,6 @@ public class ServiceManager extends
             } while (keepAlive);
             try {
                 socket.close();
-                log.info("Socket closed");
             } catch (IOException e) {
                 log.error("Service Manager", e);
             }
@@ -152,7 +150,7 @@ public class ServiceManager extends
 
         private void clientDependencies(List<TrackEntry> list) {
             log.debug("------ Client Side dependency--------");
-            log.debug(depListToString(list));
+            // log.debug(depListToString(list));
             log.debug("--------------");
             // TODO insert into graph and compare
         }

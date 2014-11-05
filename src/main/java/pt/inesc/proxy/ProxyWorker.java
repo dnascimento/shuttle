@@ -68,7 +68,7 @@ public class ProxyWorker extends
 
     private static final String IGNORE_LIST_FILE = "proxy.ignore.txt";
     private static final ArrayList<Pattern> listOfIgnorePatterns = loadIgnoreList();
-    private static final Integer BUFFER_SIZE = 6 * 1024; // 2K
+    private static final Integer BUFFER_SIZE = 4 * 1024; // 2K
 
     private static final long READ_TIMEOUT = 5000;
     private static final long WRITE_TIMEOUT = 1000;
@@ -77,11 +77,13 @@ public class ProxyWorker extends
     private static final boolean stamping = true;
 
     private static final double MULTIPLICATION_FACTOR = getMultiplicationFactor();
+    private static final int TIMESTAMP_SIZE = 16;
 
+    private static long lastTime;
 
     public ProxyWorker(InetSocketAddress remoteAddress) {
         if (logging) {
-            saver = new Saver();
+            saver = new Saver(this);
             saver.start();
         }
         backendAddress = remoteAddress;
@@ -124,7 +126,7 @@ public class ProxyWorker extends
      * selection interest in OP_READ. When this method completes it re-enables OP_READ and
      * calls wakeup() on the selector so the selector will resume watching this channel.
      * 
-     * @param buffer
+     * @param bufferPool
      * @return
      * @return
      * @return false if no request
@@ -190,7 +192,7 @@ public class ProxyWorker extends
         ByteBuffer request;
         if (stamping) {
             startTS = getTimestamp();
-            // log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
+            //log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
             ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
 
             // allocate a new bytebuffer with exact size to copy
@@ -231,6 +233,7 @@ public class ProxyWorker extends
                     ;
                 return;
             } catch (IOException e) {
+                log.warn("Attempting to repeat the write but it written: " + written);
                 if (!reconnected) {
                     connect();
                     reconnected = true;
@@ -330,7 +333,7 @@ public class ProxyWorker extends
 
 
         if (!ignore && logging)
-            requestResponse.add(new RequestResponsePair(originalRequest, originalRequest, startTS, endTS));
+            addRequestResponse(new RequestResponsePair(originalRequest, responseBuffer, startTS, endTS));
     }
 
     private ReqType getRequestType(ByteBuffer buffer) {
@@ -356,7 +359,7 @@ public class ProxyWorker extends
     /**
      * Flush the data to server before continue
      */
-    private void flushData() {
+    public synchronized void flushData() {
         ArrayList<RequestResponsePair> previous = requestResponse;
 
         requestResponse = new ArrayList<RequestResponsePair>(FLUSH_PERIODICITY);
@@ -364,6 +367,11 @@ public class ProxyWorker extends
     }
 
 
+
+    private synchronized void addRequestResponse(RequestResponsePair entry) {
+        requestResponse.add(entry);
+
+    }
 
 
 
@@ -526,18 +534,24 @@ public class ProxyWorker extends
         frontendChannel = null;
     }
 
-    private long getTimestamp() {
-        return (long) (System.nanoTime() * MULTIPLICATION_FACTOR);
+    public static synchronized long getTimestamp() {
+        // TODO this may have a strong performance impact
+        long time = (long) (System.currentTimeMillis() * MULTIPLICATION_FACTOR);
+        if (time <= lastTime) {
+            time = (lastTime + 1);
+        }
+        lastTime = time;
+        return time;
     }
 
 
     private static double getMultiplicationFactor() {
-        long x = System.nanoTime();
+        long x = System.currentTimeMillis();
         int digits = countDigits(x);
         // target is 16 digits
-        double diff = Math.pow(10, 16 - digits);
+        double diff = Math.pow(10, TIMESTAMP_SIZE - digits);
         x = (long) (x * diff);
-        if (countDigits(x) != 16) {
+        if (countDigits(x) != TIMESTAMP_SIZE) {
             throw new RuntimeException("The timestamp has not 16 digits");
         }
         return diff;
