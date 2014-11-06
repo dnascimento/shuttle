@@ -1,4 +1,4 @@
-package pt.inesc.manager.utils;
+package pt.inesc.replay.core;
 
 import java.util.HashSet;
 import java.util.Iterator;

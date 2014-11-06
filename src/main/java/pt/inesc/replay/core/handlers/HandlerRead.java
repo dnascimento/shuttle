@@ -10,14 +10,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
+import java.nio.channels.FileChannel;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import pt.inesc.BufferTools;
-import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
+import pt.inesc.replay.core.MonitorWaiter;
 
 public class HandlerRead
         implements CompletionHandler<Integer, AsynchronousSocketChannel> {
@@ -27,14 +32,20 @@ public class HandlerRead
     private final ByteBuffer buffer;
     private final MonitorWaiter sentCounter;
     public static final ByteBuffer RESPONSE = ByteBuffer.wrap("HTTP".getBytes());
+    private final FileChannel debugFile;
+    private static AtomicInteger counter = new AtomicInteger(0);
 
-
-
-    public HandlerRead(CassandraClient cassandra, ByteBuffer buffer, MonitorWaiter sentCounter) {
+    public HandlerRead(CassandraClient cassandra, ByteBuffer buffer, MonitorWaiter sentCounter) throws IOException {
         super();
         this.cassandra = cassandra;
         this.buffer = buffer;
         this.sentCounter = sentCounter;
+        Path path = FileSystems.getDefault().getPath("debug" + counter.getAndIncrement() + ".txt");
+        debugFile = FileChannel.open(path,
+                                     StandardOpenOption.CREATE,
+                                     StandardOpenOption.TRUNCATE_EXISTING,
+                                     StandardOpenOption.SYNC,
+                                     StandardOpenOption.WRITE);
     }
 
     @Override
@@ -48,13 +59,23 @@ public class HandlerRead
             buffer.flip(); // make buffer readable
             buffer.rewind();
 
-            System.out.println(BufferTools.printContent(buffer));
+            try {
+                debugFile.write(buffer);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            buffer.rewind();
 
             // search for all responses within the buffer
             ArrayList<Long> ids = BufferTools.getIds(buffer);
             for (Long rid : ids) {
                 int left = sentCounter.decrement(rid);
                 System.out.println("Read: " + rid + ", left: " + left);
+            }
+
+            if (ids.size() == 0) {
+                System.out.println(BufferTools.printContent(buffer));
             }
 
             // handle next read

@@ -13,7 +13,6 @@ import java.util.concurrent.Executors;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.manager.utils.MonitorWaiter;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.replay.core.handlers.ChannelPack;
 import pt.inesc.replay.core.handlers.HandlerRead;

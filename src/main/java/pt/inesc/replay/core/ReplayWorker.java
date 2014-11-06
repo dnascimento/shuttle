@@ -15,7 +15,7 @@ import java.util.List;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.manager.utils.MonitorWaiter;
+import pt.inesc.BufferTools;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.ReplayNode;
@@ -61,7 +61,6 @@ public class ReplayWorker extends
     public static CookieMan cookieManager = new CookieMan();
 
     protected final CassandraClient cassandra;
-    protected final ByteBuffer ID_MARK = ByteBuffer.wrap("ID: ".getBytes());
     protected final byte[] branchBytes;
     protected final short branch;
     protected final List<String> errors = new LinkedList<String>();
@@ -79,7 +78,7 @@ public class ReplayWorker extends
         this.executionArray = execList;
         logger.info("New Worker");
         cassandra = new CassandraClient();
-        this.branchBytes = shortToByteArray(branch);
+        this.branchBytes = BufferTools.shortToByteArray(branch);
         this.branch = branch;
         // create a variable group of threads to handle each channel
         unlocker = new VoldemortUnlocker();
@@ -144,21 +143,7 @@ public class ReplayWorker extends
         }
     }
 
-    protected void setNewHeader(ByteBuffer data, long rid) {
-        int initPosition = data.position();
-        int startOfId = indexOf(data.position(), data.limit(), data, ID_MARK) + ID_MARK.capacity();
-        byte[] ts = new Long(rid).toString().getBytes();
 
-        data.position(startOfId);
-        data.put(ts);
-        data.position(startOfId + 20);
-        data.put(branchBytes);
-        // restrain is always false
-        data.position(startOfId + 37);
-        data.put((byte) 't');
-        data.position(initPosition);
-        // System.out.println(BufferTools.printContent(data));
-    }
 
     /**
      * Returns the index within this buffer of the first occurrence of the specified
@@ -189,25 +174,6 @@ public class ReplayWorker extends
 
 
 
-    /**
-     * Convert a short to byte array including the leading zeros and using 1 byte per char
-     * encode
-     * 
-     * @param s
-     * @return
-     */
-    private byte[] shortToByteArray(int s) {
-        byte[] r = new byte[5];
-        int base = 10000;
-        int tmp;
-        for (short i = 0; i < 5; i++) {
-            tmp = (s / base);
-            r[i] = (byte) (tmp + '0');
-            s -= tmp * base;
-            base /= 10;
-        }
-        return r;
-    }
 
 
 
@@ -216,13 +182,11 @@ public class ReplayWorker extends
      * method ensures that a request is sent only after the requests, which end before,
      * are executed.
      */
-
-
     private void writePackage(Request request) throws Exception {
         ChannelPack pack = pool.getChannel();
         // ProxyWorker.printContent(data);
-        System.out.println("Start request: "+request.rid);
-        setNewHeader(request.data, request.rid);
+        System.out.println("Start request: " + request.rid);
+        BufferTools.modifyHeader(request.data, request.rid, 0, branchBytes, false, true);
         pack.set(request.data.limit() - request.data.position(), request);
         pack.channel.write(request.data, pack, new HandlerWrite());
     }

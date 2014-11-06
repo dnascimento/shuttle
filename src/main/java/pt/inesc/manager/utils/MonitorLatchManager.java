@@ -1,6 +1,9 @@
 package pt.inesc.manager.utils;
 
-public class MonitorW {
+
+
+public class MonitorLatchManager {
+    static final int CHECK_TERMINAL_PERIOD_MS = 1000;
 
     int pendent = 0;
 
@@ -22,7 +25,9 @@ public class MonitorW {
         if (pendent == 0) {
             return;
         }
+
         this.wait();
+
     }
 
     public synchronized int decrement(int value) {

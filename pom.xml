@@ -194,12 +194,15 @@
 								<tasks>
 									<echo message="Generating Google Protocol Buffers"/>
 									<property location="src/main/resources/" name="proto.path"/>
+									
 									<property location="target/generated-sources" name="proto.out"/>
 									<pathconvert pathsep=" " property="proto.sources">
 										<path id="proto-files">
 											<fileset dir="${proto.path}"/>
 										</path>
 									</pathconvert>
+									<echo message="Generating Google Protocol Buffers: ${proto.sources}"/>
+								
 									<mkdir dir="target/generated-sources"/>
 									<exec executable="/usr/bin/protoc" failonerror="true">
 										<arg value="-I=${proto.path}"/>

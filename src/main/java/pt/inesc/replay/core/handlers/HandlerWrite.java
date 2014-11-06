@@ -23,15 +23,15 @@ public class HandlerWrite
         if (bytesWritten != aux.bytesToProcess) {
             logger.error("The socket did not write everything");
         }
-        // logger.info("request written: " + aux.request.rid);
+        // System.err.println("request written: " + aux.request.rid);
         aux.returnChannel();
     }
 
     @Override
     public void failed(Throwable exc, ChannelPack channel) {
         logger.error(exc);
+        System.err.println(exc);
     }
-
 
 
 

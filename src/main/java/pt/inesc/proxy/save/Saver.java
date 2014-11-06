@@ -57,7 +57,6 @@ public class Saver extends
                     TIMEOUT = true;
                     this.wait(TIMEOUT_PERIOD);
                     if (TIMEOUT) {
-                        log.info("Saver timeout");
                         worker.flushData();
                     }
                     saving();

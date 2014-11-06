@@ -3,14 +3,26 @@ package pt.inesc;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.entity.StringEntity;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+
+import pt.inesc.proxy.Proxy;
+import pt.inesc.proxy.ReqType;
 
 public class BufferTools {
     private static final Logger logger = LogManager.getLogger(BufferTools.class.getName());
@@ -20,11 +32,11 @@ public class BufferTools {
     public static final ByteBuffer CONTENT_LENGTH = ByteBuffer.wrap("Content-Length: ".getBytes());
     public static final ByteBuffer CHUNKED = ByteBuffer.wrap("Transfer-Encoding: chunked".getBytes());
 
+    private static final ByteBuffer ID_MARK = ByteBuffer.wrap("Id: ".getBytes());
     public static final ByteBuffer SEPARATOR = ByteBuffer.wrap(new byte[] { 13, 10 });
     private static final byte[] STATUS_304 = "304".getBytes();
     private static final ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
     private static final ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
-    private static final ByteBuffer ID = ByteBuffer.wrap(("Id: ").getBytes());
     private static final int ID_SIZE = 16;
 
 
@@ -69,6 +81,13 @@ public class BufferTools {
         return new String(lenghtValue, UTF8_CHARSET);
     }
 
+    /**
+     * Returns the index of the first character of the pattern
+     * 
+     * @param buffer
+     * @param pattern
+     * @return
+     */
     public static int indexOf(ByteBuffer buffer, ByteBuffer pattern) {
         return indexOf(0, buffer.limit(), buffer, pattern);
     }
@@ -205,17 +224,19 @@ public class BufferTools {
     }
 
     public static long getId(ByteBuffer buffer) {
-        int pos = indexOf(buffer, ID);
+        int pos = indexOf(buffer, ID_MARK);
         if (pos == -1) {
             return -1;
         }
+        pos += +ID_MARK.capacity();
         int i = 0;
         byte b;
         List<Byte> lenght = new ArrayList<Byte>();
-        while ((b = buffer.get(pos + ID.capacity() + i++)) != (byte) 13) {
+        while ((b = buffer.get(pos + i++)) != (byte) 13) {
             lenght.add(b);
         }
-        long id = Long.parseLong(decodeUTF8(lenght));
+        String txt = decodeUTF8(lenght);
+        long id = Long.parseLong(txt);
         return id;
     }
 
@@ -243,7 +264,7 @@ public class BufferTools {
 
         for (int i = buffer.position(); i < buffer.limit(); i++) {
             // match the ID:
-            int pos = indexOf(i, buffer.limit(), buffer, ID);
+            int pos = indexOf(i, buffer.limit(), buffer, ID_MARK);
             if (pos == -1) {
                 // no more ids
                 return ids;
@@ -252,17 +273,166 @@ public class BufferTools {
             int j = 0;
             byte b;
             List<Byte> lenght = new ArrayList<Byte>();
-            while ((b = buffer.get(pos + ID.capacity() + j++)) != (byte) 13) {
+            while ((b = buffer.get(pos + ID_MARK.capacity() + j++)) != (byte) 13) {
                 lenght.add(b);
             }
             String idString = decodeUTF8(lenght);
             if (idString.length() != ID_SIZE) {
-                throw new RuntimeException("Extracted a wrong ID: " + printContent(buffer));
+                logger.error("The ID: " + idString + " has a wrong size. Extracted from:\n " + printContent(buffer));
+            } else {
+                ids.add(Long.parseLong(idString));
             }
-            ids.add(Long.parseLong(idString));
             // continue
             i = pos + j;
         }
         return ids;
+    }
+
+    public static ByteBuffer createBaseHeader() {
+        ByteBuffer header = ByteBuffer.allocate(47);
+        ID_MARK.rewind();
+        header.put(ID_MARK);
+        ID_MARK.rewind();
+        header.put("0000000000000000".getBytes());
+        header.put(SEPARATOR);
+        SEPARATOR.rewind();
+        header.put("B: ".getBytes());
+        header.put(Proxy.branch); // 5bytes
+        // not restraint
+        header.put(SEPARATOR);
+        SEPARATOR.rewind();
+        header.put("R: f".getBytes());
+        // not redo
+        header.put(SEPARATOR);
+        SEPARATOR.rewind();
+        header.put("Redo: f".getBytes());
+        header.put(SEPARATOR);
+        SEPARATOR.rewind();
+        header.position(0);
+        return header;
+    }
+
+
+
+    public static void modifyHeader(ByteBuffer header, long startTS, long timeTravel, byte[] branch, boolean restrain, boolean replay) {
+        int initialPos = header.position();
+        int headerOffset = initialPos;
+        if (initialPos != 0) {
+            headerOffset = indexOf(header.position(), header.limit(), header, ID_MARK);
+        }
+
+        // modify time?
+        if (startTS != -1) {
+            byte[] ts = new Long(startTS + timeTravel).toString().getBytes();
+            header.position(4 + headerOffset);
+            header.put(ts);
+        }
+
+        // modify branch
+        header.position(25 + headerOffset);
+        header.put(branch);
+
+        // modify restrain
+        header.position(35 + headerOffset);
+        if (restrain) {
+            header.put((byte) 't');
+        } else {
+            header.put((byte) 'f');
+        }
+
+        // modify replay
+        header.position(44 + headerOffset);
+        if (replay) {
+            header.put((byte) 't');
+        } else {
+            header.put((byte) 'f');
+        }
+
+        // set ready to send
+        header.position(initialPos);
+    }
+
+    /**
+     * Convert a short to byte array including the leading zeros and using 1 byte per char
+     * encode
+     * 
+     * @param s
+     * @return
+     */
+    public static byte[] shortToByteArray(int s) {
+        byte[] r = new byte[5];
+        int base = 10000;
+        int tmp;
+        for (short i = 0; i < 5; i++) {
+            tmp = (s / base);
+            r[i] = (byte) (tmp + '0');
+            s -= tmp * base;
+            base /= 10;
+        }
+        return r;
+    }
+
+
+    public static HttpRequest bufferToRequest(ByteBuffer request) throws UnsupportedEncodingException {
+        int i = request.position();
+        int start = i;
+        LinkedList<String> headerLines = new LinkedList<String>();
+        String reqBody = null;
+        do {
+            if (request.get(i++) == SEPARATOR.get(0) && request.get(i) == SEPARATOR.get(1)) {
+                byte[] line;
+                if (request.get(start + 1) == SEPARATOR.get(0) && request.get(start + 2) == SEPARATOR.get(1)) {
+                    // request body
+                    line = new byte[request.limit() - start - 3];
+                    request.position(start + 3);
+                    request.get(line, 0, request.limit() - start - 3);
+                    String s = new String(line);
+                    reqBody = s;
+                    break;
+                }
+                // header line
+                line = new byte[i - start];
+                request.get(line, 0, i - start);
+                start = i;
+                String s = new String(line);
+                headerLines.add(s);
+            }
+        } while (i != request.limit());
+
+
+        String[] top = headerLines.removeFirst().split(" ");
+        ReqType type = ReqType.valueOf(top[0]);
+        String url = top[1];
+        System.out.println(type);
+        System.out.println(url);
+        System.out.println(reqBody);
+
+        HttpRequestBase httpRequest = null;
+        switch (type) {
+        case GET:
+            httpRequest = new HttpGet(url);
+            break;
+        case DELETE:
+            httpRequest = new HttpDelete(url);
+            break;
+        case PUT:
+            httpRequest = new HttpPut(url);
+            if (reqBody != null) {
+                ((HttpPut) httpRequest).setEntity(new StringEntity(reqBody));
+            }
+            break;
+        case POST:
+            httpRequest = new HttpPost(url);
+            if (reqBody != null) {
+                ((HttpPost) httpRequest).setEntity(new StringEntity(reqBody));
+            }
+            break;
+        }
+        for (String line : headerLines) {
+            String[] headerEntry = line.split(":");
+            httpRequest.setHeader(headerEntry[0], headerEntry[1]);
+        }
+
+        return httpRequest;
     }
 }

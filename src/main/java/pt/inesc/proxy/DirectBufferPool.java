@@ -39,7 +39,6 @@ public class DirectBufferPool {
     }
 
     private void refill() {
-        System.out.println(label + ": refill");
         // review the buffer size
         if (voteIncrease > buffers.size() / VOTE_PERCENTAGE) {
             BUFFER_SIZE = maxIncrease;
@@ -91,7 +90,7 @@ public class DirectBufferPool {
 
 
     public synchronized void returnBuffer(LinkedList<ByteBuffer> cleanBuffersRequests) {
-        System.out.println(label + "return buffer");
+        // System.out.println(label + "return buffer");
         for (ByteBuffer b : cleanBuffersRequests) {
             buffers.push(b);
         }
@@ -99,7 +98,7 @@ public class DirectBufferPool {
 
 
     public synchronized void returnBuffer(ByteBuffer buffer) {
-        System.out.println(label + "return buffer");
+        // System.out.println(label + "return buffer");
         buffers.push(buffer);
 
     }

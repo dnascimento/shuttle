@@ -36,7 +36,7 @@ import pt.inesc.manager.communication.GroupCom.NodeGroup;
 import pt.inesc.manager.graph.ExecListWrapper;
 import pt.inesc.manager.graph.GraphShuttle;
 import pt.inesc.manager.utils.CleanVoldemort;
-import pt.inesc.manager.utils.MonitorW;
+import pt.inesc.manager.utils.MonitorLatchManager;
 import pt.inesc.manager.utils.NotifyEvent;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.undo.proto.FromManagerProto;
@@ -51,7 +51,7 @@ public class Manager {
 
     public final GroupCom group;
 
-    public MonitorW ackWaiter = new MonitorW();
+    public MonitorLatchManager ackWaiter = new MonitorLatchManager();
     public GraphShuttle graph = new GraphShuttle();
     private static ServiceManager service;
     public BranchTree branches = new BranchTree();

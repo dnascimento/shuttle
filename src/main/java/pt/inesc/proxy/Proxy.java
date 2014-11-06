@@ -26,6 +26,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
+import pt.inesc.BufferTools;
 import pt.inesc.SharedProperties;
 
 public class Proxy {
@@ -39,7 +40,7 @@ public class Proxy {
     protected static final long ACCEPT_TIMEOUT = 1000;
 
     public static Object lockBranchRestrain = new Object();
-    public static byte[] branch = shortToByteArray(0);
+    public static byte[] branch = BufferTools.shortToByteArray(0);
     public static boolean restrain = false;
     public static long timeTravel = 0;
 
@@ -136,7 +137,7 @@ public class Proxy {
         log.info("branch: " + branch + " restrain: " + restrain);
         byte[] b = null;
         if (branch != -1) {
-            b = shortToByteArray(branch);
+            b = BufferTools.shortToByteArray(branch);
         }
         long currentId;
         synchronized (Proxy.lockBranchRestrain) {
@@ -153,25 +154,6 @@ public class Proxy {
     }
 
 
-    /**
-     * Convert a short to byte array including the leading zeros and using 1 byte per char
-     * encode
-     * 
-     * @param s
-     * @return
-     */
-    private static byte[] shortToByteArray(int s) {
-        byte[] r = new byte[5];
-        int base = 10000;
-        int tmp;
-        for (short i = 0; i < 5; i++) {
-            tmp = (s / base);
-            r[i] = (byte) (tmp + '0');
-            s -= tmp * base;
-            base /= 10;
-        }
-        return r;
-    }
 
 
     public void timeTravel(long timeDelta) {
@@ -185,7 +167,7 @@ public class Proxy {
     public void reset(short newBranch, long newCommit) {
         log.info("Proxy RESET to branch: " + newBranch);
         synchronized (Proxy.lockBranchRestrain) {
-            branch = shortToByteArray(newBranch);
+            branch = BufferTools.shortToByteArray(newBranch);
             timeTravel = 0;
         }
     }

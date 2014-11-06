@@ -52,7 +52,7 @@ public class ProxyWorker extends
     private long startTS;
     public ArrayList<RequestResponsePair> requestResponse = new ArrayList<RequestResponsePair>(FLUSH_PERIODICITY);
     private Saver saver = null;
-    private final ByteBuffer headerBase = createBaseHeader();
+    private final ByteBuffer headerBase = BufferTools.createBaseHeader();
 
     private final DirectBufferPool requestBuffers;
     private final DirectBufferPool responseBuffers;
@@ -180,7 +180,7 @@ public class ProxyWorker extends
             throw e;
         }
         clientRequestBuffer.flip();
-        endOfFirstLine = BufferTools.indexOf(clientRequestBuffer, BufferTools.SEPARATOR);
+        endOfFirstLine = BufferTools.indexOf(clientRequestBuffer, BufferTools.SEPARATOR) + BufferTools.SEPARATOR.capacity();
         keepAlive = BufferTools.isKeepAlive(clientRequestBuffer, endOfFirstLine);
 
         int originalLimit = clientRequestBuffer.limit();
@@ -192,7 +192,7 @@ public class ProxyWorker extends
         ByteBuffer request;
         if (stamping) {
             startTS = getTimestamp();
-            //log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
+            // log.info(Thread.currentThread().getId() + ": New Req:" + startTS);
             ByteBuffer messageIdHeader = generateHeaderFromBase(startTS);
 
             // allocate a new bytebuffer with exact size to copy
@@ -408,36 +408,12 @@ public class ProxyWorker extends
 
 
     private ByteBuffer generateHeaderFromBase(long startTS) {
+        headerBase.rewind();
         synchronized (Proxy.lockBranchRestrain) {
-            byte[] ts = new Long(startTS + Proxy.timeTravel).toString().getBytes();
-            headerBase.position(5);
-            headerBase.put(ts);
-            headerBase.position(25);
-            headerBase.put(Proxy.branch);
-            headerBase.position(34);
-            if (Proxy.restrain) {
-                headerBase.put((byte) 't');
-            } else {
-                headerBase.put((byte) 'f');
-            }
+            BufferTools.modifyHeader(headerBase, startTS, Proxy.timeTravel, Proxy.branch, Proxy.restrain, false);
         }
-        headerBase.position(0);
         return headerBase;
     }
-
-    private ByteBuffer createBaseHeader() {
-        ByteBuffer header = ByteBuffer.allocate(43);
-        header.put("\nID: ".getBytes());
-        header.put("0000000000000000".getBytes());
-        header.put("\nB: ".getBytes());
-        header.put(Proxy.branch); // 5bytes
-        // not restraint
-        header.put("\nR: f".getBytes());
-        // not redo
-        header.put("\nRedo: f".getBytes());
-        return header;
-    }
-
 
     private static ArrayList<Pattern> loadIgnoreList() {
         try {
