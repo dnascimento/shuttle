@@ -12,6 +12,15 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
@@ -20,15 +29,12 @@ import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.ReplayNode;
 import pt.inesc.replay.core.cookies.CookieMan;
-import pt.inesc.replay.core.handlers.ChannelPack;
-import pt.inesc.replay.core.handlers.HandlerWrite;
 import pt.inesc.replay.core.unlock.VoldemortUnlocker;
 import voldemort.undoTracker.KeyAccess;
 import voldemort.undoTracker.SRD;
 import voldemort.utils.ByteArray;
 
 import com.google.common.collect.ArrayListMultimap;
-
 
 public class ReplayWorker extends
         Thread {
@@ -48,6 +54,9 @@ public class ReplayWorker extends
     private static final int THROUGHPUT_ADJUSTMENT = 15;
     private static final long MAX_DELAY = 1000;
 
+    private static final String USER_AGENT = "Shuttle";
+
+    private static final int REQUEST_TIMEOUT = 2500000;
     private int showRate = SHOW_RATE_PERIOD;
     /**
      * If the requests send is much bigger than the target rate, for instance if the queue
@@ -67,9 +76,10 @@ public class ReplayWorker extends
     protected long totalRequests = 0;
     protected final VoldemortUnlocker unlocker;
 
+    private final CloseableHttpAsyncClient httpclient;
+    private final HttpHost target;
 
     private final MonitorWaiter executingCounter = new MonitorWaiter();
-    protected final RedoChannelPool pool;
 
 
     public ReplayWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
@@ -81,15 +91,20 @@ public class ReplayWorker extends
         this.branchBytes = BufferTools.shortToByteArray(branch);
         this.branch = branch;
         // create a variable group of threads to handle each channel
+        // TODO check this unlocker
         unlocker = new VoldemortUnlocker();
-
-        pool = new RedoChannelPool(remoteHost, cassandra, executingCounter);
-
-
         // define throughput:
         delay = (long) (((double) 1 / requestRate) * 1000);
 
+        RequestConfig requestConfig = RequestConfig.custom().setSocketTimeout(REQUEST_TIMEOUT).setConnectTimeout(REQUEST_TIMEOUT).build();
+        httpclient = HttpAsyncClients.custom()
+                                     .setDefaultRequestConfig(requestConfig)
+                                     .setUserAgent(USER_AGENT)
+                                     .setKeepAliveStrategy(DefaultConnectionKeepAliveStrategy.INSTANCE)
+                                     .build();
+        httpclient.start();
 
+        target = new HttpHost(remoteHost.getAddress(), remoteHost.getPort());
     }
 
 
@@ -182,15 +197,43 @@ public class ReplayWorker extends
      * method ensures that a request is sent only after the requests, which end before,
      * are executed.
      */
-    private void writePackage(Request request) throws Exception {
-        ChannelPack pack = pool.getChannel();
-        // ProxyWorker.printContent(data);
-        System.out.println("Start request: " + request.rid);
-        BufferTools.modifyHeader(request.data, request.rid, 0, branchBytes, false, true);
-        pack.set(request.data.limit() - request.data.position(), request);
-        pack.channel.write(request.data, pack, new HandlerWrite());
-    }
+    private void writePackage(Request requestPackage) throws Exception {
+        // System.out.println("Start request: " + requestPackage.rid);
+        BufferTools.modifyHeader(requestPackage.data, requestPackage.rid, 0, branchBytes, false, true);
+        HttpRequest request = BufferTools.bufferToRequest(requestPackage.data);
 
+        httpclient.execute(target, request, new FutureCallback<HttpResponse>() {
+            public void completed(final HttpResponse response) {
+                // StatusLine status = response.getStatusLine();
+                // System.out.println(status.getStatusCode() + " " +
+                // status.getReasonPhrase());
+
+                long id = 0;
+                Header[] headers = response.getAllHeaders();
+                for (Header h : headers) {
+                    if (h.getName().equals("Id")) {
+                        System.out.println(h.getValue());
+                        id = new Long(h.getValue());
+                    }
+                }
+                if (id == 0) {
+                    System.err.println("id not found");
+                }
+                executingCounter.decrement(id);
+            }
+
+            public void failed(final Exception ex) {
+                System.err.println(ex);
+            }
+
+            public void cancelled() {
+                System.out.println(" cancelled");
+            }
+        });
+
+
+
+    }
 
     /**
      * The delay controls the throughput, at end of each second, the throughput is

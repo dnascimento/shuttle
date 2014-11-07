@@ -13,6 +13,7 @@ import java.util.List;
 
 import org.apache.http.HttpRequest;
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
@@ -38,6 +39,7 @@ public class BufferTools {
     private static final ByteBuffer CONNECTION = ByteBuffer.wrap(("Connection: ").getBytes());
     private static final ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
     private static final int ID_SIZE = 16;
+    private static final String JSON = "application/json";
 
 
     private BufferTools() {
@@ -379,21 +381,24 @@ public class BufferTools {
         LinkedList<String> headerLines = new LinkedList<String>();
         String reqBody = null;
         do {
-            if (request.get(i++) == SEPARATOR.get(0) && request.get(i) == SEPARATOR.get(1)) {
+            if (request.get(i++) == SEPARATOR.get(0) && request.get(i++) == SEPARATOR.get(1)) {
                 byte[] line;
-                if (request.get(start + 1) == SEPARATOR.get(0) && request.get(start + 2) == SEPARATOR.get(1)) {
+                if (request.get(start) == SEPARATOR.get(0) && request.get(start + 1) == SEPARATOR.get(1)) {
                     // request body
-                    line = new byte[request.limit() - start - 3];
-                    request.position(start + 3);
-                    request.get(line, 0, request.limit() - start - 3);
-                    String s = new String(line);
-                    reqBody = s;
+                    if ((start + 2) != request.limit()) {
+                        request.position(start + 2); // set to first char
+                        line = new byte[request.limit() - request.position()];
+                        request.get(line, 0, line.length);
+                        String s = new String(line);
+                        reqBody = s;
+                    }
                     break;
                 }
                 // header line
-                line = new byte[i - start];
-                request.get(line, 0, i - start);
+                line = new byte[i - start - 2];
+                request.get(line, 0, line.length);
                 start = i;
+                request.position(start);
                 String s = new String(line);
                 headerLines.add(s);
             }
@@ -403,9 +408,6 @@ public class BufferTools {
         String[] top = headerLines.removeFirst().split(" ");
         ReqType type = ReqType.valueOf(top[0]);
         String url = top[1];
-        System.out.println(type);
-        System.out.println(url);
-        System.out.println(reqBody);
 
         HttpRequestBase httpRequest = null;
         switch (type) {
@@ -417,21 +419,36 @@ public class BufferTools {
             break;
         case PUT:
             httpRequest = new HttpPut(url);
-            if (reqBody != null) {
-                ((HttpPut) httpRequest).setEntity(new StringEntity(reqBody));
-            }
             break;
         case POST:
             httpRequest = new HttpPost(url);
-            if (reqBody != null) {
-                ((HttpPost) httpRequest).setEntity(new StringEntity(reqBody));
-            }
-            break;
         }
+
+        String contentType = null;
         for (String line : headerLines) {
-            String[] headerEntry = line.split(":");
+            String[] headerEntry = line.split(": ");
+            if (headerEntry[0].equals("Content-Length")) {
+                continue;
+            }
+            if (headerEntry[0].equals("Content-Type")) {
+                contentType = headerEntry[1];
+            }
             httpRequest.setHeader(headerEntry[0], headerEntry[1]);
         }
+
+        if (contentType == null) {
+            assert (reqBody == null);
+        } else {
+            switch (contentType) {
+            case "application/x-www-form-urlencoded":
+                ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(new StringEntity(reqBody));
+                break;
+            case JSON:
+                ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(new StringEntity(reqBody));
+                break;
+            }
+        }
+
 
         return httpRequest;
     }
