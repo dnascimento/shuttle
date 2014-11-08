@@ -119,6 +119,8 @@ public class ReplayNode extends
 
         long end = System.currentTimeMillis();
         System.out.println("END:"+System.currentTimeMillis());
+        System.out.println("Start:"+start);
+
         long duration = end - start;
         log.info("All threads are done");
         log.info("Duration (ms) = " + duration);

@@ -26,7 +26,6 @@ import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
-import org.mortbay.log.Log;
 
 import pt.inesc.SharedProperties;
 import pt.inesc.manager.branchTree.BranchNode;
@@ -192,19 +191,19 @@ public class Manager {
 
         execLists = setUpperLimitOfConcurrentThreads(execLists, replayInstances.size());
 
-        StringBuilder sb = new StringBuilder();
-        for (List<Long> execList : execLists) {
-            if (execList == null || execList.size() == 0)
-                continue;
-            sb.append("[");
-            for (Long l : execList) {
-                sb.append(l);
-                sb.append(",");
-            }
-            sb.append("]\n");
-
-        }
-        Log.info("replay list: " + sb.toString());
+        // StringBuilder sb = new StringBuilder();
+        // for (List<Long> execList : execLists) {
+        // if (execList == null || execList.size() == 0)
+        // continue;
+        // sb.append("[");
+        // for (Long l : execList) {
+        // sb.append(l);
+        // sb.append(",");
+        // }
+        // sb.append("]\n");
+        //
+        // }
+        // Log.info("replay list: " + sb.toString());
 
         int i = 0;
         for (List<Long> execList : execLists) {

@@ -43,7 +43,7 @@ public class ProxyWorker extends
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
     /** time between attempt to flush to disk ms */
-    private final int FLUSH_PERIODICITY = 4000;
+    private final int FLUSH_PERIODICITY = 1000;
 
     private static final int N_BUFFERS = 4000;
 

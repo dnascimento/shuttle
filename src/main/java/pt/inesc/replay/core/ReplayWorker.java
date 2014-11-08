@@ -49,11 +49,11 @@ public class ReplayWorker extends
     private static final int SHOW_RATE_PERIOD = 1;
     /** Max number of requests pendent before adapt the throughput */
     private static final int MAX_QUEUE_SIZE = 500;
-    private static final int MIN_QUEUE_SIZE = 100;
+    private static final int MIN_QUEUE_SIZE = 200;
     private static final int ABSOLUT_LIMIT_QUEUE_SIZE = 600;
     private static final int THROUGHPUT_ADJUSTMENT = 15;
     private static final long MAX_DELAY = 1000;
-
+    private static final long MIN_SLEEP_TIME_MS = 10;
     private static final String USER_AGENT = "Shuttle";
 
     private static final int REQUEST_TIMEOUT = 2500000;
@@ -212,8 +212,7 @@ public class ReplayWorker extends
                 Header[] headers = response.getAllHeaders();
                 for (Header h : headers) {
                     if (h.getName().equals("Id")) {
-                        System.out.println(h.getValue());
-                        id = new Long(h.getValue());
+                        id = Long.valueOf(h.getValue());
                     }
                 }
                 if (id == 0) {
@@ -243,7 +242,7 @@ public class ReplayWorker extends
      */
     private void throughputControl(int pendentRequests) {
         // delay the request to control the throughput
-        if (delay > 0) {
+        if (delay > MIN_SLEEP_TIME_MS) {
             try {
                 Thread.sleep(delay);
             } catch (InterruptedException e) {
@@ -270,6 +269,13 @@ public class ReplayWorker extends
                 requestRate += THROUGHPUT_ADJUSTMENT;
             }
 
+
+            if (showRate-- == 0) {
+                showRate = SHOW_RATE_PERIOD;
+                System.out.println("Real rate: " + requestRateSent + " targetRate: " + requestRate + " delay: " + delay + " total: "
+                        + totalRequests + " pendent: " + pendentRequests);
+            }
+
             // calculate the new delay
             delay = (long) (((double) 1 / requestRate) * 1000);
             delay = (delay > MAX_DELAY) ? MAX_DELAY : delay;
@@ -277,12 +283,6 @@ public class ReplayWorker extends
 
             requestRateSent = 0;
 
-
-            if (showRate-- == 0) {
-                showRate = SHOW_RATE_PERIOD;
-                System.out.println("Real rate: " + requestRateSent + " targetRate: " + requestRate + " delay: " + delay + " total: "
-                        + totalRequests + " pendent: " + pendentRequests);
-            }
         }
         requestRateSent++;
 

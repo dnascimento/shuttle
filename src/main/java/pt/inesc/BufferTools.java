@@ -59,8 +59,9 @@ public class BufferTools {
     public static int indexOf(int startPosition, int end, ByteBuffer buffer, ByteBuffer pattern) {
         int patternLen = pattern.limit();
         int lastIndex = end - patternLen + 1;
+        byte firstByteInPattern = pattern.get(0);
         Label: for (int i = startPosition; i < lastIndex; i++) {
-            if (buffer.get(i) != pattern.get(0)) {
+            if (buffer.get(i) != firstByteInPattern) {
                 continue;
             }
             for (int j = 1; j < patternLen; j++) {
@@ -325,7 +326,7 @@ public class BufferTools {
 
         // modify time?
         if (startTS != -1) {
-            byte[] ts = new Long(startTS + timeTravel).toString().getBytes();
+            byte[] ts = Long.valueOf(startTS + timeTravel).toString().getBytes();
             header.position(4 + headerOffset);
             header.put(ts);
         }
@@ -426,27 +427,23 @@ public class BufferTools {
 
         String contentType = null;
         for (String line : headerLines) {
-            String[] headerEntry = line.split(": ");
-            if (headerEntry[0].equals("Content-Length")) {
+            int split = line.indexOf(':');
+            String headerEntryName = line.substring(0, split);
+            String headerEntryValue = line.substring(split + 2, line.length());
+
+            if (headerEntryName.equals("Content-Length")) {
                 continue;
             }
-            if (headerEntry[0].equals("Content-Type")) {
-                contentType = headerEntry[1];
+            if (headerEntryName.equals("Content-Type")) {
+                contentType = headerEntryValue;
             }
-            httpRequest.setHeader(headerEntry[0], headerEntry[1]);
+            httpRequest.setHeader(headerEntryName, headerEntryValue);
         }
 
         if (contentType == null) {
             assert (reqBody == null);
         } else {
-            switch (contentType) {
-            case "application/x-www-form-urlencoded":
-                ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(new StringEntity(reqBody));
-                break;
-            case JSON:
-                ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(new StringEntity(reqBody));
-                break;
-            }
+            ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(new StringEntity(reqBody));
         }
 
 

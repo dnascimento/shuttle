@@ -34,7 +34,7 @@ public class MonitorWaiter {
 
 
     public MonitorWaiter() {
-        new ShowCounter(this).start();
+        // new ShowCounter(this).start();
     }
 
 
