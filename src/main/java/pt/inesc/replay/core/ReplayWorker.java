@@ -39,7 +39,7 @@ import com.google.common.collect.ArrayListMultimap;
 public class ReplayWorker extends
         Thread {
 
-    private int requestRate = 10;
+    private int requestRate = 700;
     private int requestRateSent = 0;
     private long currentSecound = 0;
     private long delay;
@@ -48,10 +48,10 @@ public class ReplayWorker extends
      */
     private static final int SHOW_RATE_PERIOD = 1;
     /** Max number of requests pendent before adapt the throughput */
-    private static final int MAX_QUEUE_SIZE = 500;
+    private static final int MAX_QUEUE_SIZE = 400;
     private static final int MIN_QUEUE_SIZE = 200;
     private static final int ABSOLUT_LIMIT_QUEUE_SIZE = 600;
-    private static final int THROUGHPUT_ADJUSTMENT = 15;
+    private static final int THROUGHPUT_ADJUSTMENT = 50;
     private static final long MAX_DELAY = 1000;
     private static final long MIN_SLEEP_TIME_MS = 10;
     private static final String USER_AGENT = "Shuttle";
@@ -116,9 +116,10 @@ public class ReplayWorker extends
             try {
                 if (reqId == -1) {
                     // wait for all to execute
-                    System.out.println("Wait until zero: ");
+                    // System.out.println("Wait until zero: ");
                     executingCounter.waitUntilZero();
-                    logger.info("continue: " + totalRequests + " out of: " + executionArray.size());
+                    // logger.info("continue: " + totalRequests + " out of: " +
+                    // executionArray.size());
                     continue;
                 } else {
                     // execute request

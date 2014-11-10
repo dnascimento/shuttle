@@ -6,10 +6,16 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
+import pt.inesc.manager.Manager;
+
 public class SortedMap<V>
         implements Iterable<V>, Serializable {
 
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = LogManager.getLogger(Manager.class.getName());
 
     private final HashMap<Long, V> map;
     private transient SortedMapIterator currentIterator = null;
@@ -65,15 +71,14 @@ public class SortedMap<V>
         public SortedMapIterator(HashMap<Long, V> map) {
             this.map = map;
             Set<Long> keys = map.keySet();
-            System.out.println("Coping " + keys.size() + " keys to sort");
             sortedKeys = new long[keys.size()];
             int i = 0;
             for (Long key : keys) {
                 sortedKeys[i++] = key;
             }
-            System.out.println("Will sort the keys");
+            LOGGER.info("Will sort the keys");
             Arrays.sort(sortedKeys);
-            System.out.println("Keys sorted");
+            LOGGER.info("Keys sorted");
         }
 
 
