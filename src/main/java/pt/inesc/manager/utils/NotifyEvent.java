@@ -10,7 +10,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 /**
- * Simple thread alarm to notify the commit
+ * Simple thread alarm to notify the snapshot
  * 
  * @author darionascimento
  */

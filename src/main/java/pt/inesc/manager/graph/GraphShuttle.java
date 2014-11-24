@@ -108,14 +108,14 @@ public class GraphShuttle
      * 
      * @return a list of independent GraphShuttle
      */
-    public List<GraphShuttle> getSubTrees(long baseCommit) {
+    public List<GraphShuttle> getSubTrees(long baseSnapshot) {
         resetVisited();
         List<GraphShuttle> trees = new LinkedList<GraphShuttle>();
 
         for (Dependency node : map) {
             if (!node.visited) {
                 HashMap<Long, Dependency> subTree = new HashMap<Long, Dependency>();
-                expandNode(node.start, ExpandMode.both, subTree, baseCommit);
+                expandNode(node.start, ExpandMode.both, subTree, baseSnapshot);
                 trees.add(new GraphShuttle(subTree));
             }
         }
@@ -128,33 +128,33 @@ public class GraphShuttle
      * Get all accessible entries from the attackSource using only the nodes in the after
      * direction
      */
-    public HashMap<Long, Dependency> expandForward(List<Long> attackSource, long baseCommit) {
+    public HashMap<Long, Dependency> expandForward(List<Long> attackSource, long baseSnapshot) {
         HashMap<Long, Dependency> allNodes = new HashMap<Long, Dependency>();
         for (Long key : attackSource) {
-            expandNode(key, ExpandMode.forward, allNodes, baseCommit);
+            expandNode(key, ExpandMode.forward, allNodes, baseSnapshot);
         }
         return allNodes;
     }
 
     /**
      * Return the roots of the expanding sets. Like backtracker paper
-     * The snapshot defines that only request started after the commitID, belong to the
+     * The snapshot defines that only request started after the snapshotID, belong to the
      * new snapshot. Requests started before the snapshot, can not depend from requests
      * started after the snapshot
      * 
      * @param taintedLeafs the leafs of all tainted requests
-     * @param baseCommit before the commit, the data is known
+     * @param baseSnapshot before the snapshot, the data is known
      * @return the set of root requests needed to replay
      */
-    public HashMap<Long, Dependency> expandBack(HashMap<Long, Dependency> tainted, long baseCommit) {
+    public HashMap<Long, Dependency> expandBack(HashMap<Long, Dependency> tainted, long baseSnapshot) {
         HashMap<Long, Dependency> allNodes = new HashMap<Long, Dependency>();
         for (Entry<Long, Dependency> v : tainted.entrySet()) {
-            expandNode(v.getKey(), ExpandMode.back, allNodes, baseCommit);
+            expandNode(v.getKey(), ExpandMode.back, allNodes, baseSnapshot);
         }
         Iterator<Dependency> it = allNodes.values().iterator();
         while (it.hasNext()) {
             Dependency node = it.next();
-            if (node.start < baseCommit) {
+            if (node.start < baseSnapshot) {
                 it.remove();
             }
         }
@@ -169,9 +169,9 @@ public class GraphShuttle
      * @param root the source of the DFS algorithm
      * @param mode the directions of the graph to explore
      * @param result where the result is stored
-     * @param baseCommit
+     * @param baseSnapshot
      */
-    private void expandNode(Long root, ExpandMode mode, HashMap<Long, Dependency> result, long baseCommit) {
+    private void expandNode(Long root, ExpandMode mode, HashMap<Long, Dependency> result, long baseSnapshot) {
         Deque<Long> lifo = new ArrayDeque<Long>();
         lifo.add(root);
 
@@ -199,7 +199,7 @@ public class GraphShuttle
 
             if (mode == ExpandMode.back || mode == ExpandMode.both) {
                 for (Long back : node.before) {
-                    if (!result.containsKey(back) && back > baseCommit) {
+                    if (!result.containsKey(back) && back > baseSnapshot) {
                         lifo.add(back);
                     }
                 }
@@ -208,7 +208,7 @@ public class GraphShuttle
 
             if (mode == ExpandMode.forward || mode == ExpandMode.both) {
                 for (Long next : node.after) {
-                    if (!result.containsKey(next) && next > baseCommit) {
+                    if (!result.containsKey(next) && next > baseSnapshot) {
                         lifo.add(next);
                     }
                 }
@@ -282,22 +282,22 @@ public class GraphShuttle
         return counterBefore;
     }
 
-    public synchronized ExecListWrapper replay(long baseCommit, ReplayMode mode, List<Long> attackSource) {
+    public synchronized ExecListWrapper replay(long baseSnapshot, ReplayMode mode, List<Long> attackSource) throws Exception {
         List<List<Long>> result = new ArrayList<List<Long>>(1);
 
         long latestRequest = getLatestRequest();
 
         switch (mode) {
         case allParallel:
-            result = DepAlgorithms.replayParallel(baseCommit, this);
+            result = DepAlgorithms.replayParallel(baseSnapshot, this);
             break;
         case allSerial:
-            result.add(DepAlgorithms.replaySerial(baseCommit, this));
+            result.add(DepAlgorithms.replaySerial(baseSnapshot, this));
             break;
         case selectiveParallel:
-            result = DepAlgorithms.replaySelectiveParallel(baseCommit, attackSource, this);
+            result = DepAlgorithms.replaySelectiveParallel(baseSnapshot, attackSource, this);
         case selectiveSerial:
-            result.add(DepAlgorithms.replaySelectiveSerial(baseCommit, attackSource, this));
+            result.add(DepAlgorithms.replaySelectiveSerial(baseSnapshot, attackSource, this));
             break;
         default:
             throw new UnsupportedOperationException("Unknown replay mode");
@@ -327,7 +327,10 @@ public class GraphShuttle
     }
 
 
-    private long getLatestRequest() {
+    private long getLatestRequest() throws Exception {
+        if (map.size() == 0) {
+            throw new Exception("Graph is empty");
+        }
         return map.getBiggestKey();
     }
 
@@ -336,14 +339,19 @@ public class GraphShuttle
     }
 
 
-    public String getTotalByteSize() {
-        Footprint footPrint = ObjectGraphMeasurer.measure(map.getMap());
-        long memory = MemoryMeasurer.measureBytes(map.getMap());
+    public String getTotalByteSize(boolean byteSize) {
         StringBuilder sb = new StringBuilder();
-        sb.append("\n \n \n \n /************** Graph Total Size ******************\\\n");
-        sb.append("Total: \n" + "    " + footPrint + "\n");
-        sb.append("     memory" + memory + " bytes\n");
-        sb.append("------\n");
+
+        if (byteSize) {
+            System.out.println("Get footprint");
+            Footprint footPrint = ObjectGraphMeasurer.measure(map.getMap());
+            System.out.println("Get memory usage");
+            long memory = MemoryMeasurer.measureBytes(map.getMap());
+            sb.append("\n \n \n \n /************** Graph Total Size ******************\\\n");
+            sb.append("Total: \n" + "    " + footPrint + "\n");
+            sb.append("     memory" + memory + " bytes\n");
+            sb.append("------\n");
+        }
         int before = 0;
         int after = 0;
         int count = 0;
@@ -366,6 +374,10 @@ public class GraphShuttle
             sb.append(",");
         }
         return sb.toString();
+    }
+
+    public void deleteIterator() {
+        map.deleteIterator();
     }
 
 }

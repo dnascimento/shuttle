@@ -24,6 +24,7 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
 
 import pt.inesc.SharedProperties;
+import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.replay.core.ReplayWorker;
 import pt.inesc.undo.proto.FromManagerProto;
@@ -47,7 +48,9 @@ public class ReplayNode extends
     private List<String> errors = new LinkedList<String>();
     private ArrayList<ReplayWorker> workers = new ArrayList<ReplayWorker>();
     private static long totalRequests = 0;
+    private CassandraClient cassandra;
     ServerSocket myServerSocket;
+
 
     public static void main(String[] args) throws Exception {
         DOMConfigurator.configure("log4j.xml");
@@ -56,6 +59,7 @@ public class ReplayNode extends
 
     public ReplayNode() throws Exception {
         try {
+            cassandra = new CassandraClient();
             myServerSocket = new ServerSocket(SharedProperties.REPLAY_PORT);
             registryToManger();
         } catch (BindException e) {
@@ -67,7 +71,7 @@ public class ReplayNode extends
 
     @Override
     public void run() {
-        log.info("Redo node is listening...");
+        log.info("Replay node is listening...");
         while (true) {
             Socket newSocket;
             try {
@@ -104,11 +108,11 @@ public class ReplayNode extends
     }
 
     public void startOrder() {
-           long start = System.currentTimeMillis();
-           System.out.println("Start:"+start);
-           for (ReplayWorker worker : workers) {
-               threadPool.execute(worker);
-           }
+        long start = System.currentTimeMillis();
+        System.out.println("Start:" + start);
+        for (ReplayWorker worker : workers) {
+            threadPool.execute(worker);
+        }
 
         threadPool.shutdown();
         try {
@@ -118,8 +122,8 @@ public class ReplayNode extends
         }
 
         long end = System.currentTimeMillis();
-        System.out.println("END:"+System.currentTimeMillis());
-        System.out.println("Start:"+start);
+        System.out.println("END:" + System.currentTimeMillis());
+        System.out.println("Start:" + start);
 
         long duration = end - start;
         log.info("All threads are done");
@@ -134,7 +138,7 @@ public class ReplayNode extends
     }
 
     public void newRequest(List<Long> execList, short branch, ReplayMode replayMode, String targetHost, int targetPort) throws Exception {
-        workers.add(new ReplayWorker(execList, new InetSocketAddress(targetHost, targetPort), branch));
+        workers.add(new ReplayWorker(execList, new InetSocketAddress(targetHost, targetPort), branch, cassandra));
     }
 
     private void newConnection(Socket socket) throws Exception {

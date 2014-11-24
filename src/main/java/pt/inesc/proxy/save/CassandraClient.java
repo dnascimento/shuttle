@@ -45,6 +45,9 @@ public class CassandraClient {
     private static final String COL_KEYS = "keys";
     private static final String COL_END = "end";
     private static final String QUERY_REQUEST = new String("select " + COL_REQUEST + ", " + COL_END + " from " + TABLE_NAME + " where id=");
+    private static final String QUERY_REQUESTS = new String("select " + COL_ID + ", " + COL_REQUEST + ", " + COL_END + " from "
+            + TABLE_NAME + " where id in (");
+
     private static final String QUERY_RESPONSE = new String("select " + COL_RESPONSE + " from " + TABLE_NAME + " where id=");
 
     private static final String QUERY_KEYS = new String("select " + COL_KEYS + " from " + TABLE_NAME + " where id=");
@@ -117,6 +120,55 @@ public class CassandraClient {
 
 
     // /////////////////////////////////////////////////////////////
+    public void getRequests(ArrayList<Request> list, int fetchPosition, int limit) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(QUERY_REQUESTS);
+        int counter = 0;
+        for (int i = fetchPosition; i < limit; i++) {
+            long rid = list.get(i).rid;
+            if (rid == -1) {
+                continue;
+            }
+            if (counter > 0) {
+                sb.append(", ");
+            }
+            sb.append(rid);
+            counter++;
+        }
+        sb.append(");");
+        if (counter == 0) {
+            return;
+        }
+        String query = sb.toString();
+        ResultSet result = session.execute(query);
+        Iterator<Row> resultIterator = result.all().iterator();
+        Row row = null;
+        for (int i = fetchPosition; i < limit; i++) {
+            Request r = list.get(i);
+            if (r.rid == -1) {
+                continue;
+            }
+
+            if (row == null) {
+                row = resultIterator.next();
+            }
+
+            long cassandraRid = row.getLong(COL_ID);
+
+            if (cassandraRid != r.rid) {
+                log.error("Request " + r.rid + " not found");
+                continue;
+            }
+
+            r.data = row.getBytes(COL_REQUEST);
+            r.end = row.getLong(COL_END);
+            if (resultIterator.hasNext()) {
+                row = resultIterator.next();
+            } else {
+                row = null;
+            }
+        }
+    }
 
     public Request getRequest(long rid) throws Exception {
         StringBuilder sb = new StringBuilder();
@@ -271,5 +323,7 @@ public class CassandraClient {
         System.out.println(c.calculateSize());
         c.close();
     }
+
+
 
 }

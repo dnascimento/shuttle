@@ -75,10 +75,10 @@ public class ServiceProxy extends
     private void receive(Socket socket) throws IOException {
         log.info("New service command");
         ProxyMsg msg = FromManagerProto.ProxyMsg.parseDelimitedFrom(socket.getInputStream());
-        if (msg.hasCommit()) {
+        if (msg.hasSnapshot()) {
             short branch = (short) msg.getBranch();
-            long commit = msg.getCommit();
-            proxy.reset(branch, commit);
+            long snapshot = msg.getSnapshot();
+            proxy.reset(branch, snapshot);
             return;
         }
 

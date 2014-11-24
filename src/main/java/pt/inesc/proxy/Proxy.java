@@ -133,6 +133,13 @@ public class Proxy {
         group.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
+    /**
+     * Set a new branch and enable restrain
+     * 
+     * @param branch
+     * @param restrain
+     * @return the current timestamp
+     */
     public long setBranchAndRestrain(short branch, boolean restrain) {
         log.info("branch: " + branch + " restrain: " + restrain);
         byte[] b = null;
@@ -144,15 +151,10 @@ public class Proxy {
             if (b != null)
                 Proxy.branch = b;
             Proxy.restrain = restrain;
-            currentId = getTimeStamp();
+            currentId = ProxyWorker.getTimestamp();
         }
         return currentId;
     }
-
-    private static long getTimeStamp() {
-        return System.currentTimeMillis() / 1000;
-    }
-
 
 
 
@@ -164,7 +166,7 @@ public class Proxy {
         }
     }
 
-    public void reset(short newBranch, long newCommit) {
+    public void reset(short newBranch, long newSnapshot) {
         log.info("Proxy RESET to branch: " + newBranch);
         synchronized (Proxy.lockBranchRestrain) {
             branch = BufferTools.shortToByteArray(newBranch);

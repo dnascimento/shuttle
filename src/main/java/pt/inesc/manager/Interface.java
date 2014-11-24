@@ -17,6 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Scanner;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
 import pt.inesc.manager.graph.Dependency;
 import pt.inesc.manager.requests.RequestsModifier;
 import pt.inesc.proxy.save.CassandraClient;
@@ -26,6 +29,9 @@ import pt.inesc.replay.core.ReplayMode;
 public class Interface extends
         Thread {
     private final Manager manager;
+
+    private static final Logger LOGGER = LogManager.getLogger(Interface.class.getName());
+
 
     public Interface(Manager manager) {
         super();
@@ -43,7 +49,7 @@ public class Interface extends
         while (true) {
             try {
                 System.out.println("-------------------------------");
-                System.out.println("a) New Commit");
+                System.out.println("a) New Snapshot");
                 System.out.println("b) Replay");
                 System.out.println("c) Clean");
                 System.out.println("d) Branches");
@@ -57,7 +63,7 @@ public class Interface extends
                 char[] args = line.toCharArray();
                 switch (args[0]) {
                 case 'a':
-                    commit(s);
+                    snapshot(s);
                     break;
                 case 'b':
                     replay(s);
@@ -117,7 +123,7 @@ public class Interface extends
             System.out.println(manager.graph);
             break;
         case 'c':
-            Pair<Short, Long> pair = collectBranchAndCommit(s);
+            Pair<Short, Long> pair = collectBranchAndSnapshot(s);
             if (pair == null)
                 return;
             manager.newBranch(pair.v2, pair.v1);
@@ -142,13 +148,13 @@ public class Interface extends
 
     }
 
-    private void commit(Scanner s) throws Exception {
-        System.out.println("Enter commit instant (time (secounds) from now):");
+    private void snapshot(Scanner s) throws Exception {
+        System.out.println("Enter snapshot instant (time (secounds) from now):");
         long delay = Long.parseLong(s.nextLine());
         long instant = System.currentTimeMillis() + (delay * 1000);
-        manager.newCommit(instant);
+        manager.newSnapshot(instant);
         String dateString = new SimpleDateFormat("H:m:S").format(new Date(instant));
-        System.out.println("Commit scheduled to: " + dateString);
+        System.out.println("Snapshot scheduled to: " + dateString);
     }
 
 
@@ -161,6 +167,7 @@ public class Interface extends
         System.out.println("f) count clusters");
         System.out.println("g) graph size summary");
         System.out.println("h) list graph entries");
+        System.out.println("i) measure time to generate graph");
         String line = s.nextLine();
         if (line.length() == 0)
             return;
@@ -210,10 +217,23 @@ public class Interface extends
             System.out.println(clusters.size() + " independent clusters");
             break;
         case 'g':
-            System.out.println(manager.graph.getTotalByteSize());
+            System.out.println("Get byte size? y/n");
+            boolean byteSize = (s.nextLine().equals("y"));
+            System.out.println(manager.graph.getTotalByteSize(byteSize));
             break;
         case 'h':
             System.out.println(manager.graph.listAllEntries());
+            break;
+        case 'i':
+            // // Get execution list
+            LOGGER.warn("Get the excution list for serial");
+            manager.graph.replay(0, ReplayMode.allSerial, null);
+            LOGGER.warn("Got the excution list");
+            LOGGER.warn("Get the excution list for parallel");
+            manager.graph.deleteIterator();
+            manager.graph.replay(0, ReplayMode.allParallel, null);
+            LOGGER.warn("Got the excution list");
+            break;
         default:
             return;
         }
@@ -281,10 +301,10 @@ public class Interface extends
     }
 
     private void replay(Scanner s) throws Exception {
-        Pair<Short, Long> pair = collectBranchAndCommit(s);
+        Pair<Short, Long> pair = collectBranchAndSnapshot(s);
         if (pair == null)
             return;
-        long commit = pair.v2;
+        long snapshot = pair.v2;
         short branch = pair.v1;
 
         System.out.println("Enter the recovery mode: \n 0- all in serial \n 1- all in parallel \n 2- selective in serial \n 3 - selective in parallel, use 10 11 12 13 to see the execution list");
@@ -307,23 +327,23 @@ public class Interface extends
 
         ReplayMode replayMode = ReplayMode.castFromInt(opt);
         if (viewList) {
-            List<List<Long>> execLists = manager.graph.replay(commit, replayMode, attackSource).list;
+            List<List<Long>> execLists = manager.graph.replay(snapshot, replayMode, attackSource).list;
             for (List<Long> l : execLists) {
                 for (Long e : l) {
                     System.out.println(e);
                 }
             }
         } else {
-            manager.replay(commit, branch, replayMode, attackSource);
+            manager.replay(snapshot, branch, replayMode, attackSource);
         }
     }
 
-    private Pair<Short, Long> collectBranchAndCommit(Scanner s) throws Exception {
+    private Pair<Short, Long> collectBranchAndSnapshot(Scanner s) throws Exception {
         boolean showed = false;
         Short branch = 0;
-        Long commit = 0L;
+        Long snapshot = 0L;
         while (true) {
-            System.out.println("Select base branch and commit (press enter to visualize the tree):");
+            System.out.println("Select base branch and snapshot (press enter to visualize the tree):");
             String line = s.nextLine();
             if (line.isEmpty()) {
                 if (showed) {
@@ -338,10 +358,10 @@ public class Interface extends
             if (args.length != 2)
                 throw new Exception("invalid arguments");
             branch = Short.parseShort(args[0]);
-            commit = Long.parseLong(args[1]);
+            snapshot = Long.parseLong(args[1]);
             break;
         }
-        return new Pair<Short, Long>(branch, commit);
+        return new Pair<Short, Long>(branch, snapshot);
     }
 
     private void requests(Scanner s) throws Exception {

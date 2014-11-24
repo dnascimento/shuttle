@@ -43,7 +43,7 @@ public class ProxyWorker extends
     private static Logger log = Logger.getLogger(ProxyWorker.class.getName());
 
     /** time between attempt to flush to disk ms */
-    private final int FLUSH_PERIODICITY = 1000;
+    public final static int FLUSH_PERIODICITY = 1000;
 
     private static final int N_BUFFERS = 4000;
 
@@ -222,6 +222,7 @@ public class ProxyWorker extends
     }
 
     public void sendToBackend(ByteBuffer request) throws IOException {
+        // System.out.println("SIZE: " + request.limit());
         // Write to backend
         int toWrite = request.limit();
         int written = 0;

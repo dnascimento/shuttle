@@ -8,10 +8,13 @@ package pt.inesc.proxy.save;
 
 import java.nio.ByteBuffer;
 
+import org.apache.http.HttpRequest;
+
 public class Request {
     public ByteBuffer data;
     public long rid;
     public long end;
+    public HttpRequest request;
 
 
     public Request(ByteBuffer data, long rid) {
@@ -31,6 +34,10 @@ public class Request {
 
     public Request() {
 
+    }
+
+    public Request(long rid) {
+        this.rid = rid;
     }
 
 

@@ -7,11 +7,11 @@ option optimize_for = SPEED;
 
 //To data node
 message ToDataNode{
-	optional int64 newCommit = 1;
+	optional int64 newSnapshot = 1;
 	optional bool resetDependencies = 2;
-	optional bool redoOver = 3;
+	optional bool replayOver = 3;
 	repeated int32 pathBranch = 4;
-	repeated int64 pathCommit = 5;
+	repeated int64 pathSnapshot = 5;
 	optional EntryAccessesMsg entryAccessesMsg = 6;
 	optional bool showStats = 7;
 	optional bool showMap = 8;
@@ -23,7 +23,7 @@ message ToDataNode{
 }
 
 
-//To redo node
+//To replay node
 message ExecList{
 	repeated int64 rid = 1;
 	required int32 branch = 2;
@@ -39,5 +39,5 @@ message ProxyMsg{
 	optional int32 branch = 1;
 	optional bool restrain = 2;
 	optional int64 timeTravel = 3;
-	optional int64 commit = 4;
+	optional int64 snapshot = 4;
 }

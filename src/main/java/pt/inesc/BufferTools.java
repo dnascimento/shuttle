@@ -40,6 +40,7 @@ public class BufferTools {
     private static final ByteBuffer HTTP1 = ByteBuffer.wrap(("1.1").getBytes());
     private static final int ID_SIZE = 16;
     private static final String JSON = "application/json";
+    private static final int HEADER_BUFFER_SIZE = 49;
 
 
     private BufferTools() {
@@ -292,7 +293,7 @@ public class BufferTools {
     }
 
     public static ByteBuffer createBaseHeader() {
-        ByteBuffer header = ByteBuffer.allocate(47);
+        ByteBuffer header = ByteBuffer.allocate(HEADER_BUFFER_SIZE);
         ID_MARK.rewind();
         header.put(ID_MARK);
         ID_MARK.rewind();
@@ -305,10 +306,10 @@ public class BufferTools {
         header.put(SEPARATOR);
         SEPARATOR.rewind();
         header.put("R: f".getBytes());
-        // not redo
+        // not replay
         header.put(SEPARATOR);
         SEPARATOR.rewind();
-        header.put("Redo: f".getBytes());
+        header.put("Replay: f".getBytes());
         header.put(SEPARATOR);
         SEPARATOR.rewind();
         header.position(0);
@@ -344,7 +345,7 @@ public class BufferTools {
         }
 
         // modify replay
-        header.position(44 + headerOffset);
+        header.position(46 + headerOffset);
         if (replay) {
             header.put((byte) 't');
         } else {

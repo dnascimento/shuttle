@@ -9,12 +9,12 @@ package pt.inesc.replay.core;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.concurrent.FutureCallback;
@@ -24,11 +24,10 @@ import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import pt.inesc.BufferTools;
 import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.proxy.save.Request;
 import pt.inesc.replay.ReplayNode;
-import pt.inesc.replay.core.cookies.CookieMan;
+import pt.inesc.replay.core.ReplayWorker.HttpCallback;
 import pt.inesc.replay.core.unlock.VoldemortUnlocker;
 import voldemort.undoTracker.KeyAccess;
 import voldemort.undoTracker.SRD;
@@ -43,34 +42,28 @@ public class ReplayWorker extends
     private int requestRateSent = 0;
     private long currentSecound = 0;
     private long delay;
-    /**
-     * Show the current request rate every x seconds
-     */
-    private static final int SHOW_RATE_PERIOD = 1;
     /** Max number of requests pendent before adapt the throughput */
-    private static final int MAX_QUEUE_SIZE = 400;
-    private static final int MIN_QUEUE_SIZE = 200;
-    private static final int ABSOLUT_LIMIT_QUEUE_SIZE = 600;
-    private static final int THROUGHPUT_ADJUSTMENT = 50;
-    private static final long MAX_DELAY = 1000;
-    private static final long MIN_SLEEP_TIME_MS = 10;
+    private static final int MAX_QUEUE_SIZE = 8000;
+    private static final int MIN_QUEUE_SIZE = 2000;
+    private static final int ABSOLUT_LIMIT_QUEUE_SIZE = 12000;
+    private static final int THROUGHPUT_ADJUSTMENT = 100;
+    private static final long MAX_DELAY = 800;
+    private static final long MIN_SLEEP_TIME_MS = 5;
     private static final String USER_AGENT = "Shuttle";
 
     private static final int REQUEST_TIMEOUT = 2500000;
-    private int showRate = SHOW_RATE_PERIOD;
     /**
      * If the requests send is much bigger than the target rate, for instance if the queue
      * is huge, then the delay can be huge. We set a maximum value for delay
      */
 
 
-    protected static Logger logger = LogManager.getLogger(ReplayWorker.class.getName());
+    protected static Logger log = LogManager.getLogger(ReplayWorker.class.getName());
 
-    protected final List<Long> executionArray;
-    public static CookieMan cookieManager = new CookieMan();
+    protected final AssyncExecutionArray executionArray;
+    // TODO public static CookieMan cookieManager = new CookieMan();
 
     protected final CassandraClient cassandra;
-    protected final byte[] branchBytes;
     protected final short branch;
     protected final List<String> errors = new LinkedList<String>();
     protected long totalRequests = 0;
@@ -82,13 +75,11 @@ public class ReplayWorker extends
     private final MonitorWaiter executingCounter = new MonitorWaiter();
 
 
-    public ReplayWorker(List<Long> execList, InetSocketAddress remoteHost, short branch) throws Exception {
+    public ReplayWorker(List<Long> execList, InetSocketAddress remoteHost, short branch, CassandraClient cassandra) throws Exception {
         super();
-        System.out.println("New replay worker");
-        this.executionArray = execList;
-        logger.info("New Worker");
-        cassandra = new CassandraClient();
-        this.branchBytes = BufferTools.shortToByteArray(branch);
+        log.info("New replay worker");
+        this.cassandra = cassandra;
+        executionArray = new AssyncExecutionArray(execList, cassandra, branch);
         this.branch = branch;
         // create a variable group of threads to handle each channel
         // TODO check this unlocker
@@ -97,6 +88,7 @@ public class ReplayWorker extends
         delay = (long) (((double) 1 / requestRate) * 1000);
 
         RequestConfig requestConfig = RequestConfig.custom().setSocketTimeout(REQUEST_TIMEOUT).setConnectTimeout(REQUEST_TIMEOUT).build();
+
         httpclient = HttpAsyncClients.custom()
                                      .setDefaultRequestConfig(requestConfig)
                                      .setUserAgent(USER_AGENT)
@@ -107,14 +99,16 @@ public class ReplayWorker extends
         target = new HttpHost(remoteHost.getAddress(), remoteHost.getPort());
     }
 
-
     @Override
     public void run() {
-        logger.info("Start time:" + new Date().getTime());
+        log.info("Start time:" + new Date().getTime());
         // if the request start is smaller than the biggest executing end, then, wait.
-        for (long reqId : executionArray) {
+        Iterator<Request> requestIT = executionArray.iterator();
+
+        while (requestIT.hasNext()) {
+            Request request = requestIT.next();
             try {
-                if (reqId == -1) {
+                if (request.rid == -1) {
                     // wait for all to execute
                     // System.out.println("Wait until zero: ");
                     executingCounter.waitUntilZero();
@@ -122,20 +116,19 @@ public class ReplayWorker extends
                     // executionArray.size());
                     continue;
                 } else {
-                    // execute request
-                    Request request = cassandra.getRequest(reqId);
-                    if (request == null) {
-                        compensateRequest(reqId);
+                    // Load a batch of requests
+                    if (request.request == null) {
+                        compensateRequest(request.rid);
                     } else {
-                        int pendentRequests = executingCounter.increment(reqId);
+                        int pendentRequests = executingCounter.increment(request.rid);
                         throughputControl(pendentRequests);
                         writePackage(request);
                     }
                     totalRequests++;
                 }
             } catch (Exception e) {
-                errors.add("Erro in req: " + reqId + " " + e);
-                logger.error("Erro", e);
+                errors.add("Erro in req: " + request.rid + " " + e);
+                log.error("Erro", e);
             }
         }
         try {
@@ -144,12 +137,13 @@ public class ReplayWorker extends
             e.printStackTrace();
         }
 
-        logger.info("Redo end");
+        log.info("Replay end");
         ReplayNode.addErrors(errors, totalRequests);
     }
 
     protected void compensateRequest(long reqID) throws Exception {
-        logger.warn("Request deleted: " + reqID + " fetching the keys to compensate...");
+        // logger.warn("Request deleted: " + reqID +
+        // " fetching the keys to compensate...");
         // the request was delete, unlock the original keys
         ArrayListMultimap<ByteArray, KeyAccess> keys = cassandra.getKeys(reqID);
         if (keys != null && !keys.isEmpty()) {
@@ -200,37 +194,7 @@ public class ReplayWorker extends
      */
     private void writePackage(Request requestPackage) throws Exception {
         // System.out.println("Start request: " + requestPackage.rid);
-        BufferTools.modifyHeader(requestPackage.data, requestPackage.rid, 0, branchBytes, false, true);
-        HttpRequest request = BufferTools.bufferToRequest(requestPackage.data);
-
-        httpclient.execute(target, request, new FutureCallback<HttpResponse>() {
-            public void completed(final HttpResponse response) {
-                // StatusLine status = response.getStatusLine();
-                // System.out.println(status.getStatusCode() + " " +
-                // status.getReasonPhrase());
-
-                long id = 0;
-                Header[] headers = response.getAllHeaders();
-                for (Header h : headers) {
-                    if (h.getName().equals("Id")) {
-                        id = Long.valueOf(h.getValue());
-                    }
-                }
-                if (id == 0) {
-                    System.err.println("id not found");
-                }
-                executingCounter.decrement(id);
-            }
-
-            public void failed(final Exception ex) {
-                System.err.println(ex);
-            }
-
-            public void cancelled() {
-                System.out.println(" cancelled");
-            }
-        });
-
+        httpclient.execute(target, requestPackage.request, new HttpCallback(requestPackage));
 
 
     }
@@ -252,7 +216,6 @@ public class ReplayWorker extends
         }
 
 
-
         long now = System.currentTimeMillis() / 1000;
         if (currentSecound == 0) {
             currentSecound = now;
@@ -271,11 +234,9 @@ public class ReplayWorker extends
             }
 
 
-            if (showRate-- == 0) {
-                showRate = SHOW_RATE_PERIOD;
-                System.out.println("Real rate: " + requestRateSent + " targetRate: " + requestRate + " delay: " + delay + " total: "
-                        + totalRequests + " pendent: " + pendentRequests);
-            }
+            log.warn("Real written rate: " + requestRateSent + " targetRate: " + requestRate + " delay: " + delay + " total: "
+                    + totalRequests + " pendent: " + pendentRequests);
+
 
             // calculate the new delay
             delay = (long) (((double) 1 / requestRate) * 1000);
@@ -287,9 +248,54 @@ public class ReplayWorker extends
         }
         requestRateSent++;
 
-        // Delay the requests if the limit is exceded
+        // Delay the requests if the limit is exceeded
         if (pendentRequests > ABSOLUT_LIMIT_QUEUE_SIZE) {
             delay = MAX_DELAY;
         }
     }
+
+
+    class HttpCallback
+            implements FutureCallback<HttpResponse> {
+
+        private Request req;
+
+        HttpCallback(Request req) {
+            this.req = req;
+        }
+
+        @Override
+        public void completed(final HttpResponse response) {
+            // StatusLine status = response.getStatusLine();
+            // System.out.println(status.getStatusCode() + " " +
+            // status.getReasonPhrase());
+
+            long id = 0;
+            Header[] headers = response.getAllHeaders();
+            for (Header h : headers) {
+                if (h.getName().equals("Id")) {
+                    id = Long.valueOf(h.getValue());
+                }
+            }
+            if (id == 0) {
+                System.err.println("id not found");
+            }
+            executingCounter.decrement(id);
+            // clean to GC
+            req.request = null;
+            req = null;
+        }
+
+        @Override
+        public void failed(final Exception ex) {
+            System.err.println(ex);
+        }
+
+        @Override
+        public void cancelled() {
+            System.out.println(" cancelled");
+        }
+    }
+
+
 }

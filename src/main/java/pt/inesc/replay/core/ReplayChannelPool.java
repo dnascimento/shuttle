@@ -17,8 +17,8 @@ import pt.inesc.proxy.save.CassandraClient;
 import pt.inesc.replay.core.handlers.ChannelPack;
 import pt.inesc.replay.core.handlers.HandlerRead;
 
-public class RedoChannelPool {
-    private static Logger logger = LogManager.getLogger(RedoChannelPool.class.getName());
+public class ReplayChannelPool {
+    private static Logger logger = LogManager.getLogger(ReplayChannelPool.class.getName());
     private final InetSocketAddress remoteHost;
     private static final int INIT_NUMBER_OF_THREADS_AND_CHANNELS = 50;
     private final CassandraClient cassandra;
@@ -28,7 +28,7 @@ public class RedoChannelPool {
 
     private MonitorWaiter sentCounter;
 
-    private RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra) throws Exception {
+    private ReplayChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra) throws Exception {
         this.remoteHost = remoteHost;
         this.cassandra = cassandra;
         ExecutorService executor = Executors.newCachedThreadPool();
@@ -37,7 +37,7 @@ public class RedoChannelPool {
 
 
 
-    public RedoChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra, MonitorWaiter executingCounter) throws Exception {
+    public ReplayChannelPool(InetSocketAddress remoteHost, CassandraClient cassandra, MonitorWaiter executingCounter) throws Exception {
         this(remoteHost, cassandra);
         this.sentCounter = executingCounter;
 

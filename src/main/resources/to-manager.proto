@@ -43,10 +43,10 @@ message MsgToManager{
 		optional int64 rid = 1;
 		optional int32 branch = 2;
 		optional bool restrain = 3;
-		optional bool redo = 4;
+		optional bool replay = 4;
 	}
 
-	//From Redo Nodes
+	//From Replay Nodes
 	message AckMsg{
 		optional int32 port = 1;
 		optional string hostname = 2;

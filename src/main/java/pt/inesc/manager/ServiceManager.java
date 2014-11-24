@@ -79,7 +79,7 @@ public class ServiceManager extends
                     if (proto.hasTrackMsg()) {
                         log.info("New msg: dependencies");
                         MsgToManager.TrackMsg m1 = proto.getTrackMsg();
-                        newList(m1.getEntryList());
+                        newDependencyList(m1.getEntryList());
                     }
                     // add start-end of each request (from proxy)
                     if (proto.hasStartEndMsg()) {
@@ -139,7 +139,7 @@ public class ServiceManager extends
         }
 
 
-        public void newList(List<TrackEntry> list) {
+        public void newDependencyList(List<TrackEntry> list) {
             log.debug(depListToString(list));
             for (TrackEntry entry : list) {
                 manager.addDependencies(entry.getRid(), entry.getDependencyList());

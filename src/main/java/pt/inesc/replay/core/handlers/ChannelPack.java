@@ -9,18 +9,18 @@ package pt.inesc.replay.core.handlers;
 import java.nio.channels.AsynchronousSocketChannel;
 
 import pt.inesc.proxy.save.Request;
-import pt.inesc.replay.core.RedoChannelPool;
+import pt.inesc.replay.core.ReplayChannelPool;
 
 
 public class ChannelPack {
     public AsynchronousSocketChannel channel;
     public int bytesToProcess;
-    public RedoChannelPool pool;
+    public ReplayChannelPool pool;
     public Request request;
 
-    public ChannelPack(AsynchronousSocketChannel channel, RedoChannelPool redoChannelPool) {
+    public ChannelPack(AsynchronousSocketChannel channel, ReplayChannelPool replayChannelPool) {
         this.channel = channel;
-        this.pool = redoChannelPool;
+        this.pool = replayChannelPool;
     }
 
     public void set(int bytesToProcess, Request request) {

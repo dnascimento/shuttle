@@ -37,15 +37,21 @@ import pt.inesc.manager.graph.GraphShuttle;
 import pt.inesc.manager.utils.CleanVoldemort;
 import pt.inesc.manager.utils.MonitorLatchManager;
 import pt.inesc.manager.utils.NotifyEvent;
+import pt.inesc.proxy.ProxyWorker;
 import pt.inesc.replay.core.ReplayMode;
 import pt.inesc.undo.proto.FromManagerProto;
 import pt.inesc.undo.proto.FromManagerProto.ExecList;
 import pt.inesc.undo.proto.FromManagerProto.ProxyMsg;
 import pt.inesc.undo.proto.FromManagerProto.ToDataNode;
 import pt.inesc.undo.proto.ToManagerProto.MsgToManager;
+import voldemort.undoTracker.SendDependencies;
 
 public class Manager {
     private static final Logger LOGGER = LogManager.getLogger(Manager.class.getName());
+    /**
+     * Tolerance so the dependencies can be sent
+     */
+    private static final long WAIT_FOR_DEPENDENCIES = Math.max(SendDependencies.REFRESH_PERIOD, ProxyWorker.FLUSH_PERIODICITY) + 5000;
     private static int MAX_CONCURRENT_CLIENTS_PER_REPLAY_NODE = 30;
 
     public final GroupCom group;
@@ -85,32 +91,31 @@ public class Manager {
      * request.
      * Otherwise, perform selective replay
      * 
-     * @param parentCommit
+     * @param parentSnapshot
      * @param parentBranch
      * @param attackSource
      * @throws Exception
      */
-    public void replay(long parentCommit, short parentBranch, ReplayMode replayMode, List<Long> attackSource) throws Exception {
+    public void replay(long parentSnapshot, short parentBranch, ReplayMode replayMode, List<Long> attackSource) throws Exception {
         // get requests to send
-        LOGGER.info("Replay based on branch: " + parentBranch + " and commit: " + parentCommit);
+        LOGGER.info("Replay based on branch: " + parentBranch + " and snapshot: " + parentSnapshot);
 
-        short newBranch = branches.fork(parentCommit, parentBranch);
-        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
+        short newBranch = branches.fork(parentSnapshot, parentBranch);
+        LinkedList<BranchNode> path = branches.getPath(parentSnapshot, newBranch);
 
-        // notify the database nodes about the path of the redo branch
+        // notify the database nodes about the path of the replay branch
         LOGGER.warn("Sending new path: " + path);
-        sendNewRedoBranch(path);
+        sendNewReplayBranch(path);
 
-        // Get execution list
+        // // Get execution list
         LOGGER.warn("Get the excution list");
-        ExecListWrapper execListWrapper = graph.replay(parentCommit, replayMode, attackSource);
+        ExecListWrapper execListWrapper = graph.replay(parentSnapshot, replayMode, attackSource);
         LOGGER.warn("Got the excution list");
 
         long biggest = execListWrapper.latestRequest;
-
-        // TODO invoke the infrastructure to start the replay nodes, get their addresses
-        // and set as target
-        // infrastructrure.startReplay()
+        System.out.println("Biggest request executed: " + biggest);
+        // TODO invoke the infrastructure to start the replay nodes, get their
+        // addresses and set as target infrastructrure.startReplay()
         LOGGER.warn("Will replay " + countRequests(execListWrapper.list) + " requests");
 
         orderNodesToReplay(execListWrapper.list, newBranch, replayMode);
@@ -120,25 +125,31 @@ public class Manager {
 
         // enable restrain in the proxy (should be done at the end)
         long smallestIdWithRestrain = enableRestrain();
-        LOGGER.warn("Restrain enabled");
+        LOGGER.warn("Restrain enabled, current proxy timestamp is: " + smallestIdWithRestrain);
 
+        /**
+         * Wait for all dependencies to arrive
+         */
+        Thread.sleep(WAIT_FOR_DEPENDENCIES);
 
         // Get the requests left
         execListWrapper = graph.replay(biggest, replayMode, attackSource);
+        LOGGER.warn("before truncate: " + countRequests(execListWrapper.list) + " requests");
 
         truncateList(execListWrapper.list, smallestIdWithRestrain);
         LOGGER.warn("Will replay the remaining" + countRequests(execListWrapper.list) + " requests");
+        debugExecutionList(execListWrapper.list);
+
         orderNodesToReplay(execListWrapper.list, newBranch, replayMode);
 
         LOGGER.warn("Requests performed during the replay are replayed");
 
         // disable retrain and change to new branch
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE);
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setReplayOver(true).build(), NodeGroup.DATABASE);
         LOGGER.warn("Set new branch: " + newBranch);
         group.send(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY);
         LOGGER.info("Replay is over");
     }
-
 
     private int countRequests(List<List<Long>> lists) {
         int counter = 0;
@@ -172,11 +183,11 @@ public class Manager {
         }
     }
 
-    private void sendNewRedoBranch(LinkedList<BranchNode> path) throws Exception {
+    private void sendNewReplayBranch(LinkedList<BranchNode> path) throws Exception {
         FromManagerProto.ToDataNode.Builder b = FromManagerProto.ToDataNode.newBuilder();
         for (BranchNode n : path) {
             b.addPathBranch(n.branch);
-            b.addPathCommit(n.commit);
+            b.addPathSnapshot(n.snapshot);
         }
         group.broadcastWithAck(b.build(), NodeGroup.DATABASE);
     }
@@ -190,20 +201,7 @@ public class Manager {
         List<InetSocketAddress> replayInstances = group.getReplayInstances();
 
         execLists = setUpperLimitOfConcurrentThreads(execLists, replayInstances.size());
-
-        // StringBuilder sb = new StringBuilder();
-        // for (List<Long> execList : execLists) {
-        // if (execList == null || execList.size() == 0)
-        // continue;
-        // sb.append("[");
-        // for (Long l : execList) {
-        // sb.append(l);
-        // sb.append(",");
-        // }
-        // sb.append("]\n");
-        //
-        // }
-        // Log.info("replay list: " + sb.toString());
+        // debugExecutionList(execLists);
 
         int i = 0;
         for (List<Long> execList : execLists) {
@@ -239,6 +237,9 @@ public class Manager {
         ackWaiter.waitUntilZero();
         return true;
     }
+
+
+
 
     /**
      * Checks if the number of exec lists is not bigger than the expected maximum number
@@ -276,12 +277,12 @@ public class Manager {
 
 
 
-    public void newCommit(long commit) throws Exception {
-        branches.addCommit(commit);
-        ToDataNode msg = FromManagerProto.ToDataNode.newBuilder().setNewCommit(commit).build();
+    public void newSnapshot(long snapshot) throws Exception {
+        branches.addSnapshot(snapshot);
+        ToDataNode msg = FromManagerProto.ToDataNode.newBuilder().setNewSnapshot(snapshot).build();
         group.broadcast(msg, NodeGroup.DATABASE);
-        String dateString = new SimpleDateFormat("H:m:S").format(new Date(commit));
-        new NotifyEvent("Commit done: " + dateString, commit).start();
+        String dateString = new SimpleDateFormat("H:m:S").format(new Date(snapshot));
+        new NotifyEvent("Snapshot done: " + dateString, snapshot).start();
     }
 
     public void deleteBranch(Short branch) {
@@ -292,14 +293,14 @@ public class Manager {
         group.send(FromManagerProto.ProxyMsg.newBuilder().setBranch(branchId).setRestrain(false).build(), NodeGroup.PROXY);
     }
 
-    public void newBranch(long parentCommit, short parentBranch) throws Exception {
-        LOGGER.info("Create branch based on branch: " + parentBranch + " and commit: " + parentCommit);
+    public void newBranch(long parentSnapshot, short parentBranch) throws Exception {
+        LOGGER.info("Create branch based on branch: " + parentBranch + " and snapshot: " + parentSnapshot);
 
-        short newBranch = branches.fork(parentCommit, parentBranch);
-        LinkedList<BranchNode> path = branches.getPath(parentCommit, newBranch);
-        // notify the database nodes about the path of the redo branch
-        sendNewRedoBranch(path);
-        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setRedoOver(true).build(), NodeGroup.DATABASE);
+        short newBranch = branches.fork(parentSnapshot, parentBranch);
+        LinkedList<BranchNode> path = branches.getPath(parentSnapshot, newBranch);
+        // notify the database nodes about the path of the replay branch
+        sendNewReplayBranch(path);
+        group.broadcast(FromManagerProto.ToDataNode.newBuilder().setReplayOver(true).build(), NodeGroup.DATABASE);
         LOGGER.warn("Set new branch: " + newBranch);
         group.send(FromManagerProto.ProxyMsg.newBuilder().setBranch(newBranch).setRestrain(false).build(), NodeGroup.PROXY);
         LOGGER.info("Branch is created");
@@ -371,7 +372,7 @@ public class Manager {
     public void resetBranch() {
         branches = new BranchTree();
         try {
-            group.send(FromManagerProto.ProxyMsg.newBuilder().setBranch(0).setCommit(0).build(), NodeGroup.PROXY);
+            group.send(FromManagerProto.ProxyMsg.newBuilder().setBranch(0).setSnapshot(0).build(), NodeGroup.PROXY);
         } catch (Exception e) {
             LOGGER.error("Proxy not available");
         }
@@ -387,7 +388,21 @@ public class Manager {
 
     }
 
+    private void debugExecutionList(List<List<Long>> execLists) {
+        StringBuilder sb = new StringBuilder();
+        for (List<Long> execList : execLists) {
+            if (execList == null || execList.size() == 0)
+                continue;
+            sb.append("[");
+            for (Long l : execList) {
+                sb.append(l);
+                sb.append(",");
+            }
+            sb.append("]\n");
 
+        }
+        LOGGER.info("replay list: " + sb.toString());
+    }
 
 
 }
