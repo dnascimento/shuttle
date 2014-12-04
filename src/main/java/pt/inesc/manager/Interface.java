@@ -1,4 +1,5 @@
 /*
+ * 
  * Author: Dario Nascimento (dario.nascimento@tecnico.ulisboa.pt)
  * 
  * Instituto Superior Tecnico - University of Lisbon - INESC-ID Lisboa
@@ -123,10 +124,10 @@ public class Interface extends
             System.out.println(manager.graph);
             break;
         case 'c':
-            Pair<Short, Long> pair = collectBranchAndSnapshot(s);
-            if (pair == null)
+            Long parentSnapshot = collectSnapshot(s);
+            if (parentSnapshot == null)
                 return;
-            manager.newBranch(pair.v2, pair.v1);
+            manager.newBranch(parentSnapshot);
             break;
         case 'd':
             System.out.println("Enter the branch number:");
@@ -150,11 +151,9 @@ public class Interface extends
 
     private void snapshot(Scanner s) throws Exception {
         System.out.println("Enter snapshot instant (time (secounds) from now):");
-        long delay = Long.parseLong(s.nextLine());
-        long instant = System.currentTimeMillis() + (delay * 1000);
-        manager.newSnapshot(instant);
-        String dateString = new SimpleDateFormat("H:m:S").format(new Date(instant));
-        System.out.println("Snapshot scheduled to: " + dateString);
+        long delaySeconds = Long.parseLong(s.nextLine());
+        manager.newSnapshot(delaySeconds);
+        System.out.println("Snapshot scheduled");
     }
 
 
@@ -301,11 +300,9 @@ public class Interface extends
     }
 
     private void replay(Scanner s) throws Exception {
-        Pair<Short, Long> pair = collectBranchAndSnapshot(s);
-        if (pair == null)
+        Long snapshot = collectSnapshot(s);
+        if (snapshot == null)
             return;
-        long snapshot = pair.v2;
-        short branch = pair.v1;
 
         System.out.println("Enter the recovery mode: \n 0- all in serial \n 1- all in parallel \n 2- selective in serial \n 3 - selective in parallel, use 10 11 12 13 to see the execution list");
         int opt = Integer.parseInt(s.nextLine());
@@ -334,16 +331,15 @@ public class Interface extends
                 }
             }
         } else {
-            manager.replay(snapshot, branch, replayMode, attackSource);
+            manager.replay(snapshot, replayMode, attackSource);
         }
     }
 
-    private Pair<Short, Long> collectBranchAndSnapshot(Scanner s) throws Exception {
+    private Long collectSnapshot(Scanner s) throws Exception {
         boolean showed = false;
-        Short branch = 0;
         Long snapshot = 0L;
         while (true) {
-            System.out.println("Select base branch and snapshot (press enter to visualize the tree):");
+            System.out.println("Select base snapshot (press enter to visualize the tree):");
             String line = s.nextLine();
             if (line.isEmpty()) {
                 if (showed) {
@@ -354,14 +350,10 @@ public class Interface extends
                     continue;
                 }
             }
-            String[] args = line.split(" ");
-            if (args.length != 2)
-                throw new Exception("invalid arguments");
-            branch = Short.parseShort(args[0]);
-            snapshot = Long.parseLong(args[1]);
+            snapshot = Long.parseLong(line);
             break;
         }
-        return new Pair<Short, Long>(branch, snapshot);
+        return new Long(snapshot);
     }
 
     private void requests(Scanner s) throws Exception {

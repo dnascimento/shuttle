@@ -75,18 +75,12 @@ public class ServiceProxy extends
     private void receive(Socket socket) throws IOException {
         log.info("New service command");
         ProxyMsg msg = FromManagerProto.ProxyMsg.parseDelimitedFrom(socket.getInputStream());
-        if (msg.hasSnapshot()) {
-            short branch = (short) msg.getBranch();
-            long snapshot = msg.getSnapshot();
-            proxy.reset(branch, snapshot);
-            return;
-        }
 
         if (msg.hasTimeTravel()) {
             // time travel
             proxy.timeTravel(msg.getTimeTravel());
         }
-        if (msg.hasBranch() || msg.hasRestrain()) {
+        if (msg.hasBranch() && msg.hasRestrain()) {
             short branch = (short) msg.getBranch();
             boolean restrain = msg.getRestrain();
             long currentInstant = proxy.setBranchAndRestrain(branch, restrain);

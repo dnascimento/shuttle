@@ -43,7 +43,7 @@ import pt.inesc.undo.proto.ToManagerProto.MsgToManager.NodeRegistryMsg.NodeGroup
 public class ReplayNode extends
         Thread {
     private static final Logger log = LogManager.getLogger(ReplayNode.class.getName());
-    private static final int N_WORKERS = 30;
+    private static final int N_WORKERS = 50;
     protected ExecutorService threadPool = Executors.newFixedThreadPool(N_WORKERS);
     private List<String> errors = new LinkedList<String>();
     private ArrayList<ReplayWorker> workers = new ArrayList<ReplayWorker>();

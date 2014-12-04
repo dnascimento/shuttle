@@ -341,29 +341,39 @@ public class GraphShuttle
 
     public String getTotalByteSize(boolean byteSize) {
         StringBuilder sb = new StringBuilder();
-
+        map.deleteIterator();
         if (byteSize) {
             System.out.println("Get footprint");
             Footprint footPrint = ObjectGraphMeasurer.measure(map.getMap());
+            System.out.println("\n \n \n \n /************** Graph Total Size ******************\\");
+            System.out.println("Total: \n" + "    " + footPrint);
             System.out.println("Get memory usage");
             long memory = MemoryMeasurer.measureBytes(map.getMap());
-            sb.append("\n \n \n \n /************** Graph Total Size ******************\\\n");
-            sb.append("Total: \n" + "    " + footPrint + "\n");
-            sb.append("     memory" + memory + " bytes\n");
-            sb.append("------\n");
+            System.out.println("     memory" + memory + " bytes");
+            System.out.println("------");
         }
         int before = 0;
         int after = 0;
         int count = 0;
         for (Dependency dep : map) {
             count++;
+            System.out.println("Before bytes: " + MemoryMeasurer.measureBytes(dep.before));
+            System.out.println("Before size: " + dep.before.size());
+
+            System.out.println("After bytes: " + MemoryMeasurer.measureBytes(dep.after));
+            System.out.println("After size: " + dep.after.size());
+
+            System.out.println("Total size of item: " + MemoryMeasurer.measureBytes(dep));
             before += dep.before.size();
             after += dep.after.size();
         }
-        sb.append("Total Before: " + before + " \n");
-        sb.append("Total After: " + after + " \n");
-        sb.append("Total entries: " + count + "\n");
-        sb.append("/********************************\\ \n \n \n \n ");
+
+
+
+        System.out.println("Total Before: " + before + " \n");
+        System.out.println("Total After: " + after + " \n");
+        System.out.println("Total entries: " + count + "\n");
+        System.out.println("/********************************\\ \n \n \n \n ");
         return sb.toString();
     }
 

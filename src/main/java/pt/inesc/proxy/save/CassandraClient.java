@@ -6,7 +6,12 @@
  */
 package pt.inesc.proxy.save;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.FileSystems;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -279,6 +284,7 @@ public class CassandraClient {
         long count = 0;
 
         Iterator<Row> iter = rs.iterator();
+        int countKeys = 0;
         while (iter.hasNext()) {
             if (rs.getAvailableWithoutFetching() == 100 && !rs.isFullyFetched())
                 rs.fetchMoreResults();
@@ -304,18 +310,63 @@ public class CassandraClient {
             List<String> keys = row.getList(COL_KEYS, String.class);
             for (String key : keys) {
                 totalKeys += key.getBytes().length;
+                countKeys += keys.size();
             }
         }
 
         StringBuilder sb = new StringBuilder();
 
         sb.append("Total cassandra size (bytes): " + (totalKeys + totalIds + totalRequests + totalResponses));
-        sb.append("Keys: " + totalKeys);
-        sb.append("Ids: " + totalIds);
-        sb.append("Requests: " + totalRequests);
-        sb.append("Response: " + totalResponses);
+        sb.append("Keys (bytes): " + totalKeys);
+        sb.append("Ids (bytes): " + totalIds);
+        sb.append("Requests (bytes): " + totalRequests);
+        sb.append("Response (bytes): " + totalResponses);
         sb.append("Number of rows: " + count);
+        sb.append("Number of keys: " + countKeys);
         return sb.toString();
+    }
+
+
+    public void toFiles() throws IOException {
+        FileChannel requestOut = FileChannel.open(FileSystems.getDefault().getPath("requests.txt"),
+                                                  StandardOpenOption.CREATE,
+                                                  StandardOpenOption.TRUNCATE_EXISTING);
+        FileChannel responseOut = FileChannel.open(FileSystems.getDefault().getPath("responses.txt"),
+                                                   StandardOpenOption.CREATE,
+                                                   StandardOpenOption.TRUNCATE_EXISTING);
+        FileWriter keyOut = new FileWriter("keys.txt");
+        FileWriter indexes = new FileWriter("indexes.txt");
+
+
+        String query = "select * from " + TABLE_NAME + " LIMIT " + Integer.MAX_VALUE;
+        ResultSet rs = session.execute(query);
+        Iterator<Row> iter = rs.iterator();
+        while (iter.hasNext()) {
+            if (rs.getAvailableWithoutFetching() == 100 && !rs.isFullyFetched())
+                rs.fetchMoreResults();
+            Row row = iter.next();
+
+            indexes.write(new Long(row.getLong(COL_ID)).toString());
+            indexes.write(new Long(row.getLong(COL_END)).toString());
+            indexes.write("\n");
+
+            ByteBuffer request = row.getBytes(COL_REQUEST);
+            ByteBuffer response = row.getBytes(COL_RESPONSE);
+
+            requestOut.write(request);
+            responseOut.write(response);
+
+            List<String> keys = row.getList(COL_KEYS, String.class);
+            for (String key : keys) {
+                keyOut.write(key);
+            }
+            keyOut.write("\n");
+        }
+
+        requestOut.close();
+        responseOut.close();
+        keyOut.close();
+        indexes.close();
     }
 
     public static void main(String[] args) {

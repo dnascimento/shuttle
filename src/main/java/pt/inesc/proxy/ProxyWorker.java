@@ -76,8 +76,8 @@ public class ProxyWorker extends
     private static final boolean logging = true;
     private static final boolean stamping = true;
 
-    private static final double MULTIPLICATION_FACTOR = getMultiplicationFactor();
-    private static final int TIMESTAMP_SIZE = 16;
+    public static final double MULTIPLICATION_FACTOR = getMultiplicationFactor();
+    public static final int TIMESTAMP_SIZE = 16;
 
     private static long lastTime;
 
@@ -534,7 +534,7 @@ public class ProxyWorker extends
         return diff;
     }
 
-    private static int countDigits(long v) {
+    public static int countDigits(long v) {
         int i = 1;
         while (v >= 10) {
             v = v / 10;

@@ -10,16 +10,20 @@ message ToDataNode{
 	optional int64 newSnapshot = 1;
 	optional bool resetDependencies = 2;
 	optional bool replayOver = 3;
-	repeated int32 pathBranch = 4;
-	repeated int64 pathSnapshot = 5;
-	optional EntryAccessesMsg entryAccessesMsg = 6;
-	optional bool showStats = 7;
-	optional bool showMap = 8;
+	optional BranchPath branchPath = 4;
+	optional EntryAccessesMsg entryAccessesMsg = 5;
+	optional bool showStats = 6;
+	optional bool showMap = 7;
+ 
 	message EntryAccessesMsg{
 		repeated bytes keys = 1;
 		required int64 baseRid = 2;
 	}
-
+	message BranchPath{
+		required int32 branch = 1;
+		required int64 latestVersion = 2;
+		repeated int64 versions = 3;
+	}
 }
 
 
@@ -39,5 +43,4 @@ message ProxyMsg{
 	optional int32 branch = 1;
 	optional bool restrain = 2;
 	optional int64 timeTravel = 3;
-	optional int64 snapshot = 4;
 }

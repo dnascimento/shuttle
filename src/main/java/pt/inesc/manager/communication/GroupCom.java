@@ -11,6 +11,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.log4j.LogManager;
@@ -39,7 +40,8 @@ public class GroupCom {
         applicationServers.add(SharedProperties.LOAD_BALANCER_ADDRESS);
         proxyList.add(new InetSocketAddress("proxy", SharedProperties.PROXY_PORT));
         replayInstancesList.add(new InetSocketAddress("replay", SharedProperties.REPLAY_PORT));
-        databaseList.add(new InetSocketAddress("database", SharedProperties.DATABASE_PORT));
+        // databaseList.add(new InetSocketAddress("database",
+        // SharedProperties.DATABASE_PORT));
     }
 
     /**
@@ -72,7 +74,7 @@ public class GroupCom {
      * 
      * @throws IOException
      */
-    public void broadcast(Message msg, NodeGroup group) throws Exception {
+    public void send(Message msg, NodeGroup group) throws Exception {
         // TODO may be optimized to use a socket pool or assync channels...
         for (InetSocketAddress addr : getGroup(group)) {
             send(msg, addr);
@@ -85,30 +87,28 @@ public class GroupCom {
      * 
      * @throws IOException
      */
-    public void broadcastWithAck(Message msg, NodeGroup group) throws Exception {
+    public void sendWithAck(Message msg, NodeGroup group) throws Exception {
+        List<MsgToManager> responses = sendWithResponse(msg, group);
+
         // TODO may be optimized to use a socket pool or assync channels...
-        for (InetSocketAddress addr : getGroup(group)) {
-            MsgToManager.AckMsg ack = sendWithResponse(msg, addr).getAck();
+        for (MsgToManager r : responses) {
+            MsgToManager.AckMsg ack = r.getAck();
             for (String s : ack.getExceptionList()) {
                 System.err.println(s);
             }
         }
     }
 
-    public MsgToManager sendWithResponse(Message msg, NodeGroup group) throws Exception {
+    public List<MsgToManager> sendWithResponse(Message msg, NodeGroup group) throws Exception {
         ArrayList<InetSocketAddress> g = getGroup(group);
+        LinkedList<MsgToManager> responseList = new LinkedList<MsgToManager>();
         if (g.isEmpty()) {
             throw new IOException("No nodes in group " + group);
         }
-        return sendWithResponse(msg, g.get(0));
-    }
-
-    public void send(Message msg, NodeGroup group) throws Exception {
-        ArrayList<InetSocketAddress> g = getGroup(group);
-        if (g.isEmpty()) {
-            throw new IOException("No nodes in group " + group);
+        for (InetSocketAddress addr : g) {
+            responseList.add(sendWithResponse(msg, addr));
         }
-        send(msg, g.get(0));
+        return responseList;
     }
 
     public void send(Message msg, InetSocketAddress addr) throws Exception {
@@ -154,6 +154,9 @@ public class GroupCom {
 
 
     public int countReplayNodes() {
+        for (InetSocketAddress a : replayInstancesList) {
+            System.out.println(a.getHostName());
+        }
         return replayInstancesList.size();
     }
 
